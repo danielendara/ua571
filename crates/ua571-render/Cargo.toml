@@ -1,0 +1,13 @@
+[package]
+name = "ua571-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "GRiD-faithful monochrome framebuffer renderer for UA 571-C"
+readme = "../../README.md"
+
+[dependencies]
+ua571-core = { workspace = true }

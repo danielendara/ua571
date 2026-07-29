@@ -1,0 +1,21 @@
+[package]
+name = "ua571-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Domain logic and simulation for the UA 571-C Remote Sentry Weapon System console recreation"
+readme = "../../README.md"
+keywords = ["aliens", "sentry", "simulation", "tui"]
+categories = ["games", "simulation"]
+
+[dependencies]
+serde = { workspace = true, optional = true }
+# Instant that works on native + wasm32-unknown-unknown (browser).
+web-time = { workspace = true }
+
+[features]
+default = ["serde"]
+serde = ["dep:serde"]

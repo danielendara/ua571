@@ -1,0 +1,37 @@
+[package]
+name = "ua571-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "WebAssembly + HTML Canvas frontend for the UA 571-C console"
+readme = "../../README.md"
+keywords = ["aliens", "sentry", "wasm", "web"]
+categories = ["wasm", "games"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+ua571-core = { workspace = true }
+ua571-render = { workspace = true }
+wasm-bindgen = { workspace = true }
+js-sys = { workspace = true }
+console_error_panic_hook = { workspace = true }
+web-time = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+    "console",
+    "Window",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
+    "ImageData",
+    "CssStyleDeclaration",
+    "KeyboardEvent",
+]

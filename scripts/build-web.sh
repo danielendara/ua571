@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Build ua571-web for the browser and emit JS glue into web/pkg/
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+TARGET="${TARGET:-wasm32-unknown-unknown}"
+PROFILE_FLAG="${PROFILE_FLAG:---release}"
+OUT_DIR="${OUT_DIR:-web/pkg}"
+
+if ! command -v rustup >/dev/null; then
+  echo "rustup required" >&2
+  exit 1
+fi
+
+rustup target add "$TARGET" >/dev/null
+
+if ! command -v wasm-bindgen >/dev/null; then
+  echo "Installing wasm-bindgen-cli 0.2.100..."
+  cargo install wasm-bindgen-cli --version 0.2.100 --locked
+fi
+
+echo "→ cargo build -p ua571-web --target $TARGET $PROFILE_FLAG"
+cargo build -p ua571-web --target "$TARGET" $PROFILE_FLAG
+
+if [[ "$PROFILE_FLAG" == "--release" ]]; then
+  WASM_PATH="target/$TARGET/release/ua571_web.wasm"
+else
+  WASM_PATH="target/$TARGET/debug/ua571_web.wasm"
+fi
+
+mkdir -p "$OUT_DIR"
+echo "→ wasm-bindgen → $OUT_DIR"
+wasm-bindgen "$WASM_PATH" \
+  --target web \
+  --out-dir "$OUT_DIR" \
+  --out-name ua571_web
+
+echo "Done. Serve the web/ directory, e.g.:"
+echo "  python3 -m http.server 8080 --directory web"
+echo "  open http://localhost:8080"

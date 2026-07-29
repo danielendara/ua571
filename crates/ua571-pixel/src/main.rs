@@ -1,0 +1,241 @@
+//! GRiD-faithful pixel frontend for UA 571-C.
+//!
+//! Fixed 640×240 monochrome logical canvas (coordinates from the GRiD Pascal
+//! recreation), nearest-neighbor scaled into a phosphor-tinted window.
+
+use std::fs;
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
+
+use clap::Parser;
+use color_eyre::eyre::{eyre, Result, WrapErr};
+use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
+use ua571_core::{AppState, Config, Screen, Theme, WeaponStatus};
+use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
+
+#[derive(Debug, Parser)]
+#[command(
+    name = "ua571-pixel",
+    about = "GRiD-style pixel UI for the UA 571-C console (closest to the original display)"
+)]
+struct Cli {
+    /// Color theme: phosphor | amber | mono
+    #[arg(short, long, default_value = "phosphor")]
+    theme: String,
+
+    /// Starting rounds per sentry
+    #[arg(short, long)]
+    rounds: Option<u16>,
+
+    /// UI tick interval ms
+    #[arg(long)]
+    tick_ms: Option<u64>,
+
+    /// Skip boot splash
+    #[arg(long)]
+    no_boot: bool,
+
+    /// Start demo after boot
+    #[arg(long)]
+    demo: bool,
+
+    /// Integer scale of the 640×240 canvas (1–6). Default 2.
+    #[arg(short = 's', long, default_value_t = 2)]
+    scale: u8,
+
+    #[arg(short, long)]
+    config: Option<PathBuf>,
+}
+
+fn main() -> Result<()> {
+    color_eyre::install()?;
+    let cli = Cli::parse();
+    let config = load_config(&cli)?;
+    let (on, off) = theme_colors(config.theme);
+
+    let scale = cli.scale.clamp(1, 6) as usize;
+    let win_w = WIDTH * scale;
+    let win_h = HEIGHT * scale;
+
+    let mut window = Window::new(
+        "UA 571-C Remote Sentry Weapon System",
+        win_w,
+        win_h,
+        WindowOptions {
+            resize: true,
+            scale: Scale::X1,
+            scale_mode: ScaleMode::Stretch,
+            ..WindowOptions::default()
+        },
+    )
+    .map_err(|e| eyre!("window: {e}"))?;
+
+    window.set_target_fps(60);
+
+    let mut state = AppState::new(config);
+    let mut fb = Framebuffer::new();
+    let mut buffer = vec![0u32; win_w * win_h];
+    let mut last_tick = Instant::now();
+    let tick_rate = Duration::from_millis(state.config.tick_ms);
+
+    while window.is_open() && !state.should_quit {
+        let (ww, wh) = window.get_size();
+        if buffer.len() != ww * wh {
+            buffer.resize(ww * wh, 0);
+        }
+
+        handle_input(&window, &mut state);
+
+        if last_tick.elapsed() >= tick_rate {
+            state.tick();
+            last_tick = Instant::now();
+        }
+
+        render(&state, &mut fb);
+        fb.present_scaled(&mut buffer, ww, wh, on, off);
+        window
+            .update_with_buffer(&buffer, ww, wh)
+            .map_err(|e| eyre!("present: {e}"))?;
+    }
+
+    Ok(())
+}
+
+fn handle_input(window: &Window, state: &mut AppState) {
+    if state.screen == Screen::Boot {
+        if !window.get_keys_pressed(KeyRepeat::No).is_empty() {
+            state.skip_boot();
+        }
+        return;
+    }
+
+    let pressed = |k: Key| window.is_key_pressed(k, KeyRepeat::No);
+
+    if pressed(Key::Q) {
+        state.quit();
+        return;
+    }
+
+    if pressed(Key::D) {
+        state.toggle_demo();
+    }
+    if pressed(Key::F) {
+        state.stop_demo();
+        state.set_screen(Screen::Fire);
+    }
+    if pressed(Key::O) || pressed(Key::Escape) {
+        state.stop_demo();
+        state.set_screen(Screen::Options);
+    }
+    if pressed(Key::A) {
+        state.stop_demo();
+        toggle_arm(state);
+    }
+    if pressed(Key::R) {
+        state.stop_demo();
+        state.reload();
+    }
+    if pressed(Key::Key1) {
+        state.stop_demo();
+        state.select_sentry(0);
+    }
+    if pressed(Key::Key2) {
+        state.stop_demo();
+        state.select_sentry(1);
+    }
+    if pressed(Key::Key3) {
+        state.stop_demo();
+        state.select_sentry(2);
+    }
+    if pressed(Key::Key4) {
+        state.stop_demo();
+        state.select_sentry(3);
+    }
+
+    if state.screen == Screen::Options {
+        if pressed(Key::Left) || pressed(Key::H) {
+            state.stop_demo();
+            state.focus_prev_section();
+        }
+        if pressed(Key::Right) || pressed(Key::L) {
+            state.stop_demo();
+            state.focus_next_section();
+        }
+        if pressed(Key::Up) || pressed(Key::K) {
+            state.stop_demo();
+            state.select_up();
+        }
+        if pressed(Key::Down) || pressed(Key::J) {
+            state.stop_demo();
+            state.select_down();
+        }
+    }
+
+    if pressed(Key::Enter) || pressed(Key::Space) {
+        state.stop_demo();
+        match state.screen {
+            Screen::Fire => {
+                let _ = state.fire();
+            }
+            Screen::Options => state.set_screen(Screen::Fire),
+            Screen::Boot => {}
+        }
+    }
+}
+
+fn toggle_arm(state: &mut AppState) {
+    if let Some(s) = state.active_sentry_mut() {
+        s.options.weapon_status = match s.options.weapon_status {
+            WeaponStatus::Safe => WeaponStatus::Armed,
+            WeaponStatus::Armed => WeaponStatus::Safe,
+        };
+        let id = s.id;
+        match s.options.weapon_status {
+            WeaponStatus::Armed => state.log.push(ua571_core::LogKind::Armed { sentry: id }),
+            WeaponStatus::Safe => state.log.push(ua571_core::LogKind::Safe { sentry: id }),
+        }
+    }
+}
+
+fn theme_colors(theme: Theme) -> (u32, u32) {
+    match theme {
+        Theme::Phosphor => (0x00_50_FA_7B, 0x00_00_00_00),
+        Theme::Amber => (0x00_FF_B0_00, 0x00_00_00_00),
+        Theme::Mono => (0x00_E0_E0_E0, 0x00_00_00_00),
+    }
+}
+
+fn load_config(cli: &Cli) -> Result<Config> {
+    let mut config = if let Some(path) = &cli.config {
+        load_toml(path)?
+    } else if let Some(path) = dirs::config_dir().map(|d| d.join("ua571").join("config.toml")) {
+        if path.exists() {
+            load_toml(&path)?
+        } else {
+            Config::default()
+        }
+    } else {
+        Config::default()
+    };
+
+    config.theme =
+        Theme::parse(&cli.theme).ok_or_else(|| eyre!("unknown theme '{}'", cli.theme))?;
+    if let Some(r) = cli.rounds {
+        config.starting_rounds = r;
+    }
+    if let Some(t) = cli.tick_ms {
+        config.tick_ms = t;
+    }
+    if cli.no_boot {
+        config.show_boot = false;
+    }
+    if cli.demo {
+        config.demo_on_start = true;
+    }
+    Ok(config.validate())
+}
+
+fn load_toml(path: &PathBuf) -> Result<Config> {
+    let text = fs::read_to_string(path).wrap_err_with(|| format!("read {}", path.display()))?;
+    toml::from_str(&text).wrap_err_with(|| format!("parse {}", path.display()))
+}

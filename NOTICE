@@ -1,0 +1,28 @@
+ua571
+=====
+
+Copyright (c) 2026 Daniel Endara
+
+This project is an unofficial fan recreation of the UA 571-C Remote Sentry
+Weapon System operator console as depicted in the film Aliens (1986) and its
+Special Edition. It is not affiliated with, endorsed by, or connected to
+20th Century Studios, The Walt Disney Company, Fox, James Cameron, or any
+rights holders of the Alien franchise.
+
+Inspiration and prior art
+-------------------------
+
+Behavior and panel layout were informed by the open-source GRiD-OS recreation:
+
+  UA571C by Thom Cherryhomes (tschak909)
+  https://github.com/tschak909/UA571C
+  Licensed under the GNU General Public License v3.0
+
+Thank you to Thom for publishing UA571C and for work resurrecting GRiD
+development tools. That recreation provided a concrete reference for layout
+and operator-panel behavior beyond film stills alone.
+
+This Rust project is a clean-room modernization: new source, new architecture,
+and no GRiD-OS binaries or proprietary toolchains are distributed here.
+
+The original film prop displays used GRiD Compass II hardware on set.
