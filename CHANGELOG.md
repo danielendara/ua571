@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Relicensed from MIT to **GPL-3.0-only** at the preference of Thom Cherryhomes (UA571C author)
+
 ## [0.1.0] — 2026-07-29
 
 ### Added
@@ -18,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/build-web.sh` for wasm-bindgen packaging
 - Themes: phosphor, amber, mono
 - CI on Linux, macOS, and Windows (fmt, clippy, test, release build)
-- MIT license, NOTICE (film disclaimer + UA571C credit), CONTRIBUTING
+- License, NOTICE (film disclaimer + UA571C credit), CONTRIBUTING
 
 ### Notes
 
