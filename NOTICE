@@ -3,6 +3,10 @@ ua571
 
 Copyright (c) 2026 Daniel Endara
 
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, version 3 of the License only. See the LICENSE file.
+
 This project is an unofficial fan recreation of the UA 571-C Remote Sentry
 Weapon System operator console as depicted in the film Aliens (1986) and its
 Special Edition. It is not affiliated with, endorsed by, or connected to
@@ -20,7 +24,8 @@ Behavior and panel layout were informed by the open-source GRiD-OS recreation:
 
 Thank you to Thom for publishing UA571C and for work resurrecting GRiD
 development tools. That recreation provided a concrete reference for layout
-and operator-panel behavior beyond film stills alone.
+and operator-panel behavior beyond film stills alone. This project uses
+GPL-3.0 at his preference so the license family matches UA571C.
 
 This Rust project is a clean-room modernization: new source, new architecture,
 and no GRiD-OS binaries or proprietary toolchains are distributed here.

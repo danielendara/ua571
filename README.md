@@ -5,7 +5,7 @@
 Unofficial fan project. **Not affiliated with** 20th Century Studios, Disney, Fox, James Cameron, or any *Alien* franchise rights holders.
 
 [![CI](https://github.com/danielendara/ua571/actions/workflows/ci.yml/badge.svg)](https://github.com/danielendara/ua571/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
 Three frontends share one simulation core:
 
@@ -138,6 +138,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[GPL-3.0](LICENSE) — same family as Thom’s UA571C, at his preference.
 
-If the upstream author prefers this project under GPL-3 to match UA571C, the license can be revisited; attribution remains either way.
+Copyright (c) 2026 Daniel Endara. See [NOTICE](NOTICE) for film disclaimer and upstream credit.
