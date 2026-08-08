@@ -56,11 +56,22 @@ fn draw_header(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: 
 
     let screen = Span::styled(format!(" {} ", state.screen.label()), theme.accent_style());
 
+    // Sentry 1→A … 4→D (matches pixel/web circled unit marks).
+    let mark = match state.active_sentry().id {
+        1 => 'A',
+        2 => 'B',
+        3 => 'C',
+        4 => 'D',
+        _ => 'A',
+    };
+    let mark_l = format!(" ({mark}) ");
+    let mark_r = format!("({mark}) ");
+
     let title = Line::from(vec![
-        Span::styled(" (A) ", theme.accent_style()),
+        Span::styled(mark_l, theme.accent_style()),
         Span::styled("UA 571-C", theme.title().add_modifier(Modifier::BOLD)),
         Span::styled("  REMOTE SENTRY WEAPON SYSTEM  ", theme.base()),
-        Span::styled("(A) ", theme.accent_style()),
+        Span::styled(mark_r, theme.accent_style()),
         screen,
         demo,
         Span::styled(format!("  [{}] ", theme.kind.as_str()), theme.dim_style()),

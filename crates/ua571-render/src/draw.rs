@@ -13,20 +13,31 @@ pub fn render(state: &AppState, fb: &mut Framebuffer) {
     match state.screen {
         Screen::Boot => draw_boot(state, fb),
         Screen::Options => {
-            draw_header(fb);
+            draw_header(state, fb);
             draw_options(state, fb);
             draw_status_strip(state, fb);
         }
         Screen::Fire => {
-            draw_header(fb);
+            draw_header(state, fb);
             draw_fire(state, fb);
             draw_status_strip(state, fb);
         }
     }
 }
 
-/// HEADER.PAS DisplayHeader + DrawA
-fn draw_header(fb: &mut Framebuffer) {
+/// Sentry 1→A … 4→D (circled unit marks in the header).
+fn sentry_mark(id: u8) -> char {
+    match id {
+        1 => 'A',
+        2 => 'B',
+        3 => 'C',
+        4 => 'D',
+        _ => 'A',
+    }
+}
+
+/// HEADER.PAS DisplayHeader + circled unit letter for the active sentry.
+fn draw_header(state: &AppState, fb: &mut Framebuffer) {
     // Title centered-ish at original positions (scaled fonts approximate Tb12x16 / Tb24x32).
     let title = "UA 571-C";
     let tw = Framebuffer::text_width(title, HEADER_SCALE);
@@ -36,17 +47,23 @@ fn draw_header(fb: &mut Framebuffer) {
     let sw = Framebuffer::text_width(sub, SECTION_SCALE);
     fb.draw_text(sub, (WIDTH as i32 - sw) / 2, 20, SECTION_SCALE);
 
-    // Circled A marks (original DrawA at 10,2 and 608,2).
-    draw_circled_a(fb, 10, 4);
-    draw_circled_a(fb, 608, 4);
+    // Circled unit marks — letter tracks active sentry (1=A … 4=D).
+    let mark = sentry_mark(state.active_sentry().id);
+    draw_circled_letter(fb, mark, 18, 17);
+    draw_circled_letter(fb, mark, WIDTH as i32 - 18, 17);
 
     fb.line(0, 35, WIDTH as i32 - 1, 35);
 }
 
-fn draw_circled_a(fb: &mut Framebuffer, x: i32, y: i32) {
-    fb.draw_char('A', x, y, 2);
-    // Circle around the A — original Circle(X+9, 17, 16)
-    fb.circle(x + 9, 17, 14);
+/// Draw `ch` centered inside a circle at (`cx`, `cy`).
+fn draw_circled_letter(fb: &mut Framebuffer, ch: char, cx: i32, cy: i32) {
+    let scale = 2;
+    // 8×8 glyph at scale 2 → 16×16 box; center on the circle midpoint.
+    let glyph = 8 * scale;
+    let gx = cx - glyph / 2;
+    let gy = cy - glyph / 2;
+    fb.draw_char(ch, gx, gy, scale);
+    fb.circle(cx, cy, 14);
 }
 
 /// MAINDISP.PAS DrawDisplay + selection invert rects.
