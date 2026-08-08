@@ -21,8 +21,6 @@ export class Ua571WebStack extends cdk.Stack {
     const githubRepo =
       (this.node.tryGetContext('githubRepo') as string | undefined) ??
       'danielendara/ua571';
-    const githubBranch =
-      (this.node.tryGetContext('githubBranch') as string | undefined) ?? 'main';
 
     // ── Hosting bucket (private; CloudFront OAC only) ──
     const siteBucket = new s3.Bucket(this, 'SiteBucket', {
@@ -202,40 +200,38 @@ export class Ua571WebStack extends cdk.Stack {
           clientIds: ['sts.amazonaws.com'],
         });
 
-    // Trust both branch ref and GitHub Environment subjects.
-    // Jobs that use `environment: production` present sub as
-    //   repo:ORG/REPO:environment:production
-    // not only ref:refs/heads/main.
-    const oidcAudience = {
-      StringEquals: {
-        'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-      },
-    };
+    // Trust jobs from this repository only (branch, environment, PR, etc.).
+    // Forks cannot assume (different repo in `sub`).
+    // GitHub may emit either classic `repo:owner/name:...` or the ID-based
+    // immutable form `repo:owner@ID/name@ID:...` depending on OIDC subject settings.
+    const githubOwnerId =
+      (this.node.tryGetContext('githubOwnerId') as string | undefined) ??
+      '293949';
+    const githubRepoId =
+      (this.node.tryGetContext('githubRepoId') as string | undefined) ??
+      '1315671999';
+    const [owner, name] = githubRepo.split('/');
+    const classicSub = `repo:${githubRepo}:*`;
+    const immutableSub = `repo:${owner}@${githubOwnerId}/${name}@${githubRepoId}:*`;
+
     const deployRole = new iam.Role(this, 'GitHubDeployRole', {
       roleName: 'ua571-github-deploy',
       description:
-        'GitHub Actions deploy role for ua571 web (OIDC; main / production env only)',
-      assumedBy: new iam.CompositePrincipal(
-        new iam.FederatedPrincipal(
-          oidcProvider.openIdConnectProviderArn,
-          {
-            ...oidcAudience,
-            StringLike: {
-              'token.actions.githubusercontent.com:sub': `repo:${githubRepo}:ref:refs/heads/${githubBranch}`,
-            },
+        'GitHub Actions deploy role for ua571 web (OIDC; this repository only)',
+      assumedBy: new iam.FederatedPrincipal(
+        oidcProvider.openIdConnectProviderArn,
+        {
+          StringEquals: {
+            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
           },
-          'sts:AssumeRoleWithWebIdentity',
-        ),
-        new iam.FederatedPrincipal(
-          oidcProvider.openIdConnectProviderArn,
-          {
-            ...oidcAudience,
-            StringLike: {
-              'token.actions.githubusercontent.com:sub': `repo:${githubRepo}:environment:production`,
-            },
+          StringLike: {
+            'token.actions.githubusercontent.com:sub': [
+              classicSub,
+              immutableSub,
+            ],
           },
-          'sts:AssumeRoleWithWebIdentity',
-        ),
+        },
+        'sts:AssumeRoleWithWebIdentity',
       ),
       maxSessionDuration: cdk.Duration.hours(1),
     });
