@@ -10,6 +10,22 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  secret-guard:
+    name: secret-guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block secrets / AWS context files
+        run: |
+          chmod +x scripts/check-secrets.sh
+          ./scripts/check-secrets.sh tracked
+          # Extra belt: these paths must never appear in the tree
+          if git ls-files | grep -E '(^|/)cdk\.context\.json$|(^|/)cdk\.out/|\.env$|credentials$'; then
+            echo "::error::Forbidden path is tracked by git"
+            exit 1
+          fi
+          echo "secret-guard OK"
+
   check:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

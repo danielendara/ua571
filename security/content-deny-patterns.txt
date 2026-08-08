@@ -1,0 +1,30 @@
+# Regex patterns (Rust/ripgrep/PCRE-ish; used with grep -E).
+# If any match appears in a staged/tracked text file, the commit/CI fails.
+# Keep this list about *secrets*, not public domain names.
+
+# AWS long-lived keys
+AKIA[0-9A-Z]{16}
+ASIA[0-9A-Z]{16}
+aws_secret_access_key[[:space:]]*=
+AWS_SECRET_ACCESS_KEY[[:space:]]*=
+AWS_ACCESS_KEY_ID[[:space:]]*=
+aws_access_key_id[[:space:]]*=
+
+# Private key material
+BEGIN[[:space:]]+(RSA[[:space:]]+)?PRIVATE[[:space:]]+KEY
+BEGIN[[:space:]]+OPENSSH[[:space:]]+PRIVATE[[:space:]]+KEY
+BEGIN[[:space:]]+EC[[:space:]]+PRIVATE[[:space:]]+KEY
+
+# GitHub tokens
+ghp_[A-Za-z0-9]{20,}
+gho_[A-Za-z0-9]{20,}
+github_pat_[A-Za-z0-9_]{20,}
+ghu_[A-Za-z0-9]{20,}
+ghs_[A-Za-z0-9]{20,}
+
+# CDK context blobs (account + zone binding — must stay local)
+hosted-zone:account=[0-9]{12}
+
+# Slack / generic high-signal tokens
+xox[baprs]-[A-Za-z0-9-]{10,}
+sk_live_[A-Za-z0-9]{20,}

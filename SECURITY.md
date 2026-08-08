@@ -1,5 +1,18 @@
 # Security Policy
 
+## Accidental secret commits
+
+This repo enforces guards so AWS account bindings and credentials are not committed:
+
+- `scripts/check-secrets.sh` + pre-commit hooks (`./scripts/install-git-hooks.sh`)
+- CI job `secret-guard`
+- Denylists under `security/`
+- Rules for AI agents in `AGENTS.md`
+
+Details: [docs/SECURITY_GUARDS.md](docs/SECURITY_GUARDS.md).
+
+If you believe a secret was committed, contact the maintainer immediately and do not open a public issue with the secret value.
+
 ## Scope
 
 **ua571** is a fan recreation of a movie prop operator console. It is **not** real weapon control software and has no network weapon interfaces.

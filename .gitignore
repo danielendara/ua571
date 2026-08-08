@@ -6,12 +6,42 @@
 .idea/
 .vscode/
 *.log
-config.local.toml
-web/pkg/
 
-# CDK (infra/)
+# Local config overrides
+config.local.toml
+**/*.local.toml
+**/*.local.json
+
+# Web build outputs
+web/pkg/
+web/build-id.js
+
+# CDK (infra/) — account/zone bindings and synth output
 infra/node_modules/
 infra/dist/
 infra/cdk.out/
 infra/cdk.context.json
+**/cdk.context.json
+**/cdk.out/
 
+# Credentials & env (never commit)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+.aws/
+**/credentials
+**/*credentials*
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+*-key.json
+service-account*.json
+
+# OS / editor
+*.orig
+*~

@@ -5,12 +5,21 @@ Thanks for your interest. This is an unofficial fan recreation of a movie prop U
 ## Development
 
 ```bash
+# Once per clone — enables pre-commit secret guard
+./scripts/install-git-hooks.sh
+
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 cargo run -p ua571-tui
 cargo run -p ua571-pixel -- --no-boot
+
+# Before committing (also runs automatically via pre-commit)
+./scripts/check-secrets.sh staged
 ```
+
+**Never commit** `infra/cdk.context.json`, AWS credentials, or `.env` files.  
+See [docs/SECURITY_GUARDS.md](docs/SECURITY_GUARDS.md) and [AGENTS.md](AGENTS.md).
 
 Web frontend:
 

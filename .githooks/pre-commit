@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Installed via: ./scripts/install-git-hooks.sh
+# Blocks commits that stage secrets or AWS account-binding files.
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+exec "$ROOT/scripts/check-secrets.sh" staged

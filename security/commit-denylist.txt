@@ -1,0 +1,44 @@
+# Paths that must NEVER be committed (globs, one per line).
+# Enforced by scripts/check-secrets.sh, pre-commit, and CI.
+# Used by humans, harnesses, and AI coding sessions.
+
+# AWS CDK local state (contains account ID + hosted zone IDs)
+infra/cdk.context.json
+**/cdk.context.json
+infra/cdk.out/**
+**/cdk.out/**
+
+# AWS / cloud credentials
+**/.aws/credentials
+**/.aws/config
+**/credentials
+**/*credentials*
+**/*.pem
+**/*.p12
+**/*.pfx
+**/id_rsa
+**/id_ed25519
+**/*-key.json
+**/service-account*.json
+
+# Env files that often hold secrets
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Local deploy / config overrides
+config.local.toml
+**/*.local.toml
+**/*.local.json
+**/*secret*
+**/*secrets*
+
+# Build artifacts that must not ship credentials by accident
+web/pkg/**
+web/build-id.js
+target/**
+infra/node_modules/**
+infra/dist/**
