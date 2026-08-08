@@ -18,6 +18,17 @@ pub struct ConsoleTheme {
 impl ConsoleTheme {
     pub fn from_kind(kind: Theme) -> Self {
         match kind {
+            // Film / GRiD prop yellow (matches original recreation screenshot).
+            Theme::Yellow => Self {
+                kind,
+                fg: Color::Rgb(255, 238, 0),
+                dim: Color::Rgb(140, 130, 0),
+                bg: Color::Black,
+                accent: Color::Rgb(255, 250, 120),
+                alert: Color::Rgb(255, 60, 40),
+                selected_bg: Color::Rgb(255, 238, 0),
+                selected_fg: Color::Black,
+            },
             Theme::Phosphor => Self {
                 kind,
                 fg: Color::Rgb(80, 250, 123),
@@ -92,11 +103,6 @@ impl ConsoleTheme {
     }
 
     pub fn next(self) -> Self {
-        let kind = match self.kind {
-            Theme::Phosphor => Theme::Amber,
-            Theme::Amber => Theme::Mono,
-            Theme::Mono => Theme::Phosphor,
-        };
-        Self::from_kind(kind)
+        Self::from_kind(self.kind.next())
     }
 }

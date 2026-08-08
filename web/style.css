@@ -1,11 +1,45 @@
-:root {
+/* Default = film / GRiD prop yellow */
+:root,
+body[data-theme="yellow"] {
   color-scheme: dark;
+  --bg: #050500;
+  --panel: #0c0c05;
+  --fg: #ffee00;
+  --dim: #8c8000;
+  --border: #5c5500;
+  --glow: rgba(255, 238, 0, 0.12);
+  --grad-top: #1a1800;
+  --font: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+
+body[data-theme="phosphor"] {
   --bg: #050805;
   --panel: #0a100c;
   --fg: #50fa7b;
   --dim: #2a6b3e;
   --border: #1a3d24;
-  --font: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --glow: rgba(80, 250, 123, 0.12);
+  --grad-top: #0d1a12;
+}
+
+body[data-theme="amber"] {
+  --bg: #080500;
+  --panel: #120c05;
+  --fg: #ffb000;
+  --dim: #8c5a00;
+  --border: #5c3a00;
+  --glow: rgba(255, 176, 0, 0.12);
+  --grad-top: #1a1200;
+}
+
+body[data-theme="mono"] {
+  --bg: #050505;
+  --panel: #101010;
+  --fg: #e0e0e0;
+  --dim: #777777;
+  --border: #444444;
+  --glow: rgba(224, 224, 224, 0.08);
+  --grad-top: #181818;
 }
 
 * {
@@ -16,7 +50,7 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  background: radial-gradient(ellipse at top, #0d1a12 0%, var(--bg) 55%);
+  background: radial-gradient(ellipse at top, var(--grad-top) 0%, var(--bg) 55%);
   color: var(--fg);
   font-family: var(--font);
 }
@@ -125,7 +159,7 @@ main {
   border: 2px solid var(--border);
   box-shadow:
     0 0 0 1px #000,
-    0 0 40px rgba(80, 250, 123, 0.08),
+    0 0 40px var(--glow),
     inset 0 0 60px rgba(0, 0, 0, 0.55);
   outline: none;
 }

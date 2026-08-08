@@ -11,9 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - AWS hosting path for **https://ua571.danielendara.com**: CDK (`infra/`), OIDC deploy role, GitHub Actions `deploy-web.yml`
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — open-source-safe maintainer deploy + self-host notes
+- **Yellow** theme matching the original GRiD / film prop monochrome yellow
 
 ### Changed
 
+- Default theme is now **yellow** (was phosphor green) across TUI, pixel, and web
+- Web chrome CSS follows the selected theme (not only the canvas)
 - Relicensed from MIT to **GPL-3.0-only** at the preference of Thom Cherryhomes (UA571C author)
 
 ## [0.1.0] — 2026-07-29

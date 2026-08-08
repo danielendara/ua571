@@ -21,8 +21,8 @@ use app::App;
 from Aliens (1986). Unofficial fan project — not affiliated with franchise rights holders."
 )]
 struct Cli {
-    /// Color theme: phosphor | amber | mono
-    #[arg(short, long, default_value = "phosphor")]
+    /// Color theme: yellow | phosphor | amber | mono  [default: yellow]
+    #[arg(short, long, default_value = "yellow")]
     theme: String,
 
     /// Starting rounds per sentry drum
@@ -69,7 +69,7 @@ fn load_config(cli: &Cli) -> Result<Config> {
 
     let theme = Theme::parse(&cli.theme).ok_or_else(|| {
         eyre!(
-            "unknown theme '{}': use phosphor, amber, or mono",
+            "unknown theme '{}': use yellow, phosphor, amber, or mono",
             cli.theme
         )
     })?;

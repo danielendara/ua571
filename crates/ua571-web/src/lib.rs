@@ -41,7 +41,7 @@ impl Ua571Web {
     ) -> Result<Ua571Web, JsValue> {
         console_error_panic_hook::set_once();
 
-        let theme = Theme::parse(theme).unwrap_or(Theme::Phosphor);
+        let theme = Theme::parse(theme).unwrap_or(Theme::Yellow);
         let scale = scale.clamp(1, 6);
         let mut config = Config {
             theme,
@@ -169,6 +169,8 @@ impl Ua571Web {
 
 fn theme_rgba(theme: Theme) -> ([u8; 4], [u8; 4]) {
     let on = match theme {
+        // Film / GRiD prop yellow (#FFEE00)
+        Theme::Yellow => [0xff, 0xee, 0x00, 0xff],
         Theme::Phosphor => [0x50, 0xfa, 0x7b, 0xff],
         Theme::Amber => [0xff, 0xb0, 0x00, 0xff],
         Theme::Mono => [0xe0, 0xe0, 0xe0, 0xff],

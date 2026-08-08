@@ -19,8 +19,8 @@ use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
     about = "GRiD-style pixel UI for the UA 571-C console (closest to the original display)"
 )]
 struct Cli {
-    /// Color theme: phosphor | amber | mono
-    #[arg(short, long, default_value = "phosphor")]
+    /// Color theme: yellow | phosphor | amber | mono  [default: yellow]
+    #[arg(short, long, default_value = "yellow")]
     theme: String,
 
     /// Starting rounds per sentry
@@ -198,7 +198,10 @@ fn toggle_arm(state: &mut AppState) {
 }
 
 fn theme_colors(theme: Theme) -> (u32, u32) {
+    // 0x00RRGGBB for minifb
     match theme {
+        // Film / GRiD prop yellow
+        Theme::Yellow => (0x00_FF_EE_00, 0x00_00_00_00),
         Theme::Phosphor => (0x00_50_FA_7B, 0x00_00_00_00),
         Theme::Amber => (0x00_FF_B0_00, 0x00_00_00_00),
         Theme::Mono => (0x00_E0_E0_E0, 0x00_00_00_00),

@@ -36,7 +36,7 @@ Three frontends share one simulation core:
 - **Four sentries** — independent ammo and configuration (film setup)
 - **Event log** — arming, fire, critical, demo messages
 - **Demo mode** — scripted perimeter defense auto-play
-- **Themes** — phosphor green, amber, mono
+- **Themes** — **yellow** (default, film/GRiD prop), phosphor green, amber, mono
 - **Cross-platform** — macOS, Linux, Windows; browser via WebAssembly
 
 ## Quick start
@@ -79,7 +79,7 @@ Deploy is written for a **public repo**: forks/PRs cannot assume the AWS role. T
 ```
 ua571 / ua571-pixel [OPTIONS]
 
-  -t, --theme <THEME>       phosphor | amber | mono  [default: phosphor]
+  -t, --theme <THEME>       yellow | phosphor | amber | mono  [default: yellow]
   -r, --rounds <N>          starting rounds per sentry  [default: 500]
       --tick-ms <MS>        UI tick interval  [default: 80]
       --no-boot             skip POST splash
@@ -93,7 +93,7 @@ ua571 / ua571-pixel [OPTIONS]
 `~/.config/ua571/config.toml` (or platform equivalent via [`dirs`](https://crates.io/crates/dirs)):
 
 ```toml
-theme = "phosphor"
+theme = "yellow"
 tick_ms = 80
 starting_rounds = 500
 show_boot = true

@@ -26,11 +26,16 @@ function teardown() {
   app = null;
 }
 
+function applyPageTheme(theme) {
+  document.body.dataset.theme = theme || "yellow";
+}
+
 async function boot() {
   const status = document.getElementById("status");
   const canvas = document.getElementById("ua571");
   const opts = readOptions();
 
+  applyPageTheme(opts.theme);
   teardown();
   status.textContent = "Loading WebAssembly…";
 
@@ -82,6 +87,10 @@ document.getElementById("restart").addEventListener("click", () => {
   boot();
 });
 
+document.getElementById("theme").addEventListener("change", (e) => {
+  applyPageTheme(e.target.value);
+});
+
 // Optional deep-link query params
 (() => {
   const p = new URLSearchParams(location.search);
@@ -89,6 +98,7 @@ document.getElementById("restart").addEventListener("click", () => {
   if (p.get("scale")) document.getElementById("scale").value = p.get("scale");
   if (p.get("demo") === "1") document.getElementById("demo").checked = true;
   if (p.get("boot") === "0") document.getElementById("skipBoot").checked = true;
+  applyPageTheme(document.getElementById("theme").value);
 })();
 
 boot();
