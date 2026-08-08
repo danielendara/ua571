@@ -1,0 +1,24 @@
+{
+  "app": "npx ts-node --prefer-ts-exts bin/app.ts",
+  "watch": {
+    "include": ["**"],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "**/*.d.ts",
+      "**/*.js",
+      "tsconfig.json",
+      "package*.json",
+      "node_modules",
+      "dist",
+      "cdk.out"
+    ]
+  },
+  "context": {
+    "@aws-cdk/core:stackRelativeExports": true,
+    "domainName": "ua571.danielendara.com",
+    "hostedZoneName": "danielendara.com",
+    "githubRepo": "danielendara/ua571",
+    "githubBranch": "main"
+  }
+}
