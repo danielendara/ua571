@@ -194,17 +194,16 @@ fn draw_fire(state: &AppState, fb: &mut Framebuffer) {
     let s = state.active_sentry();
     let fire = &s.fire;
 
-    fb.draw_text("Rounds", 20, 70, SECTION_SCALE);
-    fb.draw_text("Remaining", 20, 84, SECTION_SCALE);
-    fb.rect_outline(170, 70, 56, 36);
+    fb.draw_text("ROUNDS", 20, 70, SECTION_SCALE);
+    fb.draw_text("REMAINING", 20, 84, SECTION_SCALE);
 
-    let rounds = format!("{:3}", fire.rounds);
-    fb.draw_text(&rounds, 180, 82, HEADER_SCALE);
+    // Boxes sized to our bitmap font (HEADER_SCALE), not original Tb12x16 pixel boxes.
+    let rounds = format!("{}", fire.rounds);
+    draw_boxed_value(fb, &rounds, 170, 68, HEADER_SCALE, 10, 8);
 
     fb.draw_text("TIME AT 100%", 6, 150, SECTION_SCALE);
-    fb.draw_text("(secs)", 30, 168, SECTION_SCALE);
-    fb.rect_outline(160, 144, 75, 36);
-    fb.draw_text(&fire.time_display(), 168, 155, HEADER_SCALE);
+    fb.draw_text("(SECS)", 30, 168, SECTION_SCALE);
+    draw_boxed_value(fb, &fire.time_display(), 160, 144, HEADER_SCALE, 10, 8);
 
     fb.draw_text("Temp   R(M)", 500, 50, SECTION_SCALE);
 
@@ -235,6 +234,29 @@ fn draw_fire(state: &AppState, fb: &mut Framebuffer) {
         WeaponStatus::Armed => "ARMED",
     };
     fb.draw_text(&format!("{}  {}", s.label(), armed), 20, 200, SECTION_SCALE);
+}
+
+/// Draw `text` centered inside a rect with padding (fixes overflow of fixed GRiD boxes).
+fn draw_boxed_value(
+    fb: &mut Framebuffer,
+    text: &str,
+    box_x: i32,
+    box_y: i32,
+    scale: i32,
+    pad_x: i32,
+    pad_y: i32,
+) {
+    let scale = scale.max(1);
+    let tw = Framebuffer::text_width(text, scale);
+    let th = 8 * scale;
+    // Minimum width so single/double digit values still look like a console box.
+    let inner_w = tw.max(3 * 8 * scale);
+    let w = inner_w + pad_x * 2;
+    let h = th + pad_y * 2;
+    fb.rect_outline(box_x, box_y, w, h);
+    let tx = box_x + (w - tw) / 2;
+    let ty = box_y + (h - th) / 2;
+    fb.draw_text(text, tx, ty, scale);
 }
 
 fn draw_gauge_frame(fb: &mut Framebuffer, x_left: i32, y_top: i32, y_bot: i32) {
