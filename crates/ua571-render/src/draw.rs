@@ -59,8 +59,9 @@ fn draw_header(state: &AppState, fb: &mut Framebuffer) {
 fn draw_circled_letter(fb: &mut Framebuffer, ch: char, cx: i32, cy: i32) {
     let scale = 2;
     // 8×8 glyph at scale 2 → 16×16 box; center on the circle midpoint.
+    // +1 x optical nudge: bitmap capitals sit slightly left in their cell.
     let glyph = 8 * scale;
-    let gx = cx - glyph / 2;
+    let gx = cx - glyph / 2 + 1;
     let gy = cy - glyph / 2;
     fb.draw_char(ch, gx, gy, scale);
     fb.circle(cx, cy, 14);
@@ -214,13 +215,13 @@ fn draw_fire(state: &AppState, fb: &mut Framebuffer) {
     fb.draw_text("ROUNDS", 20, 70, SECTION_SCALE);
     fb.draw_text("REMAINING", 20, 84, SECTION_SCALE);
 
-    // Boxes sized to our bitmap font (HEADER_SCALE), not original Tb12x16 pixel boxes.
+    // Boxes sized to the rendered string (padding is inside the frame).
     let rounds = format!("{}", fire.rounds);
-    draw_boxed_value(fb, &rounds, 170, 68, HEADER_SCALE, 10, 8);
+    draw_boxed_value(fb, &rounds, 170, 68, HEADER_SCALE, 12, 6);
 
     fb.draw_text("TIME AT 100%", 6, 150, SECTION_SCALE);
     fb.draw_text("(SECS)", 30, 168, SECTION_SCALE);
-    draw_boxed_value(fb, &fire.time_display(), 160, 144, HEADER_SCALE, 10, 8);
+    draw_boxed_value(fb, &fire.time_display(), 160, 144, HEADER_SCALE, 12, 6);
 
     fb.draw_text("Temp   R(M)", 500, 50, SECTION_SCALE);
 
@@ -253,7 +254,7 @@ fn draw_fire(state: &AppState, fb: &mut Framebuffer) {
     fb.draw_text(&format!("{}  {}", s.label(), armed), 20, 200, SECTION_SCALE);
 }
 
-/// Draw `text` centered inside a rect with padding (fixes overflow of fixed GRiD boxes).
+/// Draw `text` centered inside a rect. `pad_*` is empty space *inside* the border.
 fn draw_boxed_value(
     fb: &mut Framebuffer,
     text: &str,
@@ -266,13 +267,15 @@ fn draw_boxed_value(
     let scale = scale.max(1);
     let tw = Framebuffer::text_width(text, scale);
     let th = 8 * scale;
-    // Minimum width so single/double digit values still look like a console box.
-    let inner_w = tw.max(3 * 8 * scale);
-    let w = inner_w + pad_x * 2;
-    let h = th + pad_y * 2;
-    fb.rect_outline(box_x, box_y, w, h);
-    let tx = box_x + (w - tw) / 2;
-    let ty = box_y + (h - th) / 2;
+    // Min width ~3 digits so "9" still looks like a console readout.
+    let content_w = tw.max(3 * 8 * scale);
+    // Outer size includes 1px border on each side + padding + content.
+    let outer_w = content_w + pad_x * 2 + 2;
+    let outer_h = th + pad_y * 2 + 2;
+    fb.rect_outline(box_x, box_y, outer_w, outer_h);
+    // Center content in the interior (inside the 1px border).
+    let tx = box_x + 1 + pad_x + (content_w - tw) / 2;
+    let ty = box_y + 1 + pad_y;
     fb.draw_text(text, tx, ty, scale);
 }
 

@@ -76,9 +76,9 @@ impl FireTelemetry {
         self.time_centisecs % 100
     }
 
-    /// Format as `SS.FF` like the original panel.
+    /// Format as `SS.FF` like the original panel (no leading space).
     pub fn time_display(&self) -> String {
-        format!("{:2}.{:02}", self.time_secs(), self.time_frac())
+        format!("{}.{:02}", self.time_secs(), self.time_frac())
     }
 
     /// Fire one burst. Decrements ammo and advances telemetry theater.
@@ -192,6 +192,9 @@ mod tests {
     fn time_display_format() {
         let f = FireTelemetry::new(500);
         assert_eq!(f.time_display(), "33.33");
+        let mut f2 = FireTelemetry::new(500);
+        f2.time_centisecs = 505;
+        assert_eq!(f2.time_display(), "5.05");
     }
 
     #[test]

@@ -23,6 +23,14 @@ function teardown() {
     window.removeEventListener("keydown", onKey);
     onKey = null;
   }
+  // Drop WASM app so a new theme/scale re-instantiates cleanly.
+  if (app && typeof app.free === "function") {
+    try {
+      app.free();
+    } catch (_) {
+      /* ignore */
+    }
+  }
   app = null;
 }
 
@@ -40,7 +48,9 @@ async function boot() {
   status.textContent = "Loading WebAssembly…";
 
   try {
-    const wasm = await import("./pkg/ua571_web.js");
+    // Cache-bust JS (and relative wasm URL via import.meta.url) after each deploy.
+    const { BUILD_ID } = await import(`./build-id.js?v=${Date.now()}`);
+    const wasm = await import(`./pkg/ua571_web.js?v=${BUILD_ID}`);
     await wasm.default();
 
     app = new wasm.Ua571Web(
@@ -87,8 +97,13 @@ document.getElementById("restart").addEventListener("click", () => {
   boot();
 });
 
+// Theme/scale must re-create the WASM app (canvas pixels are not CSS).
 document.getElementById("theme").addEventListener("change", (e) => {
   applyPageTheme(e.target.value);
+  boot();
+});
+document.getElementById("scale").addEventListener("change", () => {
+  boot();
 });
 
 // Optional deep-link query params

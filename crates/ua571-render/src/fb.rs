@@ -82,14 +82,17 @@ impl Framebuffer {
         }
     }
 
+    /// Draw a rectangle outline of exact pixel size `w` × `h` (edges at `x` and `x+w-1`).
     pub fn rect_outline(&mut self, x: i32, y: i32, w: i32, h: i32) {
         if w <= 0 || h <= 0 {
             return;
         }
-        self.line(x, y, x + w, y);
-        self.line(x, y + h, x + w, y + h);
-        self.line(x, y, x, y + h);
-        self.line(x + w, y, x + w, y + h);
+        let x1 = x + w - 1;
+        let y1 = y + h - 1;
+        self.line(x, y, x1, y);
+        self.line(x, y1, x1, y1);
+        self.line(x, y, x, y1);
+        self.line(x1, y, x1, y1);
     }
 
     /// XOR invert rectangle (WinInvertRectangle) — selection / CRITICAL flash.
