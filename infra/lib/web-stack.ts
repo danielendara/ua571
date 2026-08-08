@@ -202,22 +202,40 @@ export class Ua571WebStack extends cdk.Stack {
           clientIds: ['sts.amazonaws.com'],
         });
 
+    // Trust both branch ref and GitHub Environment subjects.
+    // Jobs that use `environment: production` present sub as
+    //   repo:ORG/REPO:environment:production
+    // not only ref:refs/heads/main.
+    const oidcAudience = {
+      StringEquals: {
+        'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+      },
+    };
     const deployRole = new iam.Role(this, 'GitHubDeployRole', {
       roleName: 'ua571-github-deploy',
       description:
-        'GitHub Actions deploy role for ua571 web (OIDC; main branch of configured repo only)',
-      assumedBy: new iam.FederatedPrincipal(
-        oidcProvider.openIdConnectProviderArn,
-        {
-          StringEquals: {
-            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+        'GitHub Actions deploy role for ua571 web (OIDC; main / production env only)',
+      assumedBy: new iam.CompositePrincipal(
+        new iam.FederatedPrincipal(
+          oidcProvider.openIdConnectProviderArn,
+          {
+            ...oidcAudience,
+            StringLike: {
+              'token.actions.githubusercontent.com:sub': `repo:${githubRepo}:ref:refs/heads/${githubBranch}`,
+            },
           },
-          // Restrict to this repo + branch. Forks cannot assume (different sub).
-          StringLike: {
-            'token.actions.githubusercontent.com:sub': `repo:${githubRepo}:ref:refs/heads/${githubBranch}`,
+          'sts:AssumeRoleWithWebIdentity',
+        ),
+        new iam.FederatedPrincipal(
+          oidcProvider.openIdConnectProviderArn,
+          {
+            ...oidcAudience,
+            StringLike: {
+              'token.actions.githubusercontent.com:sub': `repo:${githubRepo}:environment:production`,
+            },
           },
-        },
-        'sts:AssumeRoleWithWebIdentity',
+          'sts:AssumeRoleWithWebIdentity',
+        ),
       ),
       maxSessionDuration: cdk.Duration.hours(1),
     });
