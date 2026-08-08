@@ -7,6 +7,9 @@ Unofficial fan project. **Not affiliated with** 20th Century Studios, Disney, Fo
 [![CI](https://github.com/danielendara/ua571/actions/workflows/ci.yml/badge.svg)](https://github.com/danielendara/ua571/actions/workflows/ci.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
+**Live demo:** [https://ua571.danielendara.com](https://ua571.danielendara.com)  
+*(static WASM build on AWS; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md))*
+
 Three frontends share one simulation core:
 
 | Frontend | How to run | Feel |
@@ -51,11 +54,25 @@ cargo run -p ua571-tui --release
 cargo run -p ua571-pixel --release -- --no-boot
 cargo run -p ua571-pixel --release -- -s 3 --demo
 
-# Web (needs wasm32 target + wasm-bindgen-cli; script installs target)
+# WebAssembly (local static server)
 ./scripts/build-web.sh
 python3 -m http.server 8080 --directory web
 # open http://localhost:8080
 ```
+
+Requires `wasm32-unknown-unknown` (script installs the target) and `wasm-bindgen-cli`.
+
+### Production web host
+
+**https://ua571.danielendara.com** — S3 + CloudFront + Route53.
+
+| Who | How |
+|-----|-----|
+| Anyone | Self-host `web/` (+ `pkg/`) on any static HTTPS host |
+| Maintainers | GitHub Actions OIDC deploy on `main` — [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) |
+| Infra as code | [`infra/`](infra/) (AWS CDK) |
+
+Deploy is written for a **public repo**: forks/PRs cannot assume the AWS role. The GitHub repo may stay private until you’re ready.
 
 ### CLI flags
 
@@ -111,7 +128,9 @@ crates/
   ua571-pixel/    minifb window → binary `ua571-pixel`
   ua571-web/      wasm-bindgen + canvas → web/pkg (build artifact)
 web/              static HTML/CSS/JS host page
+infra/            AWS CDK (S3, CloudFront, ACM, Route53, OIDC role)
 scripts/          build-web.sh
+docs/             DEPLOYMENT.md
 ```
 
 Pixel and Web share `ua571-render`. The TUI is a separate character-cell view of the same `ua571-core` state.

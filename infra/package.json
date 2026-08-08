@@ -1,0 +1,22 @@
+{
+  "name": "ua571-infra",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AWS CDK infrastructure for ua571.danielendara.com (static WASM site)",
+  "scripts": {
+    "build": "tsc",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "deploy": "cdk deploy --all --require-approval never",
+    "destroy": "cdk destroy --all"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "aws-cdk": "^2.1000.0",
+    "aws-cdk-lib": "^2.200.0",
+    "constructs": "^10.4.2",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.8.3"
+  }
+}

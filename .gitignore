@@ -8,3 +8,10 @@
 *.log
 config.local.toml
 web/pkg/
+
+# CDK (infra/)
+infra/node_modules/
+infra/dist/
+infra/cdk.out/
+infra/cdk.context.json
+

@@ -1,0 +1,132 @@
+# Deploy the WASM web console to AWS (S3 + CloudFront).
+#
+# Designed as if the repo is public:
+# - No long-lived AWS access keys in the repository
+# - OIDC assume-role (AWS_ROLE_ARN from GitHub Variables / Environment)
+# - Only runs for the canonical repo + main (forks never get credentials)
+# - Production environment gate for optional required reviewers
+#
+# Maintainer setup: see docs/DEPLOYMENT.md
+
+name: Deploy web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/ua571-core/**'
+      - 'crates/ua571-render/**'
+      - 'crates/ua571-web/**'
+      - 'web/**'
+      - 'scripts/build-web.sh'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write   # OIDC
+  contents: read
+
+jobs:
+  deploy:
+    name: Build WASM + deploy
+    runs-on: ubuntu-latest
+    # Canonical repo only — PRs/forks never deploy even if workflow is copied.
+    if: github.repository == 'danielendara/ua571' && github.ref == 'refs/heads/main'
+    environment: production
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require deploy configuration
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+          UA571_S3_BUCKET: ${{ vars.UA571_S3_BUCKET }}
+          UA571_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.UA571_CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          missing=0
+          for v in AWS_ROLE_ARN UA571_S3_BUCKET UA571_CLOUDFRONT_DISTRIBUTION_ID; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Missing GitHub variable $v (see docs/DEPLOYMENT.md)"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Rust toolchain (wasm32)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm-deploy
+
+      - name: Install wasm-bindgen-cli
+        run: cargo install wasm-bindgen-cli --version 0.2.100 --locked
+
+      - name: Build web package
+        run: ./scripts/build-web.sh
+
+      - name: Verify package artifacts
+        run: |
+          test -f web/index.html
+          test -f web/pkg/ua571_web.js
+          test -f web/pkg/ua571_web_bg.wasm
+          ls -la web/pkg
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Sync to S3
+        env:
+          UA571_S3_BUCKET: ${{ vars.UA571_S3_BUCKET }}
+        run: |
+          # Shell (HTML/CSS/JS): short cache
+          aws s3 sync web/ "s3://${UA571_S3_BUCKET}/" \
+            --delete \
+            --exclude "pkg/*" \
+            --exclude ".gitignore" \
+            --cache-control "public,max-age=300"
+
+          # pkg glue (JS/TS maps): longer cache
+          aws s3 sync web/pkg/ "s3://${UA571_S3_BUCKET}/pkg/" \
+            --delete \
+            --exclude "*.wasm" \
+            --cache-control "public,max-age=604800"
+
+          # WASM binary with correct content-type
+          aws s3 sync web/pkg/ "s3://${UA571_S3_BUCKET}/pkg/" \
+            --exclude "*" \
+            --include "*.wasm" \
+            --content-type "application/wasm" \
+            --cache-control "public,max-age=604800"
+
+      - name: Invalidate CloudFront
+        env:
+          UA571_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.UA571_CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${UA571_CLOUDFRONT_DISTRIBUTION_ID}" \
+            --paths "/*"
+
+      - name: Summary
+        run: |
+          echo "### Deployed ua571 web" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **URL:** https://ua571.danielendara.com" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Bucket:** \`${{ vars.UA571_S3_BUCKET }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Distribution:** \`${{ vars.UA571_CLOUDFRONT_DISTRIBUTION_ID }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
