@@ -30,10 +30,10 @@ GitHub Actions (main only, canonical repo)
 | Random clone / self-host | Build locally; host anywhere static |
 
 - **No long-lived AWS access keys** in the repository.
-- Deploy uses **GitHub OIDC** + IAM role trust limited to:
-  - `repo:danielendara/ua571:ref:refs/heads/main`
-  - `repo:danielendara/ua571:environment:production`  
-    (required when the workflow uses `environment: production`)
+- Deploy uses **GitHub OIDC** + IAM role trust limited to this repository:
+  - classic: `repo:danielendara/ua571:*`
+  - immutable id form (GitHub default on some accounts): `repo:danielendara@293949/ua571@1315671999:*`
+- Workflow still restricts to `main` + Environment `production` (forks cannot deploy).
 - GitHub **Environment** `production` holds variables (and optional required reviewers).
 
 ## One-time AWS setup (maintainer)
