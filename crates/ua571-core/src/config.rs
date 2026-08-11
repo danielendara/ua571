@@ -25,12 +25,7 @@ pub enum Theme {
 }
 
 impl Theme {
-    pub const ALL: [Theme; 4] = [
-        Theme::Yellow,
-        Theme::Phosphor,
-        Theme::Amber,
-        Theme::Mono,
-    ];
+    pub const ALL: [Theme; 4] = [Theme::Yellow, Theme::Phosphor, Theme::Amber, Theme::Mono];
 
     pub fn as_str(self) -> &'static str {
         match self {
