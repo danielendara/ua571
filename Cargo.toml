@@ -20,7 +20,7 @@ rust-version = "1.80"
 [workspace.dependencies]
 ua571-core = { path = "crates/ua571-core", version = "0.1.0" }
 ua571-render = { path = "crates/ua571-render", version = "0.1.0" }
-ratatui = "0.29"
+ratatui = "0.30"
 crossterm = "0.29"
 serde = { version = "1", features = ["derive"] }
 toml = "1.1"
