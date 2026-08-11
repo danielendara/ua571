@@ -1,0 +1,78 @@
+# Dependabot — ua571 (Rust / CDK infra / GitHub Actions)
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+  # Rust workspace (root Cargo.toml + Cargo.lock)
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 10
+    target-branch: main
+    labels:
+      - dependencies
+      - rust
+    commit-message:
+      prefix: "deps"
+      include: scope
+    groups:
+      # Group routine bumps; leave majors as separate PRs for review
+      cargo-minor:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # AWS CDK tooling under infra/
+  - package-ecosystem: npm
+    directory: "/infra"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    target-branch: main
+    labels:
+      - dependencies
+      - npm
+      - infra
+    commit-message:
+      prefix: "deps(infra)"
+      include: scope
+    groups:
+      aws-cdk:
+        patterns:
+          - "aws-cdk"
+          - "aws-cdk-lib"
+          - "@aws-cdk/*"
+          - "constructs"
+      typescript:
+        patterns:
+          - "typescript"
+          - "ts-node"
+          - "@types/*"
+
+  # GitHub Actions used in workflows
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    target-branch: main
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "ci"
+      include: scope
+    groups:
+      actions:
+        patterns:
+          - "*"
