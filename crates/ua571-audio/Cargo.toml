@@ -10,4 +10,5 @@ description = "Native fire SFX for the UA 571-C console (rodio)"
 readme = "../../README.md"
 
 [dependencies]
+ua571-core = { workspace = true }
 rodio = { version = "0.20", default-features = true }

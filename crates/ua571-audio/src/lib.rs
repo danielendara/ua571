@@ -1,20 +1,22 @@
-//! Lightweight native fire SFX (procedural burst — no asset files).
+//! Native fire SFX via rodio (procedural buffer from `ua571_core::sfx`).
 //!
-//! Web uses Web Audio in `ua571-web` instead.
+//! Web uses the same synthesis through Web Audio in `ua571-web`.
 
 #![forbid(unsafe_code)]
 
 use rodio::buffer::SamplesBuffer;
 use rodio::{OutputStream, OutputStreamHandle, Sink};
+use ua571_core::sfx::{synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS, FIRE_SFX_SAMPLE_RATE};
 
-const SAMPLE_RATE: u32 = 22_050;
-const FIRE_MS: u32 = 70;
+/// How many pre-baked pulse variants to rotate through (less robotic).
+const VARIANT_COUNT: usize = 6;
 
 /// Native audio device handle. Keep alive for the app lifetime.
 pub struct FireAudio {
     _stream: OutputStream,
     handle: OutputStreamHandle,
-    samples: Vec<f32>,
+    variants: Vec<Vec<f32>>,
+    next_variant: std::cell::Cell<usize>,
     pub muted: bool,
 }
 
@@ -22,11 +24,20 @@ impl FireAudio {
     /// Open default output. Returns `None` if the device is unavailable.
     pub fn try_new() -> Option<Self> {
         let (stream, handle) = OutputStream::try_default().ok()?;
-        let samples = synthesize_fire_burst(SAMPLE_RATE, FIRE_MS);
+        let variants = (0..VARIANT_COUNT)
+            .map(|i| {
+                synthesize_fire_burst(
+                    FIRE_SFX_SAMPLE_RATE,
+                    FIRE_SFX_MS,
+                    0xA57E_u32.wrapping_mul(i as u32 + 1).wrapping_add(0xC0FFEE),
+                )
+            })
+            .collect();
         Some(Self {
             _stream: stream,
             handle,
-            samples,
+            variants,
+            next_variant: std::cell::Cell::new(0),
             muted: false,
         })
     }
@@ -35,44 +46,56 @@ impl FireAudio {
         self.muted = muted;
     }
 
-    /// Play one autocannon-style burst (non-blocking).
+    /// Play one MG42-style pulse (non-blocking).
     pub fn play_fire(&self) {
         if self.muted {
             return;
         }
+        let samples = self.take_variant();
+        self.play_buffer(samples);
+    }
+
+    /// Play queued fires as a short cyclic brap (MG42-ish spacing).
+    pub fn play_fires(&self, count: u32) {
+        if self.muted || count == 0 {
+            return;
+        }
+        let n = count.min(6) as usize;
+        if n == 1 {
+            self.play_fire();
+            return;
+        }
+
+        let period = ((FIRE_SFX_SAMPLE_RATE as f32) / FIRE_CYCLIC_HZ).round() as usize;
+        let pulse_len = self.variants[0].len();
+        let total = period * (n - 1) + pulse_len;
+        let mut buf = vec![0.0f32; total];
+        for k in 0..n {
+            let start = k * period;
+            let pulse = self.take_variant();
+            for (i, s) in pulse.iter().enumerate() {
+                let idx = start + i;
+                if idx < buf.len() {
+                    buf[idx] = (buf[idx] + s).tanh();
+                }
+            }
+        }
+        self.play_buffer(buf);
+    }
+
+    fn take_variant(&self) -> Vec<f32> {
+        let i = self.next_variant.get();
+        self.next_variant.set((i + 1) % self.variants.len());
+        self.variants[i].clone()
+    }
+
+    fn play_buffer(&self, samples: Vec<f32>) {
         let Ok(sink) = Sink::try_new(&self.handle) else {
             return;
         };
-        sink.append(SamplesBuffer::new(1, SAMPLE_RATE, self.samples.clone()));
+        sink.append(SamplesBuffer::new(1, FIRE_SFX_SAMPLE_RATE, samples));
         sink.detach();
     }
-
-    /// Play up to a few queued fires (demo / rapid key repeat).
-    pub fn play_fires(&self, count: u32) {
-        for _ in 0..count.min(4) {
-            self.play_fire();
-        }
-    }
-}
-
-/// Short noise + low thump with exponential decay.
-fn synthesize_fire_burst(sample_rate: u32, duration_ms: u32) -> Vec<f32> {
-    let n = (sample_rate as u64 * duration_ms as u64 / 1000) as usize;
-    let mut out = Vec::with_capacity(n);
-    let mut rng = 0xC0FFEE_u32;
-    for i in 0..n {
-        let t = i as f32 / sample_rate as f32;
-        let env = (-t * 38.0).exp();
-        // xorshift-ish noise
-        rng ^= rng << 13;
-        rng ^= rng >> 17;
-        rng ^= rng << 5;
-        let noise = (rng as f32 / u32::MAX as f32) * 2.0 - 1.0;
-        let thump = (t * 90.0 * std::f32::consts::TAU).sin() * (-t * 28.0).exp();
-        let crack = (t * 420.0 * std::f32::consts::TAU).sin() * (-t * 55.0).exp() * 0.35;
-        out.push((noise * 0.4 + thump * 0.55 + crack) * env * 0.55);
-    }
-    out
 }
 
 #[cfg(test)]
@@ -80,9 +103,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn synthesizes_non_empty_burst() {
-        let s = synthesize_fire_burst(22_050, 70);
-        assert!(s.len() > 100);
-        assert!(s.iter().any(|v| v.abs() > 0.01));
+    fn variants_non_empty() {
+        let v = synthesize_fire_burst(FIRE_SFX_SAMPLE_RATE, FIRE_SFX_MS, 1);
+        assert!(v.len() > 100);
     }
 }

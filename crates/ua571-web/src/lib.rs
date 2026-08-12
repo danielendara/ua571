@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+use ua571_core::sfx::{synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS};
 use ua571_core::{AppState, Config, Screen, Theme, WeaponStatus};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
@@ -9,7 +10,7 @@ use wasm_bindgen::Clamped;
 use web_sys::{AudioContext, CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
 use web_time::{Duration, Instant};
 
-const FIRE_MS: f32 = 0.070;
+const VARIANT_COUNT: usize = 6;
 
 /// Browser console app bound to a canvas element id.
 #[wasm_bindgen]
@@ -24,7 +25,8 @@ pub struct Ua571Web {
     display_w: u32,
     display_h: u32,
     audio: Option<AudioContext>,
-    fire_samples: Vec<f32>,
+    fire_variants: Vec<Vec<f32>>,
+    next_variant: usize,
     sample_rate: f32,
 }
 
@@ -83,14 +85,22 @@ impl Ua571Web {
         let rgba = vec![0u8; (display_w * display_h * 4) as usize];
 
         // Audio is optional: some environments block it until a user gesture.
-        let (audio, sample_rate, fire_samples) = match AudioContext::new() {
+        let (audio, sample_rate) = match AudioContext::new() {
             Ok(ac) => {
                 let sr = ac.sample_rate();
-                let samples = synthesize_fire_burst(sr, FIRE_MS);
-                (Some(ac), sr, samples)
+                (Some(ac), sr)
             }
-            Err(_) => (None, 22_050.0, synthesize_fire_burst(22_050.0, FIRE_MS)),
+            Err(_) => (None, 22_050.0),
         };
+        let fire_variants = (0..VARIANT_COUNT)
+            .map(|i| {
+                synthesize_fire_burst(
+                    sample_rate as u32,
+                    FIRE_SFX_MS,
+                    0xA57E_u32.wrapping_mul(i as u32 + 1).wrapping_add(0xC0FFEE),
+                )
+            })
+            .collect();
 
         Ok(Self {
             state: AppState::new(config),
@@ -103,7 +113,8 @@ impl Ua571Web {
             display_w,
             display_h,
             audio,
-            fire_samples,
+            fire_variants,
+            next_variant: 0,
             sample_rate,
         })
     }
@@ -130,7 +141,7 @@ impl Ua571Web {
 
         let n = self.state.take_fire_sfx();
         if n > 0 {
-            self.play_fires(n);
+            self.play_fires(n); // &mut self — rotates pulse variants
         }
 
         render(&self.state, &mut self.fb);
@@ -205,17 +216,25 @@ impl Ua571Web {
         }
     }
 
-    fn play_fires(&self, count: u32) {
+    fn play_fires(&mut self, count: u32) {
         if !self.state.config.sound {
             return;
         }
         let Some(ac) = self.audio.as_ref() else {
             return;
         };
-        for i in 0..count.min(4) {
-            // Slight stagger so multi-fire doesn't fully stack as one click.
-            let when = ac.current_time() + f64::from(i) * 0.012;
-            let _ = play_buffer(ac, &self.fire_samples, self.sample_rate, when);
+        let n = count.min(6) as usize;
+        if n == 0 {
+            return;
+        }
+        let period = 1.0 / f64::from(FIRE_CYCLIC_HZ);
+        let now = ac.current_time();
+        for k in 0..n {
+            let i = self.next_variant;
+            self.next_variant = (self.next_variant + 1) % self.fire_variants.len();
+            let samples = &self.fire_variants[i];
+            let when = now + period * k as f64;
+            let _ = play_buffer(ac, samples, self.sample_rate, when);
         }
     }
 }
@@ -236,25 +255,6 @@ fn play_buffer(
     src.connect_with_audio_node(&ac.destination())?;
     src.start_with_when(when)?;
     Ok(())
-}
-
-/// Short noise + low thump with exponential decay (matches native `ua571-audio`).
-fn synthesize_fire_burst(sample_rate: f32, duration_s: f32) -> Vec<f32> {
-    let n = (sample_rate * duration_s).max(1.0) as usize;
-    let mut out = Vec::with_capacity(n);
-    let mut rng = 0xC0FFEE_u32;
-    for i in 0..n {
-        let t = i as f32 / sample_rate;
-        let env = (-t * 38.0).exp();
-        rng ^= rng << 13;
-        rng ^= rng >> 17;
-        rng ^= rng << 5;
-        let noise = (rng as f32 / u32::MAX as f32) * 2.0 - 1.0;
-        let thump = (t * 90.0 * std::f32::consts::TAU).sin() * (-t * 28.0).exp();
-        let crack = (t * 420.0 * std::f32::consts::TAU).sin() * (-t * 55.0).exp() * 0.35;
-        out.push((noise * 0.4 + thump * 0.55 + crack) * env * 0.55);
-    }
-    out
 }
 
 fn theme_rgba(theme: Theme) -> ([u8; 4], [u8; 4]) {
@@ -363,8 +363,8 @@ mod tests {
 
     #[test]
     fn synthesizes_non_empty_burst() {
-        let s = synthesize_fire_burst(22_050.0, 0.070);
+        let s = synthesize_fire_burst(22_050, FIRE_SFX_MS, 0xC0FFEE);
         assert!(s.len() > 100);
-        assert!(s.iter().any(|v| v.abs() > 0.01));
+        assert!(s.iter().any(|v| v.abs() > 0.05));
     }
 }
