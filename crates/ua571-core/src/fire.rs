@@ -20,6 +20,22 @@ pub const TEMP_MIN: u8 = 0;
 pub const RM_MAX: u8 = 100;
 pub const RM_MIN: u8 = 0;
 
+/// UI ticks after last shot before cool-down / R(M) decay begin.
+/// (~4 × 80ms ≈ 320ms hold so continuous fire does not immediately cool.)
+const IDLE_BEFORE_COOL_TICKS: u32 = 4;
+
+/// Idle ticks between temperature steps down (thermal mass — cools slowly).
+const TEMP_COOL_EVERY_TICKS: u32 = 5;
+
+/// Idle ticks between R(M) steps down (cyclic rate falls off faster).
+const RM_DECAY_EVERY_TICKS: u32 = 2;
+
+/// Temperature drop per cool step.
+const TEMP_COOL_STEP: u8 = 1;
+
+/// R(M) drop per decay step.
+const RM_DECAY_STEP: u8 = 2;
+
 /// Telemetry shown on the firing panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -37,6 +53,10 @@ pub struct FireTelemetry {
     critical_counter: u8,
     temp_counter: u8,
     rm_counter: u8,
+    /// UI ticks since last successful fire (for cool-down).
+    ticks_since_fire: u32,
+    cool_temp_counter: u32,
+    cool_rm_counter: u32,
 }
 
 impl Default for FireTelemetry {
@@ -58,6 +78,9 @@ impl FireTelemetry {
             critical_counter: 0,
             temp_counter: 0,
             rm_counter: 0,
+            ticks_since_fire: IDLE_BEFORE_COOL_TICKS, // already "idle"
+            cool_temp_counter: 0,
+            cool_rm_counter: 0,
         }
     }
 
@@ -90,6 +113,9 @@ impl FireTelemetry {
         }
 
         self.rounds -= 1;
+        self.ticks_since_fire = 0;
+        self.cool_temp_counter = 0;
+        self.cool_rm_counter = 0;
 
         // Time-at-100% drains while firing.
         if self.time_centisecs > 0 {
@@ -115,7 +141,13 @@ impl FireTelemetry {
         true
     }
 
-    /// Idle tick for blink animation (call from UI frame loop).
+    /// Periodic UI tick: CRITICAL blink + natural cool-down / R(M) decay when idle.
+    pub fn tick(&mut self) {
+        self.tick_blink();
+        self.tick_cooldown();
+    }
+
+    /// Idle tick for blink animation only (legacy name).
     pub fn tick_blink(&mut self) {
         if !self.critical {
             self.critical_blink = false;
@@ -124,6 +156,32 @@ impl FireTelemetry {
         self.critical_counter = (self.critical_counter + 1) % 3;
         if self.critical_counter == 0 {
             self.critical_blink = !self.critical_blink;
+        }
+    }
+
+    /// Cool barrel and spin down R(M) after a short idle hold.
+    fn tick_cooldown(&mut self) {
+        self.ticks_since_fire = self.ticks_since_fire.saturating_add(1);
+        if self.ticks_since_fire < IDLE_BEFORE_COOL_TICKS {
+            return;
+        }
+
+        // R(M) falls off relatively quickly when not firing.
+        if self.rm > RM_MIN {
+            self.cool_rm_counter += 1;
+            if self.cool_rm_counter >= RM_DECAY_EVERY_TICKS {
+                self.cool_rm_counter = 0;
+                self.rm = self.rm.saturating_sub(RM_DECAY_STEP);
+            }
+        }
+
+        // Temperature cools more slowly (thermal mass).
+        if self.temperature > TEMP_MIN {
+            self.cool_temp_counter += 1;
+            if self.cool_temp_counter >= TEMP_COOL_EVERY_TICKS {
+                self.cool_temp_counter = 0;
+                self.temperature = self.temperature.saturating_sub(TEMP_COOL_STEP);
+            }
         }
     }
 
@@ -161,6 +219,63 @@ mod tests {
         assert!(f.temperature > 0, "temperature should climb under fire");
         assert!(f.rm <= RM_MAX);
         assert!(f.temperature <= TEMP_MAX);
+    }
+
+    #[test]
+    fn idle_cools_temperature() {
+        let mut f = FireTelemetry::new(500);
+        for _ in 0..30 {
+            let _ = f.fire();
+        }
+        let hot = f.temperature;
+        assert!(hot > 0);
+        // Hold + cool steps: enough ticks to drop at least a few degrees.
+        for _ in 0..50 {
+            f.tick();
+        }
+        assert!(
+            f.temperature < hot,
+            "temp should cool when idle (was {hot}, now {})",
+            f.temperature
+        );
+    }
+
+    #[test]
+    fn idle_decays_rm() {
+        let mut f = FireTelemetry::new(500);
+        for _ in 0..20 {
+            let _ = f.fire();
+        }
+        let peak = f.rm;
+        assert!(peak > 0);
+        for _ in 0..30 {
+            f.tick();
+        }
+        assert!(
+            f.rm < peak,
+            "R(M) should decay when idle (was {peak}, now {})",
+            f.rm
+        );
+    }
+
+    #[test]
+    fn fire_resets_cooldown() {
+        let mut f = FireTelemetry::new(500);
+        for _ in 0..15 {
+            let _ = f.fire();
+        }
+        for _ in 0..20 {
+            f.tick();
+        }
+        let cooled = f.temperature;
+        // Resume fire — should heat again, not keep cooling that tick path only
+        for _ in 0..9 {
+            let _ = f.fire();
+        }
+        assert!(
+            f.temperature >= cooled,
+            "firing again should not leave temp colder without heat steps"
+        );
     }
 
     #[test]
