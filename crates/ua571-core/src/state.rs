@@ -300,7 +300,7 @@ impl AppState {
 
     // --- Tick ---
 
-    /// Periodic tick: boot countdown, demo, CRITICAL blink.
+    /// Periodic tick: boot countdown, demo, CRITICAL blink, barrel cool-down / R(M) decay.
     pub fn tick(&mut self) {
         if self.screen == Screen::Boot {
             if self.boot_ticks_remaining > 0 {
@@ -326,7 +326,8 @@ impl AppState {
         }
 
         for s in self.bank.iter_mut() {
-            s.fire.tick_blink();
+            // Heat/R(M) rise on fire(); cool and spin down while idle.
+            s.fire.tick();
         }
     }
 

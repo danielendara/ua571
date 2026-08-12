@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AWS hosting path for **https://ua571.danielendara.com**: CDK (`infra/`), OIDC deploy role, GitHub Actions `deploy-web.yml`
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — open-source-safe maintainer deploy + self-host notes
 - **Yellow** theme matching the original GRiD / film prop monochrome yellow
+- **Natural cool-down**: barrel temperature falls when idle; R(M) spins down after firing stops
 
 ### Changed
 
