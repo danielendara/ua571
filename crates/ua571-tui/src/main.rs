@@ -41,6 +41,10 @@ struct Cli {
     #[arg(long)]
     demo: bool,
 
+    /// Mute fire SFX
+    #[arg(long)]
+    mute: bool,
+
     /// Path to TOML config file
     #[arg(short, long)]
     config: Option<PathBuf>,
@@ -86,6 +90,9 @@ fn load_config(cli: &Cli) -> Result<Config> {
     }
     if cli.demo {
         config.demo_on_start = true;
+    }
+    if cli.mute {
+        config.sound = false;
     }
 
     Ok(config.validate())

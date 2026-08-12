@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — open-source-safe maintainer deploy + self-host notes
 - **Yellow** theme matching the original GRiD / film prop monochrome yellow
 - **Natural cool-down**: barrel temperature falls when idle; R(M) spins down after firing stops
+- **Fire SFX** — procedural autocannon burst on each expended round (native via `ua571-audio`/rodio; browser via Web Audio). Toggle with `m` / `--mute`
 
 ### Changed
 

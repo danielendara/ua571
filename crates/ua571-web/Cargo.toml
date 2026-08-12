@@ -34,4 +34,12 @@ features = [
     "ImageData",
     "CssStyleDeclaration",
     "KeyboardEvent",
+    # Fire SFX (Web Audio API)
+    "AudioContext",
+    "BaseAudioContext",
+    "AudioBuffer",
+    "AudioBufferSourceNode",
+    "AudioNode",
+    "AudioDestinationNode",
+    "AudioScheduledSourceNode",
 ]

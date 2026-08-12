@@ -29,6 +29,9 @@ impl Screen {
     }
 }
 
+/// Cap queued fire SFX so a lagging UI does not explode with overlapping bursts.
+const MAX_PENDING_FIRE_SFX: u32 = 6;
+
 #[derive(Debug)]
 pub struct AppState {
     pub screen: Screen,
@@ -39,6 +42,8 @@ pub struct AppState {
     pub demo: DemoPlayer,
     pub boot_ticks_remaining: u32,
     pub should_quit: bool,
+    /// Fire sound requests for the UI to drain (demo + manual fire).
+    pending_fire_sfx: u32,
 }
 
 impl AppState {
@@ -63,6 +68,7 @@ impl AppState {
             demo: DemoPlayer::default_demo(),
             boot_ticks_remaining: boot_ticks,
             should_quit: false,
+            pending_fire_sfx: 0,
         };
 
         if state.config.demo_on_start && !state.config.show_boot {
@@ -254,10 +260,33 @@ impl AppState {
             if critical && !was_critical {
                 self.log.push(LogKind::Critical { sentry: id, rounds });
             }
+            if self.config.sound {
+                self.pending_fire_sfx = (self.pending_fire_sfx + 1).min(MAX_PENDING_FIRE_SFX);
+            }
         } else {
             self.log.push(LogKind::Empty { sentry: id });
         }
         fired
+    }
+
+    /// Drain queued fire SFX counts for the audio frontend (0 if muted/none).
+    pub fn take_fire_sfx(&mut self) -> u32 {
+        let n = self.pending_fire_sfx;
+        self.pending_fire_sfx = 0;
+        n
+    }
+
+    /// Toggle sound on/off (clears any queued SFX when muting).
+    pub fn toggle_sound(&mut self) {
+        self.config.sound = !self.config.sound;
+        if !self.config.sound {
+            self.pending_fire_sfx = 0;
+        }
+        self.log.push_info(if self.config.sound {
+            "AUDIO ONLINE"
+        } else {
+            "AUDIO MUTED"
+        });
     }
 
     /// Reload active sentry drum to configured starting rounds.
@@ -367,5 +396,44 @@ mod tests {
         assert_eq!(app.screen, Screen::Fire);
         app.toggle_fire_panel();
         assert_eq!(app.screen, Screen::Options);
+    }
+
+    #[test]
+    fn fire_queues_sfx_when_sound_enabled() {
+        let mut app = AppState::new(Config {
+            show_boot: false,
+            sound: true,
+            ..Config::default()
+        });
+        app.active_sentry_mut().unwrap().options.weapon_status = WeaponStatus::Armed;
+        assert!(app.fire());
+        assert_eq!(app.take_fire_sfx(), 1);
+        assert_eq!(app.take_fire_sfx(), 0);
+    }
+
+    #[test]
+    fn fire_skips_sfx_when_muted() {
+        let mut app = AppState::new(Config {
+            show_boot: false,
+            sound: false,
+            ..Config::default()
+        });
+        app.active_sentry_mut().unwrap().options.weapon_status = WeaponStatus::Armed;
+        assert!(app.fire());
+        assert_eq!(app.take_fire_sfx(), 0);
+    }
+
+    #[test]
+    fn toggle_sound_clears_queue() {
+        let mut app = AppState::new(Config {
+            show_boot: false,
+            sound: true,
+            ..Config::default()
+        });
+        app.active_sentry_mut().unwrap().options.weapon_status = WeaponStatus::Armed;
+        assert!(app.fire());
+        app.toggle_sound();
+        assert!(!app.config.sound);
+        assert_eq!(app.take_fire_sfx(), 0);
     }
 }

@@ -17,6 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 ua571-core = { workspace = true }
+ua571-audio = { workspace = true }
 ratatui = { workspace = true }
 crossterm = { workspace = true }
 clap = { workspace = true }
