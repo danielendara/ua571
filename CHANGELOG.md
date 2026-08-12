@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Yellow** theme matching the original GRiD / film prop monochrome yellow
 - **Natural cool-down**: barrel temperature falls when idle; R(M) spins down after firing stops
 - **Fire SFX** — procedural autocannon burst on each expended round (native via `ua571-audio`/rodio; browser via Web Audio). Toggle with `m` / `--mute`
+- **Rounds-remaining ▶ marker** — film-accurate right triangle left of the ammo box (original `FIRE.PAS` `CHR(81H)`)
 
 ### Changed
 

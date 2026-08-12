@@ -127,6 +127,20 @@ impl Framebuffer {
         }
     }
 
+    /// Filled right-pointing triangle (film / original `CHR(81H)` rounds cursor).
+    ///
+    /// `x` is the left edge (base); tip points right. `half_h` is half-height in pixels.
+    pub fn fill_right_triangle(&mut self, x: i32, y_center: i32, half_h: i32) {
+        let half_h = half_h.max(1);
+        for dy in -half_h..=half_h {
+            // Width shrinks toward the tip so the rightmost column is a single pixel.
+            let width = half_h - dy.abs() + 1;
+            for dx in 0..width {
+                self.pixel(x + dx, y_center + dy);
+            }
+        }
+    }
+
     /// Midpoint circle (from original HEADER.PAS Circle).
     pub fn circle(&mut self, xcent: i32, ycent: i32, rad: i32) {
         if rad <= 0 {
@@ -257,6 +271,17 @@ impl Framebuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn right_triangle_has_tip_pixel() {
+        let mut fb = Framebuffer::new();
+        // half_h=3 → tip at x+3, y_center
+        fb.fill_right_triangle(10, 20, 3);
+        assert!(fb.get(13, 20)); // tip
+        assert!(fb.get(10, 20)); // base center
+        assert!(fb.get(10, 17)); // base top
+        assert!(!fb.get(14, 20)); // past tip
+    }
 
     #[test]
     fn invert_toggles() {

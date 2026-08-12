@@ -216,12 +216,20 @@ fn draw_fire(state: &AppState, fb: &mut Framebuffer) {
     fb.draw_text("REMAINING", 20, 84, SECTION_SCALE);
 
     // Boxes sized to the rendered string (padding is inside the frame).
+    // Layout matches original FIRE.PAS: box at (170,70), CHR(81H) triangle at (164,84).
     let rounds = format!("{}", fire.rounds);
-    draw_boxed_value(fb, &rounds, 170, 68, HEADER_SCALE, 12, 6);
+    let box_x = 170;
+    let box_y = 68;
+    let (_outer_w, outer_h) = draw_boxed_value(fb, &rounds, box_x, box_y, HEADER_SCALE, 12, 6);
+    // Film prop: solid ▶ left of the ammo readout (original WinDrawChar CHR(81H)).
+    let tri_half = 6;
+    let tri_x = box_x - tri_half - 2; // tip nearly touches the box edge
+    let tri_cy = box_y + outer_h / 2;
+    fb.fill_right_triangle(tri_x, tri_cy, tri_half);
 
     fb.draw_text("TIME AT 100%", 6, 150, SECTION_SCALE);
     fb.draw_text("(SECS)", 30, 168, SECTION_SCALE);
-    draw_boxed_value(fb, &fire.time_display(), 160, 144, HEADER_SCALE, 12, 6);
+    let _ = draw_boxed_value(fb, &fire.time_display(), 160, 144, HEADER_SCALE, 12, 6);
 
     fb.draw_text("Temp   R(M)", 500, 50, SECTION_SCALE);
 
@@ -255,6 +263,7 @@ fn draw_fire(state: &AppState, fb: &mut Framebuffer) {
 }
 
 /// Draw `text` centered inside a rect. `pad_*` is empty space *inside* the border.
+/// Returns outer `(width, height)` of the frame.
 fn draw_boxed_value(
     fb: &mut Framebuffer,
     text: &str,
@@ -263,7 +272,7 @@ fn draw_boxed_value(
     scale: i32,
     pad_x: i32,
     pad_y: i32,
-) {
+) -> (i32, i32) {
     let scale = scale.max(1);
     let tw = Framebuffer::text_width(text, scale);
     let th = 8 * scale;
@@ -277,6 +286,7 @@ fn draw_boxed_value(
     let tx = box_x + 1 + pad_x + (content_w - tw) / 2;
     let ty = box_y + 1 + pad_y;
     fb.draw_text(text, tx, ty, scale);
+    (outer_w, outer_h)
 }
 
 fn draw_gauge_frame(fb: &mut Framebuffer, x_left: i32, y_top: i32, y_bot: i32) {
