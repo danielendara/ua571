@@ -86,7 +86,8 @@ Site URL: **https://ua571.danielendara.com**
    | `UA571_S3_BUCKET` | from `BucketName` |
    | `UA571_CLOUDFRONT_DISTRIBUTION_ID` | from `DistributionId` |
 
-3. Optional: enable **required reviewers** on `production` so deploys need approval even on `main`.
+3. Optional: enable **required reviewers** on `production` so deploys need approval even on `main`.  
+   Launch default: **no extra approval** — `main` deploys automatically. See [GITHUB.md](GITHUB.md).
 
 Repo/org variables also work if you prefer; the workflow reads `vars.*`.
 
