@@ -49,6 +49,11 @@ python3 -m http.server 8080 --directory web
 
 ## Pull requests
 
+`main` is protected once the repository is public: **changes go through a PR** and CI must pass.
+
 1. Fork and branch from `main`.
 2. Keep commits focused.
-3. Ensure CI passes (fmt, clippy, tests on Linux/macOS/Windows).
+3. Ensure CI passes (fmt, clippy, tests on Linux/macOS/Windows, wasm, secret-guard).
+4. Maintainer squash-merges. Do not expect direct push access.
+
+Maintainer GitHub settings: [docs/GITHUB.md](docs/GITHUB.md).
