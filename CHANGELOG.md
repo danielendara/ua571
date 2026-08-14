@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Web footer credits the maintainer ([danielendara.com](https://danielendara.com), [github.com/danielendara/ua571](https://github.com/danielendara/ua571)); Thom’s UA571C remains named, full link stays in the README
 - Default theme is now **yellow** (was phosphor green) across TUI, pixel, and web
 - Web chrome CSS follows the selected theme (not only the canvas)
 - Relicensed from MIT to **GPL-3.0-only** at the preference of Thom Cherryhomes (UA571C author)
