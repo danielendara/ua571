@@ -11,6 +11,7 @@ use crossterm::terminal::{
 };
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use ua571_audio::FireAudio;
 use ua571_core::{AppState, Config, Screen, WeaponStatus};
 
 use crate::theme::ConsoleTheme;
@@ -19,14 +20,20 @@ use crate::views;
 pub struct App {
     state: AppState,
     theme: ConsoleTheme,
+    audio: Option<FireAudio>,
 }
 
 impl App {
     pub fn new(config: Config) -> Self {
         let theme = ConsoleTheme::from_kind(config.theme);
+        let mut audio = FireAudio::try_new();
+        if let Some(a) = audio.as_mut() {
+            a.set_muted(!config.sound);
+        }
         Self {
             state: AppState::new(config),
             theme,
+            audio,
         }
     }
 
@@ -54,6 +61,8 @@ impl App {
                 last_tick = Instant::now();
             }
 
+            self.drain_sfx();
+
             if self.state.should_quit {
                 break Ok(());
             }
@@ -61,6 +70,15 @@ impl App {
 
         restore_terminal()?;
         result
+    }
+
+    fn drain_sfx(&mut self) {
+        let n = self.state.take_fire_sfx();
+        if n > 0 {
+            if let Some(audio) = self.audio.as_ref() {
+                audio.play_fires(n);
+            }
+        }
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
@@ -83,6 +101,12 @@ impl App {
             }
             KeyCode::Char('d') | KeyCode::Char('D') => {
                 self.state.toggle_demo();
+            }
+            KeyCode::Char('m') | KeyCode::Char('M') => {
+                self.state.toggle_sound();
+                if let Some(audio) = self.audio.as_mut() {
+                    audio.set_muted(!self.state.config.sound);
+                }
             }
             KeyCode::Char('t') | KeyCode::Char('T') => {
                 self.theme = self.theme.next();

@@ -37,6 +37,7 @@ Three frontends share one simulation core:
 - **Event log** — arming, fire, critical, demo messages
 - **Demo mode** — scripted perimeter defense auto-play
 - **Themes** — **yellow** (default, film/GRiD prop), phosphor green, amber, mono
+- **Fire SFX** — MG42-inspired high-rate mechanical pulse when a round fires (mute with `m` or `--mute`)
 - **Cross-platform** — macOS, Linux, Windows; browser via WebAssembly
 
 ## Quick start
@@ -84,6 +85,7 @@ ua571 / ua571-pixel [OPTIONS]
       --tick-ms <MS>        UI tick interval  [default: 80]
       --no-boot             skip POST splash
       --demo                start demo after boot
+      --mute                disable fire SFX
   -c, --config <PATH>       load TOML config
   -s, --scale <N>           (pixel only) integer scale 1–6  [default: 2]
 ```
@@ -99,6 +101,7 @@ starting_rounds = 500
 show_boot = true
 demo_on_start = false
 log_capacity = 64
+sound = true
 ```
 
 ## Keys
@@ -114,6 +117,7 @@ log_capacity = 64
 | `a` | Toggle SAFE / ARMED on active sentry |
 | `r` | Reload active sentry drum |
 | `d` | Toggle demo auto-play |
+| `m` | Toggle fire SFX mute |
 | `t` | Cycle theme (TUI) |
 | `q` | Quit |
 | any (on boot) | Skip POST |

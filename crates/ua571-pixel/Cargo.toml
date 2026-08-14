@@ -18,6 +18,7 @@ path = "src/main.rs"
 [dependencies]
 ua571-core = { workspace = true }
 ua571-render = { workspace = true }
+ua571-audio = { workspace = true }
 minifb = { workspace = true }
 clap = { workspace = true }
 color-eyre = { workspace = true }

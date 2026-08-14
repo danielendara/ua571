@@ -13,6 +13,7 @@ pub mod fire;
 pub mod log;
 pub mod options;
 pub mod sentry;
+pub mod sfx;
 pub mod state;
 
 pub use config::{Config, Theme};
@@ -26,4 +27,5 @@ pub use options::{
     TestRoutine, WeaponStatus,
 };
 pub use sentry::{Sentry, SentryBank, SENTRY_COUNT};
+pub use sfx::{synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS, FIRE_SFX_SAMPLE_RATE};
 pub use state::{AppState, Screen};

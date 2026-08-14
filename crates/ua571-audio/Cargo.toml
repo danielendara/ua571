@@ -1,0 +1,14 @@
+[package]
+name = "ua571-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Native fire SFX for the UA 571-C console (rodio)"
+readme = "../../README.md"
+
+[dependencies]
+ua571-core = { workspace = true }
+rodio = { version = "0.20", default-features = true }

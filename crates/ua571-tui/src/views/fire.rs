@@ -41,9 +41,10 @@ pub fn draw(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rec
     } else {
         theme.title()
     };
+    // Film prop: solid ▶ left of the ammo readout (original FIRE.PAS CHR(81H)).
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(
-            format!("{:3}", fire.rounds),
+            format!("▶ {:3}", fire.rounds),
             rounds_style,
         )))
         .alignment(Alignment::Center)

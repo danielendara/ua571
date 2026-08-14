@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use clap::Parser;
 use color_eyre::eyre::{eyre, Result, WrapErr};
 use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
+use ua571_audio::FireAudio;
 use ua571_core::{AppState, Config, Screen, Theme, WeaponStatus};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 
@@ -38,6 +39,10 @@ struct Cli {
     /// Start demo after boot
     #[arg(long)]
     demo: bool,
+
+    /// Mute fire SFX
+    #[arg(long)]
+    mute: bool,
 
     /// Integer scale of the 640×240 canvas (1–6). Default 2.
     #[arg(short = 's', long, default_value_t = 2)]
@@ -73,6 +78,10 @@ fn main() -> Result<()> {
     window.set_target_fps(60);
 
     let mut state = AppState::new(config);
+    let mut audio = FireAudio::try_new();
+    if let Some(a) = audio.as_mut() {
+        a.set_muted(!state.config.sound);
+    }
     let mut fb = Framebuffer::new();
     let mut buffer = vec![0u32; win_w * win_h];
     let mut last_tick = Instant::now();
@@ -84,11 +93,18 @@ fn main() -> Result<()> {
             buffer.resize(ww * wh, 0);
         }
 
-        handle_input(&window, &mut state);
+        handle_input(&window, &mut state, audio.as_mut());
 
         if last_tick.elapsed() >= tick_rate {
             state.tick();
             last_tick = Instant::now();
+        }
+
+        let n = state.take_fire_sfx();
+        if n > 0 {
+            if let Some(a) = audio.as_ref() {
+                a.play_fires(n);
+            }
         }
 
         render(&state, &mut fb);
@@ -101,7 +117,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn handle_input(window: &Window, state: &mut AppState) {
+fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAudio>) {
     if state.screen == Screen::Boot {
         if !window.get_keys_pressed(KeyRepeat::No).is_empty() {
             state.skip_boot();
@@ -118,6 +134,12 @@ fn handle_input(window: &Window, state: &mut AppState) {
 
     if pressed(Key::D) {
         state.toggle_demo();
+    }
+    if pressed(Key::M) {
+        state.toggle_sound();
+        if let Some(a) = audio {
+            a.set_muted(!state.config.sound);
+        }
     }
     if pressed(Key::F) {
         state.stop_demo();
@@ -234,6 +256,9 @@ fn load_config(cli: &Cli) -> Result<Config> {
     }
     if cli.demo {
         config.demo_on_start = true;
+    }
+    if cli.mute {
+        config.sound = false;
     }
     Ok(config.validate())
 }

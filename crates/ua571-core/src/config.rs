@@ -63,6 +63,8 @@ pub struct Config {
     pub show_boot: bool,
     pub demo_on_start: bool,
     pub log_capacity: usize,
+    /// Play fire SFX when a round is expended (frontends may still mute).
+    pub sound: bool,
 }
 
 impl Default for Config {
@@ -74,6 +76,7 @@ impl Default for Config {
             show_boot: true,
             demo_on_start: false,
             log_capacity: 64,
+            sound: true,
         }
     }
 }

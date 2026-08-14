@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — open-source-safe maintainer deploy + self-host notes
 - **Yellow** theme matching the original GRiD / film prop monochrome yellow
 - **Natural cool-down**: barrel temperature falls when idle; R(M) spins down after firing stops
+- **Fire SFX** — procedural MG42-style high-rate mechanical pulse on each expended round (native via `ua571-audio`/rodio; browser via Web Audio). Shared synth in `ua571-core::sfx`. Toggle with `m` / `--mute`
+- **Rounds-remaining ▶ marker** — film-accurate right triangle left of the ammo box (original `FIRE.PAS` `CHR(81H)`)
 
 ### Changed
 
