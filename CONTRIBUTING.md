@@ -4,6 +4,8 @@ Thanks for your interest. This is an unofficial fan recreation of a movie prop U
 
 ## Development
 
+On Linux, native fire SFX needs ALSA headers (Debian/Ubuntu: `sudo apt-get install libasound2-dev pkg-config`). macOS and Windows do not.
+
 ```bash
 # Once per clone — enables pre-commit secret guard
 ./scripts/install-git-hooks.sh
