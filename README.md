@@ -80,7 +80,8 @@ Deploy is written for a **public repo**: forks/PRs cannot assume the AWS role. T
 ```
 ua571 / ua571-pixel [OPTIONS]
 
-  -t, --theme <THEME>       yellow | phosphor | amber | mono  [default: yellow]
+  -t, --theme <THEME>       yellow | phosphor | amber | mono
+                            (omit to use config.toml / built-in yellow)
   -r, --rounds <N>          starting rounds per sentry  [default: 500]
       --tick-ms <MS>        UI tick interval  [default: 80]
       --no-boot             skip POST splash

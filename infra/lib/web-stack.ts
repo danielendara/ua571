@@ -118,6 +118,29 @@ export class Ua571WebStack extends cdk.Stack {
 
     const s3Origin = origins.S3BucketOrigin.withOriginAccessControl(siteBucket);
 
+    // Extension-less paths → /index.html (future SPA routes).
+    // File paths (including pkg/*.wasm) are left alone so missing assets stay 404.
+    const spaRewrite = new cloudfront.Function(this, 'SpaRewrite', {
+      comment: 'Rewrite extension-less URIs to /index.html; leave pkg/* alone',
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+  if (uri.indexOf('/pkg/') === 0) {
+    return request;
+  }
+  if (uri === '/' || uri === '') {
+    request.uri = '/index.html';
+    return request;
+  }
+  if (uri.lastIndexOf('.') === -1) {
+    request.uri = '/index.html';
+  }
+  return request;
+}
+`),
+    });
+
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       comment: `ua571 web console (${domainName})`,
       domainNames: [domainName],
@@ -135,6 +158,12 @@ export class Ua571WebStack extends cdk.Stack {
         compress: true,
         cachePolicy: shellCachePolicy,
         responseHeadersPolicy: responseHeaders,
+        functionAssociations: [
+          {
+            function: spaRewrite,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
       },
       additionalBehaviors: {
         'pkg/*': {
@@ -147,21 +176,8 @@ export class Ua571WebStack extends cdk.Stack {
           responseHeadersPolicy: responseHeaders,
         },
       },
-      // Single-page app: missing keys (deep links) → index.html for future routes.
-      errorResponses: [
-        {
-          httpStatus: 403,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: cdk.Duration.minutes(1),
-        },
-        {
-          httpStatus: 404,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: cdk.Duration.minutes(1),
-        },
-      ],
+      // No distribution-wide 403/404 → index.html rewrite: that hid missing
+      // pkg/* assets behind a 200 HTML page (see GitHub issue #20).
     });
 
     // ── Route53 alias ──

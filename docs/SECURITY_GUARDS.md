@@ -11,6 +11,7 @@ These guards exist so **you, CI, harnesses, and AI coding sessions** cannot acci
 | `infra/cdk.out/` | Synth output; may embed account-specific ARNs |
 | `.env`, credentials, `*.pem` | Secrets |
 | `web/pkg/`, `target/` | Build artifacts (not secrets, but must not be force-added carelessly) |
+| `.sessions/`, `.albatross/`, `agent.config.json` | Local AI-agent working files (session context) |
 
 GitHub Environment variables (`AWS_ROLE_ARN`, bucket, distribution ID) stay in **GitHub Settings**, not in git.
 

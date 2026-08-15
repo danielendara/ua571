@@ -22,6 +22,3 @@ ratatui = { workspace = true }
 crossterm = { workspace = true }
 clap = { workspace = true }
 color-eyre = { workspace = true }
-serde = { workspace = true }
-toml = { workspace = true }
-dirs = { workspace = true }

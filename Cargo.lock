@@ -2572,7 +2572,9 @@ dependencies = [
 name = "ua571-core"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "serde",
+ "toml",
  "web-time",
 ]
 
@@ -2582,10 +2584,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "color-eyre",
- "dirs",
  "minifb",
- "serde",
- "toml",
  "ua571-audio",
  "ua571-core",
  "ua571-render",
@@ -2605,10 +2604,7 @@ dependencies = [
  "clap",
  "color-eyre",
  "crossterm",
- "dirs",
  "ratatui",
- "serde",
- "toml",
  "ua571-audio",
  "ua571-core",
 ]

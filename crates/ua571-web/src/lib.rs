@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 
 use ua571_core::sfx::{synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS};
-use ua571_core::{AppState, Config, Screen, Theme, WeaponStatus};
+use ua571_core::{AppState, Config, Screen, Theme};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
@@ -81,7 +81,7 @@ impl Ua571Web {
         // Crisp nearest-neighbor upscaling when CSS sizes the canvas larger.
         ctx.set_image_smoothing_enabled(false);
 
-        let (on_rgba, off_rgba) = theme_rgba(theme);
+        let (on_rgba, off_rgba) = (theme.on_rgba(), theme.off_rgba());
         let rgba = vec![0u8; (display_w * display_h * 4) as usize];
 
         // Audio is optional: some environments block it until a user gesture.
@@ -257,18 +257,6 @@ fn play_buffer(
     Ok(())
 }
 
-fn theme_rgba(theme: Theme) -> ([u8; 4], [u8; 4]) {
-    let on = match theme {
-        // Film / GRiD prop yellow (#FFEE00)
-        Theme::Yellow => [0xff, 0xee, 0x00, 0xff],
-        Theme::Phosphor => [0x50, 0xfa, 0x7b, 0xff],
-        Theme::Amber => [0xff, 0xb0, 0x00, 0xff],
-        Theme::Mono => [0xe0, 0xe0, 0xe0, 0xff],
-    };
-    let off = [0x00, 0x00, 0x00, 0xff];
-    (on, off)
-}
-
 fn handle_key(state: &mut AppState, code: &str) {
     if state.screen == Screen::Boot {
         state.skip_boot();
@@ -291,7 +279,7 @@ fn handle_key(state: &mut AppState, code: &str) {
         }
         "KeyA" => {
             state.stop_demo();
-            toggle_arm(state);
+            state.toggle_arm();
         }
         "KeyR" => {
             state.stop_demo();
@@ -340,20 +328,6 @@ fn handle_key(state: &mut AppState, code: &str) {
             }
         }
         _ => {}
-    }
-}
-
-fn toggle_arm(state: &mut AppState) {
-    if let Some(s) = state.active_sentry_mut() {
-        s.options.weapon_status = match s.options.weapon_status {
-            WeaponStatus::Safe => WeaponStatus::Armed,
-            WeaponStatus::Armed => WeaponStatus::Safe,
-        };
-        let id = s.id;
-        match s.options.weapon_status {
-            WeaponStatus::Armed => state.log.push(ua571_core::LogKind::Armed { sentry: id }),
-            WeaponStatus::Safe => state.log.push(ua571_core::LogKind::Safe { sentry: id }),
-        }
     }
 }
 

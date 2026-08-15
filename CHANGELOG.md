@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Web footer credits the maintainer ([danielendara.com](https://danielendara.com), [github.com/danielendara/ua571](https://github.com/danielendara/ua571)); Thom’s UA571C remains named, full link stays in the README
+- CLI `--theme` no longer overwrites a config-file theme unless the flag is passed (#17)
+- Shared `load_native_config`, `AppState::toggle_arm`, and `Theme::{on_rgba,on_rgb_u32}` in core (#19)
+- GitHub Actions pinned to commit SHAs; checkout does not persist credentials (#18)
+- CloudFront: extension-less SPA rewrite via Function; missing `pkg/*` stays 404 (#20)
+
+### Fixed
+
+- Ignore and deny-list local AI-agent files (`.sessions/`, `.albatross/`, `agent.config.json`) (#16)
 - Default theme is now **yellow** (was phosphor green) across TUI, pixel, and web
 - Web chrome CSS follows the selected theme (not only the canvas)
 - Relicensed from MIT to **GPL-3.0-only** at the preference of Thom Cherryhomes (UA571C author)

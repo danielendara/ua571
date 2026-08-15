@@ -4,12 +4,11 @@ mod app;
 mod theme;
 mod views;
 
-use std::fs;
 use std::path::PathBuf;
 
 use clap::Parser;
-use color_eyre::eyre::{eyre, Result, WrapErr};
-use ua571_core::{Config, Theme};
+use color_eyre::eyre::Result;
+use ua571_core::{load_native_config, NativeCli};
 
 use app::App;
 
@@ -21,9 +20,11 @@ use app::App;
 from Aliens (1986). Unofficial fan project — not affiliated with franchise rights holders."
 )]
 struct Cli {
-    /// Color theme: yellow | phosphor | amber | mono  [default: yellow]
-    #[arg(short, long, default_value = "yellow")]
-    theme: String,
+    /// Color theme: yellow | phosphor | amber | mono
+    ///
+    /// When omitted, uses the config file or the built-in yellow default.
+    #[arg(short, long)]
+    theme: Option<String>,
 
     /// Starting rounds per sentry drum
     #[arg(short, long)]
@@ -53,59 +54,15 @@ struct Cli {
 fn main() -> Result<()> {
     color_eyre::install()?;
     let cli = Cli::parse();
-    let config = load_config(&cli)?;
+    let config = load_native_config(&NativeCli {
+        theme: cli.theme,
+        rounds: cli.rounds,
+        tick_ms: cli.tick_ms,
+        no_boot: cli.no_boot,
+        demo: cli.demo,
+        mute: cli.mute,
+        config: cli.config,
+    })?;
     let mut app = App::new(config);
     app.run()
-}
-
-fn load_config(cli: &Cli) -> Result<Config> {
-    let mut config = if let Some(path) = &cli.config {
-        load_toml(path)?
-    } else if let Some(path) = default_config_path() {
-        if path.exists() {
-            load_toml(&path)?
-        } else {
-            Config::default()
-        }
-    } else {
-        Config::default()
-    };
-
-    let theme = Theme::parse(&cli.theme).ok_or_else(|| {
-        eyre!(
-            "unknown theme '{}': use yellow, phosphor, amber, or mono",
-            cli.theme
-        )
-    })?;
-    config.theme = theme;
-
-    if let Some(r) = cli.rounds {
-        config.starting_rounds = r;
-    }
-    if let Some(t) = cli.tick_ms {
-        config.tick_ms = t;
-    }
-    if cli.no_boot {
-        config.show_boot = false;
-    }
-    if cli.demo {
-        config.demo_on_start = true;
-    }
-    if cli.mute {
-        config.sound = false;
-    }
-
-    Ok(config.validate())
-}
-
-fn load_toml(path: &PathBuf) -> Result<Config> {
-    let text = fs::read_to_string(path)
-        .wrap_err_with(|| format!("failed to read config {}", path.display()))?;
-    let config: Config = toml::from_str(&text)
-        .wrap_err_with(|| format!("failed to parse config {}", path.display()))?;
-    Ok(config)
-}
-
-fn default_config_path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("ua571").join("config.toml"))
 }

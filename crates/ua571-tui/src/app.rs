@@ -12,7 +12,7 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use ua571_audio::FireAudio;
-use ua571_core::{AppState, Config, Screen, WeaponStatus};
+use ua571_core::{AppState, Config, Screen};
 
 use crate::theme::ConsoleTheme;
 use crate::views;
@@ -122,7 +122,7 @@ impl App {
             }
             KeyCode::Char('a') | KeyCode::Char('A') => {
                 self.state.stop_demo();
-                self.toggle_arm();
+                self.state.toggle_arm();
             }
             KeyCode::Char('r') | KeyCode::Char('R') => {
                 self.state.stop_demo();
@@ -182,27 +182,6 @@ impl App {
                 }
             }
             _ => {}
-        }
-    }
-
-    fn toggle_arm(&mut self) {
-        if let Some(s) = self.state.active_sentry_mut() {
-            s.options.weapon_status = match s.options.weapon_status {
-                WeaponStatus::Safe => WeaponStatus::Armed,
-                WeaponStatus::Armed => WeaponStatus::Safe,
-            };
-            let id = s.id;
-            let status = s.options.weapon_status;
-            match status {
-                WeaponStatus::Armed => self
-                    .state
-                    .log
-                    .push(ua571_core::LogKind::Armed { sentry: id }),
-                WeaponStatus::Safe => self
-                    .state
-                    .log
-                    .push(ua571_core::LogKind::Safe { sentry: id }),
-            }
         }
     }
 }

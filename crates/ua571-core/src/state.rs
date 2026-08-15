@@ -175,6 +175,18 @@ impl AppState {
         self.log_option_delta(before, self.active_sentry().options);
     }
 
+    /// Toggle SAFE / ARMED on the active sentry and log via `log_option_delta`.
+    pub fn toggle_arm(&mut self) {
+        let before = self.active_sentry().options;
+        if let Some(s) = self.active_sentry_mut() {
+            s.options.weapon_status = match s.options.weapon_status {
+                WeaponStatus::Safe => WeaponStatus::Armed,
+                WeaponStatus::Armed => WeaponStatus::Safe,
+            };
+        }
+        self.log_option_delta(before, self.active_sentry().options);
+    }
+
     fn log_option_delta(&mut self, before: OptionsState, after: OptionsState) {
         if before.system_mode != after.system_mode {
             self.log.push(LogKind::OptionChange {
@@ -421,6 +433,21 @@ mod tests {
         app.active_sentry_mut().unwrap().options.weapon_status = WeaponStatus::Armed;
         assert!(app.fire());
         assert_eq!(app.take_fire_sfx(), 0);
+    }
+
+    #[test]
+    fn toggle_arm_logs_and_flips() {
+        let mut app = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        assert!(!app.active_sentry().is_armed());
+        app.toggle_arm();
+        assert!(app.active_sentry().is_armed());
+        let last = app.log.recent(1)[0].kind.to_string();
+        assert!(last.contains("ARMED"));
+        app.toggle_arm();
+        assert!(!app.active_sentry().is_armed());
     }
 
     #[test]
