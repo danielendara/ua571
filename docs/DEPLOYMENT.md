@@ -121,6 +121,18 @@ python3 -m http.server 8080 --directory web   # local only
 Suitable hosts: Cloudflare Pages, Netlify, GitHub Pages, nginx, S3+CloudFront, etc.  
 Upload the **contents** of `web/` including `web/pkg/`.
 
+## Troubleshooting
+
+### WASM fails to instantiate / wrong MIME after deploy
+
+`pkg/*` is **not** rewritten to `index.html`. A missing `ua571_web_bg.wasm` is a real **404**.
+
+1. Confirm `web/pkg/ua571_web_bg.wasm` exists after `./scripts/build-web.sh`.
+2. Confirm the S3 sync uploaded `pkg/` (workflow “Verify package artifacts” step).
+3. Invalidate CloudFront and hard-refresh.
+
+SPA-style paths without a file extension (`/foo`) are rewritten to `/index.html` by a CloudFront Function on the default behavior. That change lives in `infra/lib/web-stack.ts` and takes effect only after **`npx cdk deploy`** (the static `deploy-web` workflow does not update CloudFront config).
+
 ## Stack context knobs (`infra/cdk.json`)
 
 | Context key | Default |

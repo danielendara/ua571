@@ -42,6 +42,11 @@ id_ed25519
 *-key.json
 service-account*.json
 
+# Local AI-agent working files (session dumps, not project source)
+.sessions/
+.albatross/
+agent.config.json
+
 # OS / editor
 *.orig
 *~

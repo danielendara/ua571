@@ -3,15 +3,14 @@
 //! Fixed 640×240 monochrome logical canvas (coordinates from the GRiD Pascal
 //! recreation), nearest-neighbor scaled into a phosphor-tinted window.
 
-use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use clap::Parser;
-use color_eyre::eyre::{eyre, Result, WrapErr};
+use color_eyre::eyre::{eyre, Result};
 use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
 use ua571_audio::FireAudio;
-use ua571_core::{AppState, Config, Screen, Theme, WeaponStatus};
+use ua571_core::{load_native_config, AppState, NativeCli, Screen};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 
 #[derive(Debug, Parser)]
@@ -20,9 +19,11 @@ use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
     about = "GRiD-style pixel UI for the UA 571-C console (closest to the original display)"
 )]
 struct Cli {
-    /// Color theme: yellow | phosphor | amber | mono  [default: yellow]
-    #[arg(short, long, default_value = "yellow")]
-    theme: String,
+    /// Color theme: yellow | phosphor | amber | mono
+    ///
+    /// When omitted, uses the config file or the built-in yellow default.
+    #[arg(short, long)]
+    theme: Option<String>,
 
     /// Starting rounds per sentry
     #[arg(short, long)]
@@ -55,8 +56,16 @@ struct Cli {
 fn main() -> Result<()> {
     color_eyre::install()?;
     let cli = Cli::parse();
-    let config = load_config(&cli)?;
-    let (on, off) = theme_colors(config.theme);
+    let config = load_native_config(&NativeCli {
+        theme: cli.theme.clone(),
+        rounds: cli.rounds,
+        tick_ms: cli.tick_ms,
+        no_boot: cli.no_boot,
+        demo: cli.demo,
+        mute: cli.mute,
+        config: cli.config.clone(),
+    })?;
+    let (on, off) = (config.theme.on_rgb_u32(), config.theme.off_rgb_u32());
 
     let scale = cli.scale.clamp(1, 6) as usize;
     let win_w = WIDTH * scale;
@@ -151,7 +160,7 @@ fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAu
     }
     if pressed(Key::A) {
         state.stop_demo();
-        toggle_arm(state);
+        state.toggle_arm();
     }
     if pressed(Key::R) {
         state.stop_demo();
@@ -203,67 +212,4 @@ fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAu
             Screen::Boot => {}
         }
     }
-}
-
-fn toggle_arm(state: &mut AppState) {
-    if let Some(s) = state.active_sentry_mut() {
-        s.options.weapon_status = match s.options.weapon_status {
-            WeaponStatus::Safe => WeaponStatus::Armed,
-            WeaponStatus::Armed => WeaponStatus::Safe,
-        };
-        let id = s.id;
-        match s.options.weapon_status {
-            WeaponStatus::Armed => state.log.push(ua571_core::LogKind::Armed { sentry: id }),
-            WeaponStatus::Safe => state.log.push(ua571_core::LogKind::Safe { sentry: id }),
-        }
-    }
-}
-
-fn theme_colors(theme: Theme) -> (u32, u32) {
-    // 0x00RRGGBB for minifb
-    match theme {
-        // Film / GRiD prop yellow
-        Theme::Yellow => (0x00_FF_EE_00, 0x00_00_00_00),
-        Theme::Phosphor => (0x00_50_FA_7B, 0x00_00_00_00),
-        Theme::Amber => (0x00_FF_B0_00, 0x00_00_00_00),
-        Theme::Mono => (0x00_E0_E0_E0, 0x00_00_00_00),
-    }
-}
-
-fn load_config(cli: &Cli) -> Result<Config> {
-    let mut config = if let Some(path) = &cli.config {
-        load_toml(path)?
-    } else if let Some(path) = dirs::config_dir().map(|d| d.join("ua571").join("config.toml")) {
-        if path.exists() {
-            load_toml(&path)?
-        } else {
-            Config::default()
-        }
-    } else {
-        Config::default()
-    };
-
-    config.theme =
-        Theme::parse(&cli.theme).ok_or_else(|| eyre!("unknown theme '{}'", cli.theme))?;
-    if let Some(r) = cli.rounds {
-        config.starting_rounds = r;
-    }
-    if let Some(t) = cli.tick_ms {
-        config.tick_ms = t;
-    }
-    if cli.no_boot {
-        config.show_boot = false;
-    }
-    if cli.demo {
-        config.demo_on_start = true;
-    }
-    if cli.mute {
-        config.sound = false;
-    }
-    Ok(config.validate())
-}
-
-fn load_toml(path: &PathBuf) -> Result<Config> {
-    let text = fs::read_to_string(path).wrap_err_with(|| format!("read {}", path.display()))?;
-    toml::from_str(&text).wrap_err_with(|| format!("parse {}", path.display()))
 }

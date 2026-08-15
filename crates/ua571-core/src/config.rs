@@ -50,6 +50,30 @@ impl Theme {
         let i = Self::ALL.iter().position(|&t| t == self).unwrap_or(0);
         Self::ALL[(i + 1) % Self::ALL.len()]
     }
+
+    /// Phosphor-on RGB+A for canvas / Web Audio frontends.
+    pub fn on_rgba(self) -> [u8; 4] {
+        match self {
+            Theme::Yellow => [0xff, 0xee, 0x00, 0xff],
+            Theme::Phosphor => [0x50, 0xfa, 0x7b, 0xff],
+            Theme::Amber => [0xff, 0xb0, 0x00, 0xff],
+            Theme::Mono => [0xe0, 0xe0, 0xe0, 0xff],
+        }
+    }
+
+    pub fn off_rgba(self) -> [u8; 4] {
+        [0x00, 0x00, 0x00, 0xff]
+    }
+
+    /// 0x00RRGGBB for minifb.
+    pub fn on_rgb_u32(self) -> u32 {
+        let [r, g, b, _] = self.on_rgba();
+        (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
+    }
+
+    pub fn off_rgb_u32(self) -> u32 {
+        0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,6 +118,122 @@ impl Config {
     }
 }
 
+/// CLI overrides for native frontends (TUI / pixel).
+///
+/// `theme` is `None` unless `-t/--theme` was passed, so a config-file theme is
+/// not overwritten by clap's yellow default (#17).
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone, Default)]
+pub struct NativeCli {
+    pub theme: Option<String>,
+    pub rounds: Option<u16>,
+    pub tick_ms: Option<u64>,
+    pub no_boot: bool,
+    pub demo: bool,
+    pub mute: bool,
+    pub config: Option<std::path::PathBuf>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub enum ConfigLoadError {
+    Read {
+        path: std::path::PathBuf,
+        source: std::io::Error,
+    },
+    Parse {
+        path: std::path::PathBuf,
+        source: toml::de::Error,
+    },
+    UnknownTheme(String),
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl std::fmt::Display for ConfigLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConfigLoadError::Read { path, source } => {
+                write!(f, "failed to read config {}: {source}", path.display())
+            }
+            ConfigLoadError::Parse { path, source } => {
+                write!(f, "failed to parse config {}: {source}", path.display())
+            }
+            ConfigLoadError::UnknownTheme(t) => {
+                write!(
+                    f,
+                    "unknown theme '{t}': use yellow, phosphor, amber, or mono"
+                )
+            }
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl std::error::Error for ConfigLoadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ConfigLoadError::Read { source, .. } => Some(source),
+            ConfigLoadError::Parse { source, .. } => Some(source),
+            ConfigLoadError::UnknownTheme(_) => None,
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn default_config_path() -> Option<std::path::PathBuf> {
+    dirs::config_dir().map(|d| d.join("ua571").join("config.toml"))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn load_toml_config(path: &std::path::Path) -> Result<Config, ConfigLoadError> {
+    let text = std::fs::read_to_string(path).map_err(|source| ConfigLoadError::Read {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    toml::from_str(&text).map_err(|source| ConfigLoadError::Parse {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+/// Load TOML (explicit path, else `~/.config/ua571/config.toml`), then apply CLI overrides.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn load_native_config(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
+    let mut config = if let Some(path) = &cli.config {
+        load_toml_config(path)?
+    } else if let Some(path) = default_config_path() {
+        if path.exists() {
+            load_toml_config(&path)?
+        } else {
+            Config::default()
+        }
+    } else {
+        Config::default()
+    };
+
+    if let Some(theme) = &cli.theme {
+        config.theme =
+            Theme::parse(theme).ok_or_else(|| ConfigLoadError::UnknownTheme(theme.clone()))?;
+    }
+    if let Some(r) = cli.rounds {
+        config.starting_rounds = r;
+    }
+    if let Some(t) = cli.tick_ms {
+        config.tick_ms = t;
+    }
+    if cli.no_boot {
+        config.show_boot = false;
+    }
+    if cli.demo {
+        config.demo_on_start = true;
+    }
+    if cli.mute {
+        config.sound = false;
+    }
+
+    Ok(config.validate())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,5 +261,49 @@ mod tests {
     fn default_is_yellow() {
         assert_eq!(Config::default().theme, Theme::Yellow);
         assert_eq!(Theme::default(), Theme::Yellow);
+    }
+
+    #[test]
+    fn theme_rgba_matches_pixel_u32() {
+        let [r, g, b, a] = Theme::Yellow.on_rgba();
+        assert_eq!(a, 0xff);
+        assert_eq!(Theme::Yellow.on_rgb_u32(), 0x00_FF_EE_00);
+        assert_eq!(
+            Theme::Yellow.on_rgb_u32(),
+            (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
+        );
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn toml_theme_kept_when_cli_theme_absent() {
+        let dir = std::env::temp_dir().join(format!("ua571-cfg-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "theme = \"amber\"\n").unwrap();
+        let cfg = load_native_config(&NativeCli {
+            config: Some(path),
+            ..NativeCli::default()
+        })
+        .unwrap();
+        assert_eq!(cfg.theme, Theme::Amber);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn cli_theme_overrides_toml() {
+        let dir = std::env::temp_dir().join(format!("ua571-cfg-cli-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "theme = \"amber\"\n").unwrap();
+        let cfg = load_native_config(&NativeCli {
+            config: Some(path),
+            theme: Some("mono".into()),
+            ..NativeCli::default()
+        })
+        .unwrap();
+        assert_eq!(cfg.theme, Theme::Mono);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

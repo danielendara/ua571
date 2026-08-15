@@ -16,6 +16,10 @@ serde = { workspace = true, optional = true }
 # Instant that works on native + wasm32-unknown-unknown (browser).
 web-time = { workspace = true }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+dirs = { workspace = true }
+toml = { workspace = true }
+
 [features]
 default = ["serde"]
 serde = ["dep:serde"]

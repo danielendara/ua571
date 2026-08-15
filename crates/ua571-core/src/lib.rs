@@ -16,6 +16,8 @@ pub mod sentry;
 pub mod sfx;
 pub mod state;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub use config::{default_config_path, load_native_config, ConfigLoadError, NativeCli};
 pub use config::{Config, Theme};
 pub use demo::{default_script, DemoPlayer, DemoStep};
 pub use fire::{

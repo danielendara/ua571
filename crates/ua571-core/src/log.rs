@@ -9,10 +9,6 @@ use web_time::Instant;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::options::{
-    IffStatus, SpectralProfile, SystemMode, TargetProfile, TargetSelect, WeaponStatus,
-};
-
 pub const DEFAULT_LOG_CAPACITY: usize = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -156,27 +152,6 @@ impl EventLog {
     pub fn recent(&self, n: usize) -> Vec<&LogEvent> {
         self.events.iter().rev().take(n).collect()
     }
-}
-
-/// Helpers to describe option changes for the log.
-pub fn describe_weapon(status: WeaponStatus) -> &'static str {
-    status.label()
-}
-
-pub fn describe_mode(mode: SystemMode) -> &'static str {
-    mode.label()
-}
-
-pub fn describe_iff(iff: IffStatus) -> &'static str {
-    iff.label()
-}
-
-pub fn fire_profile_label(profile: TargetProfile, spectral: SpectralProfile) -> (String, String) {
-    (profile.label().to_string(), spectral.label().to_string())
-}
-
-pub fn describe_target_select(sel: TargetSelect) -> &'static str {
-    sel.label()
 }
 
 #[cfg(test)]

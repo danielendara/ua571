@@ -42,3 +42,11 @@ web/build-id.js
 target/**
 infra/node_modules/**
 infra/dist/**
+
+# Local AI-agent working files (may hold machine / session context)
+.sessions/**
+**/.sessions/**
+.albatross/**
+**/.albatross/**
+agent.config.json
+**/agent.config.json
