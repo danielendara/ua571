@@ -323,4 +323,48 @@ mod tests {
         assert_eq!(f.rm, 0);
         assert_eq!(f.rounds, 500);
     }
+
+    #[test]
+    fn fire_drains_time_and_floors_small_values() {
+        let mut f = FireTelemetry::new(500);
+        let start = f.time_centisecs;
+        assert!(f.fire());
+        assert!(f.time_centisecs < start);
+        f.time_centisecs = 299;
+        assert!(f.fire());
+        assert_eq!(f.time_centisecs, 0);
+    }
+
+    #[test]
+    fn critical_blinks_then_stops_when_reloaded() {
+        let mut f = FireTelemetry::new(99);
+        assert!(f.critical);
+        let mut saw_true = false;
+        let mut saw_false = false;
+        for _ in 0..12 {
+            f.tick();
+            if f.critical_blink {
+                saw_true = true;
+            } else {
+                saw_false = true;
+            }
+        }
+        assert!(saw_true && saw_false, "CRITICAL should blink");
+        f.reset(500);
+        f.tick();
+        assert!(!f.critical);
+        assert!(!f.critical_blink);
+    }
+
+    #[test]
+    fn gauges_cap_at_max() {
+        let mut f = FireTelemetry::new(500);
+        f.rm = RM_MAX;
+        f.temperature = TEMP_MAX;
+        for _ in 0..20 {
+            assert!(f.fire());
+        }
+        assert_eq!(f.rm, RM_MAX);
+        assert_eq!(f.temperature, TEMP_MAX);
+    }
 }

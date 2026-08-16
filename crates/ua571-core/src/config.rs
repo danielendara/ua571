@@ -264,6 +264,36 @@ mod tests {
     }
 
     #[test]
+    fn validate_clamps_rounds_capacity_and_high_tick() {
+        let c = Config {
+            starting_rounds: 5000,
+            log_capacity: 2,
+            tick_ms: 9_000,
+            ..Config::default()
+        }
+        .validate();
+        assert_eq!(c.starting_rounds, 999);
+        assert_eq!(c.log_capacity, 8);
+        assert_eq!(c.tick_ms, 1000);
+    }
+
+    #[test]
+    fn theme_next_cycles_all() {
+        let mut t = Theme::Yellow;
+        let mut seen = vec![t];
+        for _ in 0..3 {
+            t = t.next();
+            seen.push(t);
+        }
+        assert_eq!(
+            seen,
+            vec![Theme::Yellow, Theme::Phosphor, Theme::Amber, Theme::Mono]
+        );
+        assert_eq!(t.next(), Theme::Yellow);
+        assert_eq!(Theme::Amber.as_str(), "amber");
+    }
+
+    #[test]
     fn theme_rgba_matches_pixel_u32() {
         let [r, g, b, a] = Theme::Yellow.on_rgba();
         assert_eq!(a, 0xff);
@@ -305,5 +335,44 @@ mod tests {
         .unwrap();
         assert_eq!(cfg.theme, Theme::Mono);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn cli_flags_apply_without_config_file() {
+        let cfg = load_native_config(&NativeCli {
+            rounds: Some(42),
+            tick_ms: Some(50),
+            no_boot: true,
+            demo: true,
+            mute: true,
+            ..NativeCli::default()
+        })
+        .unwrap();
+        assert_eq!(cfg.starting_rounds, 42);
+        assert_eq!(cfg.tick_ms, 50);
+        assert!(!cfg.show_boot);
+        assert!(cfg.demo_on_start);
+        assert!(!cfg.sound);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn unknown_theme_is_error() {
+        let err = load_native_config(&NativeCli {
+            theme: Some("octarine".into()),
+            ..NativeCli::default()
+        })
+        .unwrap_err();
+        assert!(err.to_string().contains("octarine"));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn missing_toml_is_read_error() {
+        let path = std::env::temp_dir().join("ua571-definitely-missing.toml");
+        let _ = std::fs::remove_file(&path);
+        let err = load_toml_config(&path).unwrap_err();
+        assert!(matches!(err, ConfigLoadError::Read { .. }));
     }
 }

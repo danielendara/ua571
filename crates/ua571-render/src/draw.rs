@@ -382,3 +382,45 @@ fn draw_boot(state: &AppState, fb: &mut Framebuffer) {
     fb.draw_text("PRESS ANY KEY", cx - 52, 210, SECTION_SCALE);
     let _ = HEIGHT; // keep height constant meaningful
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ua571_core::Config;
+
+    fn lit(fb: &Framebuffer) -> usize {
+        fb.pixels.iter().filter(|p| **p).count()
+    }
+
+    #[test]
+    fn render_each_screen_lights_pixels() {
+        for screen in [Screen::Boot, Screen::Options, Screen::Fire] {
+            let mut state = AppState::new(Config {
+                show_boot: screen == Screen::Boot,
+                ..Config::default()
+            });
+            if screen != Screen::Boot {
+                state.set_screen(screen);
+            }
+            let mut fb = Framebuffer::new();
+            render(&state, &mut fb);
+            assert!(lit(&fb) > 50, "{screen:?} should draw a console");
+        }
+    }
+
+    #[test]
+    fn fire_panel_draws_rounds_triangle() {
+        let mut state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        state.set_screen(Screen::Fire);
+        let mut fb = Framebuffer::new();
+        render(&state, &mut fb);
+        // Triangle sits just left of the rounds box (x≈162, y≈83).
+        assert!(
+            fb.get(164, 83),
+            "film ▶ marker should be lit beside rounds remaining"
+        );
+    }
+}

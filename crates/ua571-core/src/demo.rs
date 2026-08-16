@@ -283,4 +283,37 @@ mod tests {
         }
         assert!(!demo.is_active());
     }
+
+    #[test]
+    fn stop_halts_before_completion() {
+        let mut state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        let mut demo = DemoPlayer::default_demo();
+        demo.start();
+        assert!(demo.tick(&mut state));
+        demo.stop();
+        assert!(!demo.is_active());
+        assert!(!demo.tick(&mut state));
+    }
+
+    #[test]
+    fn fire_step_expends_rounds() {
+        let mut state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        let mut demo = DemoPlayer::new(vec![
+            DemoStep::SetWeapon {
+                status: WeaponStatus::Armed,
+            },
+            DemoStep::Fire { times: 3 },
+            DemoStep::Done,
+        ]);
+        demo.start();
+        let start = state.fire_telemetry().rounds;
+        while demo.tick(&mut state) {}
+        assert_eq!(state.fire_telemetry().rounds, start - 3);
+    }
 }

@@ -170,4 +170,61 @@ mod tests {
         assert!(msgs[0].contains('b'));
         assert!(msgs[2].contains('d'));
     }
+
+    #[test]
+    fn recent_is_newest_first() {
+        let mut log = EventLog::new(8);
+        log.push_info("old");
+        log.push_info("new");
+        let recent = log.recent(1);
+        assert!(recent[0].kind.to_string().contains("new"));
+        assert!(!log.is_empty());
+    }
+
+    #[test]
+    fn display_covers_variants() {
+        let cases = [
+            (LogKind::Boot, "UA 571-C"),
+            (LogKind::ScreenChange { to: "FIRE".into() }, "FIRE"),
+            (LogKind::SentrySelect { id: 2 }, "SENTRY-2"),
+            (
+                LogKind::OptionChange {
+                    section: "IFF".into(),
+                    value: "SEARCH".into(),
+                },
+                "SEARCH",
+            ),
+            (LogKind::Armed { sentry: 1 }, "ARMED"),
+            (LogKind::Safe { sentry: 1 }, "SAFE"),
+            (
+                LogKind::Fire {
+                    sentry: 1,
+                    rounds_left: 10,
+                    profile: "HARD".into(),
+                    spectral: "BIO".into(),
+                },
+                "10 RDS",
+            ),
+            (
+                LogKind::Critical {
+                    sentry: 1,
+                    rounds: 99,
+                },
+                "CRITICAL",
+            ),
+            (LogKind::Empty { sentry: 4 }, "EMPTY"),
+            (
+                LogKind::Demo {
+                    message: "GO".into(),
+                },
+                "DEMO",
+            ),
+        ];
+        for (kind, needle) in cases {
+            assert!(
+                kind.to_string().contains(needle),
+                "{kind} should contain {needle}"
+            );
+        }
+    }
 }

@@ -66,3 +66,22 @@ fn main() -> Result<()> {
     let mut app = App::new(config);
     app.run()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn theme_flag_is_optional() {
+        let cli = Cli::try_parse_from(["ua571"]).unwrap();
+        assert!(cli.theme.is_none());
+        assert!(!cli.mute);
+    }
+
+    #[test]
+    fn theme_and_mute_parse() {
+        let cli = Cli::try_parse_from(["ua571", "-t", "amber", "--mute"]).unwrap();
+        assert_eq!(cli.theme.as_deref(), Some("amber"));
+        assert!(cli.mute);
+    }
+}

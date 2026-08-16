@@ -30,6 +30,16 @@ jobs:
             echo "::error::Forbidden path is tracked by git"
             exit 1
           fi
+          # Agent working files must stay ignored / denylisted
+          git check-ignore -q .sessions/tmp || {
+            echo "::error::.sessions/ is not gitignored"
+            exit 1
+          }
+          git check-ignore -q agent.config.json || {
+            echo "::error::agent.config.json is not gitignored"
+            exit 1
+          }
+          grep -q 'agent.config.json' security/commit-denylist.txt
           echo "secret-guard OK"
 
   check:
@@ -50,14 +60,17 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      # rustfmt/clippy are platform-independent — run once on Linux.
       - name: Format
+        if: runner.os == 'Linux'
         run: cargo fmt --all -- --check
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        if: runner.os == 'Linux'
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
       - name: Build release
-        run: cargo build --workspace --release
+        run: cargo build --workspace --release --locked
 
   wasm:
     name: wasm32

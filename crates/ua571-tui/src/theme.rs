@@ -106,3 +106,23 @@ impl ConsoleTheme {
         Self::from_kind(self.kind.next())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_kind_covers_all_themes() {
+        for kind in Theme::ALL {
+            let t = ConsoleTheme::from_kind(kind);
+            assert_eq!(t.kind, kind);
+            assert_eq!(t.bg, ratatui::style::Color::Black);
+        }
+    }
+
+    #[test]
+    fn next_walks_theme_list() {
+        let t = ConsoleTheme::from_kind(Theme::Yellow).next();
+        assert_eq!(t.kind, Theme::Phosphor);
+    }
+}
