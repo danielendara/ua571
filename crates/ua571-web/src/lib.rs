@@ -367,8 +367,9 @@ mod tests {
         let mut state = web_state();
         handle_key(&mut state, "Digit3");
         assert_eq!(state.active_sentry().id, 3);
-        handle_key(&mut state, "KeyM");
         assert!(!state.config.sound);
+        handle_key(&mut state, "KeyM");
+        assert!(state.config.sound);
         handle_key(&mut state, "Escape");
         assert_eq!(state.screen, Screen::Options);
     }
