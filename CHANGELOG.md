@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Open Graph / X `summary_large_image` card for https://ua571.danielendara.com (`web/og.png`)
 - AWS hosting path for **https://ua571.danielendara.com**: CDK (`infra/`), OIDC deploy role, GitHub Actions `deploy-web.yml`
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — open-source-safe maintainer deploy + self-host notes
 - **Yellow** theme matching the original GRiD / film prop monochrome yellow
