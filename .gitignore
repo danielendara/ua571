@@ -7,6 +7,9 @@
 .vscode/
 *.log
 
+# Local source SFX downloads (only the trimmed embed is committed)
+/387508__morganpurkis__mg42-sfx.wav
+
 # Local config overrides
 config.local.toml
 **/*.local.toml
