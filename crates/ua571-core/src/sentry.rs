@@ -97,5 +97,10 @@ mod tests {
         assert_eq!(bank.len(), 4);
         assert_eq!(bank.get(0).unwrap().id, 1);
         assert_eq!(bank.get(3).unwrap().id, 4);
+        assert!(bank.get(4).is_none());
+        assert_eq!(bank.by_id(2).unwrap().id, 2);
+        assert!(bank.by_id(9).is_none());
+        assert!(!bank.get(0).unwrap().is_armed());
+        assert_eq!(bank.get(0).unwrap().label(), "SENTRY-1");
     }
 }

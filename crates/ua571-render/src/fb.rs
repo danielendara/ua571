@@ -300,4 +300,45 @@ mod tests {
         assert!(fb.get(10, 0));
         assert!(fb.get(5, 0));
     }
+
+    #[test]
+    fn fill_rect_and_clear() {
+        let mut fb = Framebuffer::new();
+        fb.fill_rect(2, 2, 4, 3, true);
+        assert!(fb.get(2, 2));
+        assert!(fb.get(5, 4));
+        assert!(!fb.get(6, 4));
+        fb.clear();
+        assert!(!fb.get(2, 2));
+    }
+
+    #[test]
+    fn set_out_of_bounds_is_ignored() {
+        let mut fb = Framebuffer::new();
+        fb.set(-1, 0, true);
+        fb.set(0, -1, true);
+        fb.set(WIDTH as i32, 0, true);
+        fb.set(0, HEIGHT as i32, true);
+        assert!(!fb.get(-1, 0));
+        assert_eq!(fb.pixels.iter().filter(|p| **p).count(), 0);
+    }
+
+    #[test]
+    fn text_width_and_draw() {
+        assert_eq!(Framebuffer::text_width("AB", 1), 16);
+        assert_eq!(Framebuffer::text_width("AB", 2), 32);
+        let mut fb = Framebuffer::new();
+        fb.draw_text("A", 0, 0, 1);
+        assert!(fb.pixels.iter().any(|&p| p));
+    }
+
+    #[test]
+    fn present_scaled_fills_window() {
+        let mut fb = Framebuffer::new();
+        fb.pixel(0, 0);
+        let mut out = vec![0u32; 4];
+        fb.present_scaled(&mut out, 2, 2, 0x00_FF_EE_00, 0);
+        assert_eq!(out[0], 0x00_FF_EE_00);
+        assert_eq!(out[3], 0);
+    }
 }

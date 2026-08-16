@@ -341,4 +341,45 @@ mod tests {
         assert!(s.len() > 100);
         assert!(s.iter().any(|v| v.abs() > 0.05));
     }
+
+    fn web_state() -> AppState {
+        AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        })
+    }
+
+    #[test]
+    fn keys_arm_fire_and_quit() {
+        let mut state = web_state();
+        handle_key(&mut state, "KeyA");
+        assert!(state.active_sentry().is_armed());
+        handle_key(&mut state, "KeyF");
+        assert_eq!(state.screen, Screen::Fire);
+        handle_key(&mut state, "Space");
+        assert_eq!(state.fire_telemetry().rounds, 499);
+        handle_key(&mut state, "KeyQ");
+        assert!(state.should_quit);
+    }
+
+    #[test]
+    fn keys_select_sentry_and_mute() {
+        let mut state = web_state();
+        handle_key(&mut state, "Digit3");
+        assert_eq!(state.active_sentry().id, 3);
+        handle_key(&mut state, "KeyM");
+        assert!(!state.config.sound);
+        handle_key(&mut state, "Escape");
+        assert_eq!(state.screen, Screen::Options);
+    }
+
+    #[test]
+    fn any_key_skips_boot() {
+        let mut state = AppState::new(Config {
+            show_boot: true,
+            ..Config::default()
+        });
+        handle_key(&mut state, "KeyZ");
+        assert_eq!(state.screen, Screen::Options);
+    }
 }

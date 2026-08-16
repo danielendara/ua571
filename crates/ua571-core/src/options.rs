@@ -333,4 +333,27 @@ mod tests {
         o.select_down();
         assert_eq!(o.weapon_status, WeaponStatus::Safe);
     }
+
+    #[test]
+    fn focused_index_and_section_options() {
+        let mut o = OptionsState::new();
+        o.focus = MenuSection::IffStatus;
+        o.iff_status = IffStatus::Engaged;
+        assert_eq!(o.focused_selection_index(), IffStatus::Engaged.index());
+        let (labels, idx) = o.section_options(MenuSection::IffStatus);
+        assert_eq!(labels.len(), IffStatus::ALL.len());
+        assert_eq!(labels[idx], "ENGAGED");
+        assert_eq!(MenuSection::from_index(1), Some(MenuSection::WeaponStatus));
+        assert_eq!(MenuSection::WeaponStatus.option_count(), 2);
+        assert_eq!(MenuSection::SystemMode.short_label(), "SYSTEM");
+    }
+
+    #[test]
+    fn select_up_wraps_in_section() {
+        let mut o = OptionsState::new();
+        o.focus = MenuSection::TargetProfile;
+        assert_eq!(o.target_profile, TargetProfile::Soft);
+        o.select_up();
+        assert_eq!(o.target_profile, TargetProfile::Hard);
+    }
 }

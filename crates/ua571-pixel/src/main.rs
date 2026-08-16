@@ -213,3 +213,22 @@ fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAu
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn theme_flag_is_optional() {
+        let cli = Cli::try_parse_from(["ua571-pixel"]).unwrap();
+        assert!(cli.theme.is_none());
+        assert_eq!(cli.scale, 2);
+    }
+
+    #[test]
+    fn scale_and_theme_parse() {
+        let cli = Cli::try_parse_from(["ua571-pixel", "-t", "mono", "-s", "4"]).unwrap();
+        assert_eq!(cli.theme.as_deref(), Some("mono"));
+        assert_eq!(cli.scale, 4);
+    }
+}

@@ -463,4 +463,173 @@ mod tests {
         assert!(!app.config.sound);
         assert_eq!(app.take_fire_sfx(), 0);
     }
+
+    fn fresh() -> AppState {
+        AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        })
+    }
+
+    #[test]
+    fn boot_then_skip_to_options() {
+        let mut app = AppState::new(Config {
+            show_boot: true,
+            demo_on_start: false,
+            ..Config::default()
+        });
+        assert_eq!(app.screen, Screen::Boot);
+        assert!(app.boot_ticks_remaining > 0);
+        app.skip_boot();
+        assert_eq!(app.screen, Screen::Options);
+        assert_eq!(app.boot_ticks_remaining, 0);
+    }
+
+    #[test]
+    fn boot_ticks_down_to_options() {
+        let mut app = AppState::new(Config {
+            show_boot: true,
+            demo_on_start: false,
+            ..Config::default()
+        });
+        let n = app.boot_ticks_remaining;
+        for _ in 0..n {
+            app.tick();
+        }
+        assert_eq!(app.screen, Screen::Options);
+        assert!(!app.demo.is_active());
+    }
+
+    #[test]
+    fn demo_starts_after_boot_when_configured() {
+        let mut app = AppState::new(Config {
+            show_boot: true,
+            demo_on_start: true,
+            ..Config::default()
+        });
+        app.skip_boot();
+        assert!(app.demo.is_active());
+    }
+
+    #[test]
+    fn demo_starts_immediately_without_boot() {
+        let app = AppState::new(Config {
+            show_boot: false,
+            demo_on_start: true,
+            ..Config::default()
+        });
+        assert!(app.demo.is_active());
+    }
+
+    #[test]
+    fn select_sentry_changes_and_ignores_oob() {
+        let mut app = fresh();
+        app.select_sentry(2);
+        assert_eq!(app.active_sentry().id, 3);
+        app.select_sentry(2);
+        assert_eq!(app.active_sentry().id, 3);
+        app.select_sentry(99);
+        assert_eq!(app.active_sentry().id, 3);
+        app.select_sentry_by_id(1);
+        assert_eq!(app.active_sentry().id, 1);
+        app.select_sentry_by_id(9);
+        assert_eq!(app.active_sentry().id, 1);
+    }
+
+    #[test]
+    fn fire_offline_and_empty() {
+        let mut app = fresh();
+        app.toggle_arm();
+        app.active_sentry_mut().unwrap().online = false;
+        assert!(!app.fire());
+        app.active_sentry_mut().unwrap().online = true;
+        app.active_sentry_mut().unwrap().fire.rounds = 0;
+        assert!(!app.fire());
+        let kinds: Vec<_> = app.log.iter().map(|e| e.kind.to_string()).collect();
+        assert!(kinds.iter().any(|k| k.contains("OFFLINE")));
+        assert!(kinds.iter().any(|k| k.contains("EMPTY")));
+    }
+
+    #[test]
+    fn fire_logs_critical_crossing() {
+        let mut app = fresh();
+        app.toggle_arm();
+        app.active_sentry_mut().unwrap().fire.rounds = 100;
+        assert!(app.fire());
+        assert!(app.fire_telemetry().critical);
+        assert!(app
+            .log
+            .iter()
+            .any(|e| e.kind.to_string().contains("CRITICAL")));
+    }
+
+    #[test]
+    fn pending_sfx_is_capped() {
+        let mut app = AppState::new(Config {
+            show_boot: false,
+            sound: true,
+            ..Config::default()
+        });
+        app.toggle_arm();
+        for _ in 0..20 {
+            assert!(app.fire());
+        }
+        assert_eq!(app.take_fire_sfx(), 6);
+    }
+
+    #[test]
+    fn reload_restores_starting_rounds() {
+        let mut app = fresh();
+        app.toggle_arm();
+        assert!(app.fire());
+        app.reload();
+        assert_eq!(app.fire_telemetry().rounds, app.config.starting_rounds);
+    }
+
+    #[test]
+    fn toggle_demo_and_quit() {
+        let mut app = fresh();
+        assert!(!app.demo.is_active());
+        app.toggle_demo();
+        assert!(app.demo.is_active());
+        app.toggle_demo();
+        assert!(!app.demo.is_active());
+        app.quit();
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn set_screen_logs_once() {
+        let mut app = fresh();
+        let before = app.log.len();
+        app.set_screen(Screen::Options);
+        assert_eq!(app.log.len(), before);
+        app.set_screen(Screen::Fire);
+        assert_eq!(app.screen, Screen::Fire);
+        assert!(app
+            .log
+            .iter()
+            .any(|e| e.kind.to_string().contains("FIRING PANEL")));
+    }
+
+    #[test]
+    fn select_down_logs_option_change() {
+        let mut app = fresh();
+        app.select_down();
+        assert_ne!(
+            app.options().system_mode,
+            crate::options::SystemMode::AutoRemote
+        );
+        assert!(app
+            .log
+            .iter()
+            .any(|e| matches!(e.kind, LogKind::OptionChange { .. })));
+    }
+
+    #[test]
+    fn screen_labels() {
+        assert_eq!(Screen::Options.label(), "OPTIONS");
+        assert_eq!(Screen::Fire.label(), "FIRING PANEL");
+        assert_eq!(Screen::Boot.label(), "BOOT");
+    }
 }

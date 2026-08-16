@@ -134,4 +134,12 @@ mod tests {
         let b = synthesize_fire_burst(22_050, 55, 99);
         assert_ne!(a, b);
     }
+
+    #[test]
+    fn length_and_amplitude_bounds() {
+        let s = synthesize_fire_burst(FIRE_SFX_SAMPLE_RATE, FIRE_SFX_MS, 7);
+        let expected = (u64::from(FIRE_SFX_SAMPLE_RATE) * u64::from(FIRE_SFX_MS) / 1000) as usize;
+        assert_eq!(s.len(), expected);
+        assert!(s.iter().all(|v| v.is_finite() && v.abs() <= 1.0));
+    }
 }
