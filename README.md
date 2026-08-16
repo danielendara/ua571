@@ -37,7 +37,7 @@ Three frontends share one simulation core:
 - **Event log** — arming, fire, critical, demo messages
 - **Demo mode** — scripted perimeter defense auto-play
 - **Themes** — **yellow** (default, film/GRiD prop), phosphor green, amber, mono
-- **Fire SFX** — MG42-inspired high-rate mechanical pulse when a round fires (mute with `m` or `--mute`)
+- **Fire SFX** — MG42-inspired pulse when a round fires (**muted by default**; `m` to enable, `--mute` still forces off)
 - **Cross-platform** — macOS, Linux, Windows; browser via WebAssembly
 
 ## Quick start
@@ -102,7 +102,7 @@ starting_rounds = 500
 show_boot = true
 demo_on_start = false
 log_capacity = 64
-sound = true
+sound = false
 ```
 
 ## Keys

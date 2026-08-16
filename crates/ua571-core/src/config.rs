@@ -100,7 +100,7 @@ impl Default for Config {
             show_boot: true,
             demo_on_start: false,
             log_capacity: 64,
-            sound: true,
+            sound: false,
         }
     }
 }
@@ -261,6 +261,11 @@ mod tests {
     fn default_is_yellow() {
         assert_eq!(Config::default().theme, Theme::Yellow);
         assert_eq!(Theme::default(), Theme::Yellow);
+    }
+
+    #[test]
+    fn default_sound_is_muted() {
+        assert!(!Config::default().sound);
     }
 
     #[test]
