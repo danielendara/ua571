@@ -11,4 +11,4 @@ readme = "../../README.md"
 
 [dependencies]
 ua571-core = { workspace = true }
-rodio = { version = "0.20", default-features = true }
+rodio = { version = "0.22", default-features = true }
