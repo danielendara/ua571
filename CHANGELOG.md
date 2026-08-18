@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Native audio: rodio **0.22** (`DeviceSinkBuilder` / `Player`; `SamplesBuffer` NonZero rates)
 - Fire SFX is **muted by default** (`m` enables it; `sound = true` in config or after toggle)
 - Broader unit coverage (boot/demo/fire/config/render/web keys/CLI) and CI `--locked`; fmt/clippy only on Ubuntu
 - Web footer credits the maintainer ([danielendara.com](https://danielendara.com), [github.com/danielendara/ua571](https://github.com/danielendara/ua571)); Thom’s UA571C remains named, full link stays in the README
