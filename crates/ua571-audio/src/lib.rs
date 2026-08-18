@@ -4,8 +4,10 @@
 
 #![forbid(unsafe_code)]
 
+use std::num::{NonZeroU16, NonZeroU32};
+
 use rodio::buffer::SamplesBuffer;
-use rodio::{OutputStream, OutputStreamHandle, Sink};
+use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player};
 use ua571_core::sfx::{synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS, FIRE_SFX_SAMPLE_RATE};
 
 /// How many pre-baked pulse variants to rotate through (less robotic).
@@ -13,8 +15,7 @@ const VARIANT_COUNT: usize = 6;
 
 /// Native audio device handle. Keep alive for the app lifetime.
 pub struct FireAudio {
-    _stream: OutputStream,
-    handle: OutputStreamHandle,
+    sink: MixerDeviceSink,
     variants: Vec<Vec<f32>>,
     next_variant: std::cell::Cell<usize>,
     pub muted: bool,
@@ -23,7 +24,8 @@ pub struct FireAudio {
 impl FireAudio {
     /// Open default output. Returns `None` if the device is unavailable.
     pub fn try_new() -> Option<Self> {
-        let (stream, handle) = OutputStream::try_default().ok()?;
+        let mut sink = DeviceSinkBuilder::open_default_sink().ok()?;
+        sink.log_on_drop(false);
         let variants = (0..VARIANT_COUNT)
             .map(|i| {
                 synthesize_fire_burst(
@@ -34,8 +36,7 @@ impl FireAudio {
             })
             .collect();
         Some(Self {
-            _stream: stream,
-            handle,
+            sink,
             variants,
             next_variant: std::cell::Cell::new(0),
             muted: false,
@@ -90,11 +91,11 @@ impl FireAudio {
     }
 
     fn play_buffer(&self, samples: Vec<f32>) {
-        let Ok(sink) = Sink::try_new(&self.handle) else {
-            return;
-        };
-        sink.append(SamplesBuffer::new(1, FIRE_SFX_SAMPLE_RATE, samples));
-        sink.detach();
+        let channels = NonZeroU16::new(1).expect("mono");
+        let rate = NonZeroU32::new(FIRE_SFX_SAMPLE_RATE).expect("sample rate");
+        let player = Player::connect_new(self.sink.mixer());
+        player.append(SamplesBuffer::new(channels, rate, samples));
+        player.detach();
     }
 }
 
