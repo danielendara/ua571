@@ -210,6 +210,6 @@ mod tests {
         assert!(s.iter().any(|v| v.abs() > 0.1));
         assert!(s.iter().all(|v| v.is_finite() && v.abs() <= 1.0));
         let d = fire_burst_duration_secs();
-        assert!((0.15..=0.22).contains(&d));
+        assert!((0.07..=0.12).contains(&d), "burst len {d}");
     }
 }

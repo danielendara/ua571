@@ -2,7 +2,7 @@
 
 #![forbid(unsafe_code)]
 
-use ua571_core::sfx::{fire_burst_duration_secs, fire_burst_pcm};
+use ua571_core::sfx::{fire_burst_pcm, FIRE_CYCLIC_HZ};
 use ua571_core::{AppState, Config, Screen, Theme};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
@@ -25,8 +25,6 @@ pub struct Ua571Web {
     audio: Option<AudioContext>,
     fire_samples: Vec<f32>,
     fire_sample_rate: f32,
-    burst_secs: f32,
-    last_burst: Option<Instant>,
 }
 
 #[wasm_bindgen]
@@ -107,8 +105,6 @@ impl Ua571Web {
             audio,
             fire_samples,
             fire_sample_rate: burst_sr as f32,
-            burst_secs: fire_burst_duration_secs(),
-            last_burst: None,
         })
     }
 
@@ -216,18 +212,17 @@ impl Ua571Web {
         let Some(ac) = self.audio.as_ref() else {
             return;
         };
-        if let Some(t) = self.last_burst {
-            if t.elapsed().as_secs_f32() < self.burst_secs {
-                return;
-            }
+        let n = count.min(6);
+        let period = 1.0 / f64::from(FIRE_CYCLIC_HZ);
+        let now = ac.current_time();
+        for k in 0..n {
+            let _ = play_buffer(
+                ac,
+                &self.fire_samples,
+                self.fire_sample_rate,
+                now + period * f64::from(k),
+            );
         }
-        self.last_burst = Some(Instant::now());
-        let _ = play_buffer(
-            ac,
-            &self.fire_samples,
-            self.fire_sample_rate,
-            ac.current_time(),
-        );
     }
 }
 
