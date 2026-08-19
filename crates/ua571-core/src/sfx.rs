@@ -10,11 +10,70 @@
 /// Sample rate used by the native frontend (web uses the AudioContext rate).
 pub const FIRE_SFX_SAMPLE_RATE: u32 = 22_050;
 
+/// Bundled MG42-style burst (trimmed Freesound 387508, mono 22.05 kHz).
+const FIRE_BURST_WAV: &[u8] = include_bytes!("../assets/fire_burst.wav");
+
 /// One expended-round pulse length (ms). Short enough to chain into rapid fire.
 pub const FIRE_SFX_MS: u32 = 55;
 
 /// MG42-ish cyclic rate (shots per second). Used for multi-fire stagger.
 pub const FIRE_CYCLIC_HZ: f32 = 20.0;
+
+/// Decode the bundled burst as `(sample_rate, mono f32 in [-1, 1])`.
+pub fn fire_burst_pcm() -> (u32, Vec<f32>) {
+    decode_wav_pcm16(FIRE_BURST_WAV).expect("bundled fire_burst.wav is PCM16")
+}
+
+/// Duration of the bundled burst (used to gate retriggers).
+pub fn fire_burst_duration_secs() -> f32 {
+    let (sr, samples) = fire_burst_pcm();
+    samples.len() as f32 / sr as f32
+}
+
+fn decode_wav_pcm16(bytes: &[u8]) -> Result<(u32, Vec<f32>), &'static str> {
+    if bytes.len() < 44 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
+        return Err("not a WAVE file");
+    }
+    let mut pos = 12;
+    let mut sr = 0u32;
+    let mut ch = 0u16;
+    let mut bits = 0u16;
+    let mut data: &[u8] = &[];
+    while pos + 8 <= bytes.len() {
+        let id = &bytes[pos..pos + 4];
+        let size = u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap()) as usize;
+        let start = pos + 8;
+        let end = start.saturating_add(size);
+        if end > bytes.len() {
+            return Err("truncated chunk");
+        }
+        if id == b"fmt " && size >= 16 {
+            ch = u16::from_le_bytes(bytes[start + 2..start + 4].try_into().unwrap());
+            sr = u32::from_le_bytes(bytes[start + 4..start + 8].try_into().unwrap());
+            bits = u16::from_le_bytes(bytes[start + 14..start + 16].try_into().unwrap());
+        } else if id == b"data" {
+            data = &bytes[start..end];
+        }
+        pos = end + size % 2;
+    }
+    if sr == 0 || ch == 0 || bits != 16 || data.is_empty() {
+        return Err("unsupported wav");
+    }
+    let step = ch as usize;
+    let mut out = Vec::with_capacity(data.len() / 2 / step.max(1));
+    let mut i = 0;
+    while i + 2 * step <= data.len() {
+        let mut acc = 0.0f32;
+        for c in 0..step {
+            let o = i + c * 2;
+            let s = i16::from_le_bytes([data[o], data[o + 1]]);
+            acc += f32::from(s) / 32768.0;
+        }
+        out.push(acc / step as f32);
+        i += 2 * step;
+    }
+    Ok((sr, out))
+}
 
 /// Synthesize one fire pulse as mono `f32` samples in roughly `[-1, 1]`.
 ///
@@ -141,5 +200,16 @@ mod tests {
         let expected = (u64::from(FIRE_SFX_SAMPLE_RATE) * u64::from(FIRE_SFX_MS) / 1000) as usize;
         assert_eq!(s.len(), expected);
         assert!(s.iter().all(|v| v.is_finite() && v.abs() <= 1.0));
+    }
+
+    #[test]
+    fn bundled_burst_decodes() {
+        let (sr, s) = fire_burst_pcm();
+        assert_eq!(sr, 22_050);
+        assert!(s.len() > 1000);
+        assert!(s.iter().any(|v| v.abs() > 0.1));
+        assert!(s.iter().all(|v| v.is_finite() && v.abs() <= 1.0));
+        let d = fire_burst_duration_secs();
+        assert!((0.07..=0.12).contains(&d), "burst len {d}");
     }
 }

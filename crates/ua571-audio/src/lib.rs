@@ -1,6 +1,6 @@
-//! Native fire SFX via rodio (procedural buffer from `ua571_core::sfx`).
+//! Native fire SFX via rodio (bundled MG42 burst from `ua571_core::sfx`).
 //!
-//! Web uses the same synthesis through Web Audio in `ua571-web`.
+//! Web uses the same PCM through Web Audio in `ua571-web`.
 
 #![forbid(unsafe_code)]
 
@@ -8,16 +8,13 @@ use std::num::{NonZeroU16, NonZeroU32};
 
 use rodio::buffer::SamplesBuffer;
 use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player};
-use ua571_core::sfx::{synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS, FIRE_SFX_SAMPLE_RATE};
-
-/// How many pre-baked pulse variants to rotate through (less robotic).
-const VARIANT_COUNT: usize = 6;
+use ua571_core::sfx::{fire_burst_pcm, FIRE_CYCLIC_HZ};
 
 /// Native audio device handle. Keep alive for the app lifetime.
 pub struct FireAudio {
     sink: MixerDeviceSink,
-    variants: Vec<Vec<f32>>,
-    next_variant: std::cell::Cell<usize>,
+    sample_rate: u32,
+    samples: Vec<f32>,
     pub muted: bool,
 }
 
@@ -26,19 +23,11 @@ impl FireAudio {
     pub fn try_new() -> Option<Self> {
         let mut sink = DeviceSinkBuilder::open_default_sink().ok()?;
         sink.log_on_drop(false);
-        let variants = (0..VARIANT_COUNT)
-            .map(|i| {
-                synthesize_fire_burst(
-                    FIRE_SFX_SAMPLE_RATE,
-                    FIRE_SFX_MS,
-                    0xA57E_u32.wrapping_mul(i as u32 + 1).wrapping_add(0xC0FFEE),
-                )
-            })
-            .collect();
+        let (sample_rate, samples) = fire_burst_pcm();
         Some(Self {
             sink,
-            variants,
-            next_variant: std::cell::Cell::new(0),
+            sample_rate,
+            samples,
             muted: false,
         })
     }
@@ -47,16 +36,15 @@ impl FireAudio {
         self.muted = muted;
     }
 
-    /// Play one MG42-style pulse (non-blocking).
+    /// Play one burst (non-blocking).
     pub fn play_fire(&self) {
         if self.muted {
             return;
         }
-        let samples = self.take_variant();
-        self.play_buffer(samples);
+        self.play_buffer(self.samples.clone());
     }
 
-    /// Play queued fires as a short cyclic brap (MG42-ish spacing).
+    /// Play queued fires, staggered at cyclic rate so audio keeps up with rounds.
     pub fn play_fires(&self, count: u32) {
         if self.muted || count == 0 {
             return;
@@ -66,15 +54,12 @@ impl FireAudio {
             self.play_fire();
             return;
         }
-
-        let period = ((FIRE_SFX_SAMPLE_RATE as f32) / FIRE_CYCLIC_HZ).round() as usize;
-        let pulse_len = self.variants[0].len();
-        let total = period * (n - 1) + pulse_len;
+        let period = ((self.sample_rate as f32) / FIRE_CYCLIC_HZ).round() as usize;
+        let total = period * (n - 1) + self.samples.len();
         let mut buf = vec![0.0f32; total];
         for k in 0..n {
             let start = k * period;
-            let pulse = self.take_variant();
-            for (i, s) in pulse.iter().enumerate() {
+            for (i, s) in self.samples.iter().enumerate() {
                 let idx = start + i;
                 if idx < buf.len() {
                     buf[idx] = (buf[idx] + s).tanh();
@@ -84,15 +69,9 @@ impl FireAudio {
         self.play_buffer(buf);
     }
 
-    fn take_variant(&self) -> Vec<f32> {
-        let i = self.next_variant.get();
-        self.next_variant.set((i + 1) % self.variants.len());
-        self.variants[i].clone()
-    }
-
     fn play_buffer(&self, samples: Vec<f32>) {
         let channels = NonZeroU16::new(1).expect("mono");
-        let rate = NonZeroU32::new(FIRE_SFX_SAMPLE_RATE).expect("sample rate");
+        let rate = NonZeroU32::new(self.sample_rate).expect("sample rate");
         let player = Player::connect_new(self.sink.mixer());
         player.append(SamplesBuffer::new(channels, rate, samples));
         player.detach();
@@ -104,8 +83,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn variants_non_empty() {
-        let v = synthesize_fire_burst(FIRE_SFX_SAMPLE_RATE, FIRE_SFX_MS, 1);
+    fn bundled_burst_ready() {
+        let (sr, v) = fire_burst_pcm();
+        assert_eq!(sr, 22_050);
         assert!(v.len() > 100);
     }
 }

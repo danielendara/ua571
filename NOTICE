@@ -31,3 +31,14 @@ This Rust project is a clean-room modernization: new source, new architecture,
 and no GRiD-OS binaries or proprietary toolchains are distributed here.
 
 The original film prop displays used GRiD Compass II hardware on set.
+
+Third-party audio
+-----------------
+
+Fire SFX burst derived from:
+
+  "MG42 SFX.wav" by morganpurkis
+  https://freesound.org/people/morganpurkis/sounds/387508/
+  Released on Freesound as Creative Commons 0.
+
+Trimmed and converted for this project (mono, 22.05 kHz). Not film audio.

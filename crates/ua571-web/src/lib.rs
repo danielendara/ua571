@@ -2,15 +2,13 @@
 
 #![forbid(unsafe_code)]
 
-use ua571_core::sfx::{synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS};
+use ua571_core::sfx::{fire_burst_pcm, FIRE_CYCLIC_HZ};
 use ua571_core::{AppState, Config, Screen, Theme};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
 use web_sys::{AudioContext, CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
 use web_time::{Duration, Instant};
-
-const VARIANT_COUNT: usize = 6;
 
 /// Browser console app bound to a canvas element id.
 #[wasm_bindgen]
@@ -25,9 +23,8 @@ pub struct Ua571Web {
     display_w: u32,
     display_h: u32,
     audio: Option<AudioContext>,
-    fire_variants: Vec<Vec<f32>>,
-    next_variant: usize,
-    sample_rate: f32,
+    fire_samples: Vec<f32>,
+    fire_sample_rate: f32,
 }
 
 #[wasm_bindgen]
@@ -92,15 +89,8 @@ impl Ua571Web {
             }
             Err(_) => (None, 22_050.0),
         };
-        let fire_variants = (0..VARIANT_COUNT)
-            .map(|i| {
-                synthesize_fire_burst(
-                    sample_rate as u32,
-                    FIRE_SFX_MS,
-                    0xA57E_u32.wrapping_mul(i as u32 + 1).wrapping_add(0xC0FFEE),
-                )
-            })
-            .collect();
+        let (burst_sr, fire_samples) = fire_burst_pcm();
+        let _ = sample_rate; // device rate unused; AudioBuffer plays at burst_sr
 
         Ok(Self {
             state: AppState::new(config),
@@ -113,9 +103,8 @@ impl Ua571Web {
             display_w,
             display_h,
             audio,
-            fire_variants,
-            next_variant: 0,
-            sample_rate,
+            fire_samples,
+            fire_sample_rate: burst_sr as f32,
         })
     }
 
@@ -217,24 +206,22 @@ impl Ua571Web {
     }
 
     fn play_fires(&mut self, count: u32) {
-        if !self.state.config.sound {
+        if !self.state.config.sound || count == 0 {
             return;
         }
         let Some(ac) = self.audio.as_ref() else {
             return;
         };
-        let n = count.min(6) as usize;
-        if n == 0 {
-            return;
-        }
+        let n = count.min(6);
         let period = 1.0 / f64::from(FIRE_CYCLIC_HZ);
         let now = ac.current_time();
         for k in 0..n {
-            let i = self.next_variant;
-            self.next_variant = (self.next_variant + 1) % self.fire_variants.len();
-            let samples = &self.fire_variants[i];
-            let when = now + period * k as f64;
-            let _ = play_buffer(ac, samples, self.sample_rate, when);
+            let _ = play_buffer(
+                ac,
+                &self.fire_samples,
+                self.fire_sample_rate,
+                now + period * f64::from(k),
+            );
         }
     }
 }
@@ -337,7 +324,7 @@ mod tests {
 
     #[test]
     fn synthesizes_non_empty_burst() {
-        let s = synthesize_fire_burst(22_050, FIRE_SFX_MS, 0xC0FFEE);
+        let s = ua571_core::sfx::synthesize_fire_burst(22_050, ua571_core::FIRE_SFX_MS, 0xC0FFEE);
         assert!(s.len() > 100);
         assert!(s.iter().any(|v| v.abs() > 0.05));
     }
