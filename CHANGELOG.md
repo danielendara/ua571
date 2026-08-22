@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Toolchain pin: Rust **1.98.0** (`rust-toolchain.toml` + CI `toolchain: 1.98.0`)
 - Fire SFX uses a trimmed Freesound MG42 burst (~90 ms), retriggered with each expended round
 - Native audio: rodio **0.22** (`DeviceSinkBuilder` / `Player`; `SamplesBuffer` NonZero rates)
 - Fire SFX is **muted by default** (`m` enables it; `sound = true` in config or after toggle)
