@@ -11,7 +11,7 @@ members = [
 default-members = ["crates/ua571-tui"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/danielendara/ua571"
@@ -19,9 +19,9 @@ authors = ["Daniel Endara"]
 rust-version = "1.80"
 
 [workspace.dependencies]
-ua571-core = { path = "crates/ua571-core", version = "0.1.0" }
-ua571-render = { path = "crates/ua571-render", version = "0.1.0" }
-ua571-audio = { path = "crates/ua571-audio", version = "0.1.0" }
+ua571-core = { path = "crates/ua571-core", version = "0.2.0" }
+ua571-render = { path = "crates/ua571-render", version = "0.2.0" }
+ua571-audio = { path = "crates/ua571-audio", version = "0.2.0" }
 ratatui = "0.30"
 crossterm = "0.29"
 serde = { version = "1", features = ["derive"] }

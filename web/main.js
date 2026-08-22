@@ -39,6 +39,15 @@ function applyPageTheme(theme) {
   document.body.dataset.theme = theme || "yellow";
 }
 
+function showVersion(v) {
+  const wrap = document.getElementById("app-version-wrap");
+  const el = document.getElementById("app-version");
+  if (!wrap || !el || !v) return;
+  el.textContent = `v${v}`;
+  el.href = `https://github.com/danielendara/ua571/releases/tag/v${v}`;
+  wrap.hidden = false;
+}
+
 async function boot() {
   const status = document.getElementById("status");
   const canvas = document.getElementById("ua571");
@@ -53,6 +62,7 @@ async function boot() {
     const { BUILD_ID } = await import(`./build-id.js?v=${Date.now()}`);
     const wasm = await import(`./pkg/ua571_web.js?v=${BUILD_ID}`);
     await wasm.default();
+    showVersion(wasm.pkg_version());
 
     app = new wasm.Ua571Web(
       "ua571",

@@ -21,7 +21,8 @@ If you believe a secret was committed, contact the maintainer immediately and do
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | Yes       |
+| 0.2.x   | Yes       |
+| 0.1.x   | No        |
 
 ## Reporting a vulnerability
 

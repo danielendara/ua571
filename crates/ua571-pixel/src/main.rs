@@ -16,6 +16,7 @@ use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 #[derive(Debug, Parser)]
 #[command(
     name = "ua571-pixel",
+    version,
     about = "GRiD-style pixel UI for the UA 571-C console (closest to the original display)"
 )]
 struct Cli {
@@ -72,7 +73,10 @@ fn main() -> Result<()> {
     let win_h = HEIGHT * scale;
 
     let mut window = Window::new(
-        "UA 571-C Remote Sentry Weapon System",
+        &format!(
+            "UA 571-C Remote Sentry Weapon System  v{}",
+            ua571_core::VERSION
+        ),
         win_w,
         win_h,
         WindowOptions {

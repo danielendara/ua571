@@ -263,6 +263,12 @@ fn play_buffer(
     Ok(())
 }
 
+/// Workspace crate version for the web chrome (`v0.2.0`).
+#[wasm_bindgen]
+pub fn pkg_version() -> String {
+    ua571_core::VERSION.to_string()
+}
+
 fn handle_key(state: &mut AppState, code: &str) {
     if state.screen == Screen::Boot {
         state.skip_boot();
@@ -340,6 +346,12 @@ fn handle_key(state: &mut AppState, code: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pkg_version_matches_core() {
+        assert_eq!(pkg_version(), ua571_core::VERSION);
+        assert_eq!(pkg_version(), "0.2.0");
+    }
 
     #[test]
     fn synthesizes_non_empty_burst() {

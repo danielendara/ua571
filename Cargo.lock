@@ -2704,7 +2704,7 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
 name = "ua571-audio"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rodio",
  "ua571-core",
@@ -2712,7 +2712,7 @@ dependencies = [
 
 [[package]]
 name = "ua571-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dirs",
  "serde",
@@ -2722,7 +2722,7 @@ dependencies = [
 
 [[package]]
 name = "ua571-pixel"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "color-eyre",
@@ -2734,14 +2734,14 @@ dependencies = [
 
 [[package]]
 name = "ua571-render"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ua571-core",
 ]
 
 [[package]]
 name = "ua571-tui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "color-eyre",
@@ -2753,7 +2753,7 @@ dependencies = [
 
 [[package]]
 name = "ua571-web"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
