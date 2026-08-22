@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-21
+
 ### Added
 
+- Web chrome shows the crate version (`v0.2.0`) and links to the GitHub release tag
+- `ua571 --version` and `ua571-pixel --version`
 - Open Graph / X `summary_large_image` card for https://ua571.danielendara.com (`web/og.png`)
 - AWS hosting path for **https://ua571.danielendara.com**: CDK (`infra/`), OIDC deploy role, GitHub Actions `deploy-web.yml`
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — open-source-safe maintainer deploy + self-host notes
@@ -57,3 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Temperature and R(M) start at 0 and climb under fire; gauges fill bottom-up
 - Clean-room Rust modernization inspired by tschak909/UA571C and the film prop UI
+
+[Unreleased]: https://github.com/danielendara/ua571/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/danielendara/ua571/compare/f44c3bb...v0.2.0
+[0.1.0]: https://github.com/danielendara/ua571/tree/f44c3bb

@@ -31,3 +31,17 @@ pub use options::{
 pub use sentry::{Sentry, SentryBank, SENTRY_COUNT};
 pub use sfx::{synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS, FIRE_SFX_SAMPLE_RATE};
 pub use state::{AppState, Screen};
+
+/// Workspace crate version (Keep a Changelog / SemVer).
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn version_matches_workspace_semver() {
+        assert_eq!(crate::VERSION, "0.2.0");
+        let parts: Vec<_> = crate::VERSION.split('.').collect();
+        assert_eq!(parts.len(), 3);
+        assert!(parts.iter().all(|p| p.chars().all(|c| c.is_ascii_digit())));
+    }
+}

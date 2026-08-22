@@ -5,6 +5,7 @@
 Unofficial fan project. **Not affiliated with** 20th Century Studios, Disney, Fox, James Cameron, or any *Alien* franchise rights holders.
 
 [![CI](https://github.com/danielendara/ua571/actions/workflows/ci.yml/badge.svg)](https://github.com/danielendara/ua571/actions/workflows/ci.yml)
+[![Version 0.2.0](https://img.shields.io/badge/version-0.2.0-blue.svg)](CHANGELOG.md)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
 **Live demo:** [https://ua571.danielendara.com](https://ua571.danielendara.com)  
