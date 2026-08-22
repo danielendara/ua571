@@ -31,10 +31,11 @@ pub struct Ua571Web {
 impl Ua571Web {
     /// Create and mount onto `#canvas_id`.
     ///
-    /// * `theme` — `phosphor` | `amber` | `mono`
+    /// * `theme` — `yellow` | `phosphor` | `amber` | `mono`
     /// * `scale` — integer pixel scale 1–6 (logical 640×240)
     /// * `demo` — start demo after boot
     /// * `skip_boot` — skip POST splash
+    /// * `sound` — enable fire SFX (still muted by default in `Config`)
     #[wasm_bindgen(constructor)]
     pub fn new(
         canvas_id: &str,
@@ -42,6 +43,7 @@ impl Ua571Web {
         scale: u32,
         demo: bool,
         skip_boot: bool,
+        sound: bool,
     ) -> Result<Ua571Web, JsValue> {
         console_error_panic_hook::set_once();
 
@@ -51,6 +53,7 @@ impl Ua571Web {
             theme,
             show_boot: !skip_boot,
             demo_on_start: demo,
+            sound,
             ..Config::default()
         };
         config = config.validate();
@@ -171,6 +174,22 @@ impl Ua571Web {
             Screen::Boot => "boot".into(),
             Screen::Options => "options".into(),
             Screen::Fire => "fire".into(),
+        }
+    }
+
+    /// Whether fire SFX is enabled (checkbox / `m` stay in sync).
+    #[wasm_bindgen(getter)]
+    pub fn sound_enabled(&self) -> bool {
+        self.state.config.sound
+    }
+
+    /// Enable or mute fire SFX. Enabling resumes the AudioContext after a gesture.
+    pub fn set_sound(&mut self, on: bool) {
+        if on != self.state.config.sound {
+            self.state.toggle_sound();
+        }
+        if on {
+            self.resume_audio();
         }
     }
 

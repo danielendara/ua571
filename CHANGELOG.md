@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — open-source-safe maintainer deploy + self-host notes
 - **Yellow** theme matching the original GRiD / film prop monochrome yellow
 - **Natural cool-down**: barrel temperature falls when idle; R(M) spins down after firing stops
-- **Fire SFX** — procedural MG42-style high-rate mechanical pulse on each expended round (native via `ua571-audio`/rodio; browser via Web Audio). Shared synth in `ua571-core::sfx`. Toggle with `m` / `--mute`
+- **Fire SFX** — MG42-style burst on each expended round (native via `ua571-audio`/rodio; browser via Web Audio). Toggle with `m` / web Sound checkbox / `--mute`
 - **Rounds-remaining ▶ marker** — film-accurate right triangle left of the ammo box (original `FIRE.PAS` `CHR(81H)`)
 
 ### Changed
@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Toolchain pin: Rust **1.98.0** (`rust-toolchain.toml` + CI `toolchain: 1.98.0`)
 - Fire SFX uses a trimmed Freesound MG42 burst (~90 ms), retriggered with each expended round
 - Native audio: rodio **0.22** (`DeviceSinkBuilder` / `Player`; `SamplesBuffer` NonZero rates)
-- Fire SFX is **muted by default** (`m` enables it; `sound = true` in config or after toggle)
+- Fire SFX is **muted by default** (`m` or the web **Sound** checkbox enables it; `sound = true` in config)
+- Web chrome has a **Sound** checkbox (default off) that stays in sync with `m`; `?sound=1` deep-link
 - Broader unit coverage (boot/demo/fire/config/render/web keys/CLI) and CI `--locked`; fmt/clippy only on Ubuntu
 - Web footer credits the maintainer ([danielendara.com](https://danielendara.com), [github.com/danielendara/ua571](https://github.com/danielendara/ua571)); Thom’s UA571C remains named, full link stays in the README
 - CLI `--theme` no longer overwrites a config-file theme unless the flag is passed (#17)

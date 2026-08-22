@@ -1,11 +1,7 @@
-//! Procedural fire SFX (no sample assets, no film audio).
+//! Fire SFX: bundled MG42-style burst (no film audio).
 //!
-//! Character goals (fan recreation, inspired by public descriptions of the
-//! prop gun / MG42 proxy used on set — not a copy of the soundtrack):
-//! - High cyclic rate (~1200 rpm MG42 family) → ~20 Hz mechanical pulse
-//! - High-mid “buzzsaw” pulse rather than a soft bass boom
-//! - Rhythmic metal thwack + quiet ratchet grit
-//! - Brief electronic chirp edge (targeting console flavor)
+//! Native and web frontends retrigger `fire_burst.wav` (Freesound 387508,
+//! CC0, trimmed). `synthesize_fire_burst` remains as a fallback generator.
 
 /// Sample rate used by the native frontend (web uses the AudioContext rate).
 pub const FIRE_SFX_SAMPLE_RATE: u32 = 22_050;
