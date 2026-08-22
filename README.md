@@ -42,7 +42,7 @@ Three frontends share one simulation core:
 
 ## Quick start
 
-**Requirements:** Rust stable (1.80+ recommended), a terminal (TUI) or windowed desktop (pixel).
+**Requirements:** Rust stable, a terminal (TUI) or windowed desktop (pixel).
 
 ```bash
 git clone https://github.com/danielendara/ua571.git
@@ -73,7 +73,7 @@ Requires `wasm32-unknown-unknown` (script installs the target) and `wasm-bindgen
 | Maintainers | GitHub Actions OIDC deploy on `main` — [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) |
 | Infra as code | [`infra/`](infra/) (AWS CDK) |
 
-Deploy is written for a **public repo**: forks/PRs cannot assume the AWS role. The GitHub repo may stay private until you’re ready.
+Deploy is written for a **public repo**: forks/PRs cannot assume the AWS role.
 
 ### CLI flags
 
@@ -118,7 +118,7 @@ sound = false
 | `a` | Toggle SAFE / ARMED on active sentry |
 | `r` | Reload active sentry drum |
 | `d` | Toggle demo auto-play |
-| `m` | Toggle fire SFX mute |
+| `m` | Toggle fire SFX (starts muted) |
 | `t` | Cycle theme (TUI) |
 | `q` | Quit |
 | any (on boot) | Skip POST |

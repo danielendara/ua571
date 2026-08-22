@@ -13,6 +13,7 @@ function readOptions() {
     scale: Number(document.getElementById("scale").value) || 3,
     demo: document.getElementById("demo").checked,
     skipBoot: document.getElementById("skipBoot").checked,
+    sound: document.getElementById("sound").checked,
   };
 }
 
@@ -58,7 +59,8 @@ async function boot() {
       opts.theme,
       opts.scale,
       opts.demo,
-      opts.skipBoot
+      opts.skipBoot,
+      opts.sound
     );
 
     onKey = (e) => {
@@ -80,6 +82,8 @@ async function boot() {
     const loop = () => {
       if (!app) return;
       app.frame();
+      const soundBox = document.getElementById("sound");
+      if (soundBox) soundBox.checked = app.sound_enabled;
       status.textContent = `${app.screen_name().toUpperCase()} · ${app.status_line()}`;
       raf = requestAnimationFrame(loop);
     };
@@ -106,12 +110,20 @@ document.getElementById("scale").addEventListener("change", () => {
   boot();
 });
 
+document.getElementById("sound").addEventListener("change", (e) => {
+  if (app) {
+    app.set_sound(e.target.checked);
+    document.getElementById("ua571").focus();
+  }
+});
+
 // Optional deep-link query params
 (() => {
   const p = new URLSearchParams(location.search);
   if (p.get("theme")) document.getElementById("theme").value = p.get("theme");
   if (p.get("scale")) document.getElementById("scale").value = p.get("scale");
   if (p.get("demo") === "1") document.getElementById("demo").checked = true;
+  if (p.get("sound") === "1") document.getElementById("sound").checked = true;
   if (p.get("boot") === "0") document.getElementById("skipBoot").checked = true;
   applyPageTheme(document.getElementById("theme").value);
 })();

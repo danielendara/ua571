@@ -337,7 +337,7 @@ fn draw_status_strip(state: &AppState, fb: &mut Framebuffer) {
     let s = state.active_sentry();
     let demo = if state.demo.is_active() { "DEMO" } else { "" };
     let line = format!(
-        "S{}  {}rds  {}  {}  {}  [1-4] f/o a arm  d demo  m mute  q quit  {}",
+        "S{}  {}rds  {}  {}  {}  [1-4] f/o a arm  d demo  m sound  q quit  {}",
         s.id,
         s.fire.rounds,
         s.options.system_mode.label(),

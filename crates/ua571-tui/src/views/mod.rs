@@ -142,10 +142,10 @@ fn draw_log(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rec
 fn draw_help(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rect) {
     let text = match state.screen {
         Screen::Fire => {
-            "Enter/Space fire  o options  a arm  r reload  1-4 sentry  d demo  m mute  t theme  q quit"
+            "Enter/Space fire  o options  a arm  r reload  1-4 sentry  d demo  m sound  t theme  q quit"
         }
         _ => {
-            "←→ section  ↑↓ select  f fire  a arm  1-4 sentry  d demo  m mute  t theme  q quit"
+            "←→ section  ↑↓ select  f fire  a arm  1-4 sentry  d demo  m sound  t theme  q quit"
         }
     };
     frame.render_widget(Paragraph::new(Span::styled(text, theme.dim_style())), area);
