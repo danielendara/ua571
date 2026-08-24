@@ -183,6 +183,19 @@ impl Ua571Web {
         self.state.config.sound
     }
 
+    /// Whether demo auto-play is running (checkbox / `d` stay in sync).
+    #[wasm_bindgen(getter)]
+    pub fn demo_active(&self) -> bool {
+        self.state.demo.is_active()
+    }
+
+    /// Start or stop demo auto-play without rebuilding the WASM app.
+    pub fn set_demo(&mut self, on: bool) {
+        if on != self.state.demo.is_active() {
+            self.state.toggle_demo();
+        }
+    }
+
     /// Enable or mute fire SFX. Enabling resumes the AudioContext after a gesture.
     pub fn set_sound(&mut self, on: bool) {
         if on != self.state.config.sound {
@@ -390,6 +403,15 @@ mod tests {
         assert!(state.config.sound);
         handle_key(&mut state, "Escape");
         assert_eq!(state.screen, Screen::Options);
+    }
+
+    #[test]
+    fn keys_toggle_demo() {
+        let mut state = web_state();
+        handle_key(&mut state, "KeyD");
+        assert!(state.demo.is_active());
+        handle_key(&mut state, "KeyD");
+        assert!(!state.demo.is_active());
     }
 
     #[test]

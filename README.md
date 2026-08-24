@@ -38,7 +38,7 @@ Three frontends share one simulation core:
 - **Event log** — arming, fire, critical, demo messages
 - **Demo mode** — scripted perimeter defense auto-play
 - **Themes** — **yellow** (default, film/GRiD prop), phosphor green, amber, mono
-- **Fire SFX** — MG42-inspired pulse when a round fires (**muted by default**; `m` to enable, `--mute` still forces off)
+- **Fire SFX** — MG42-inspired pulse when a round fires (**muted by default**; `m` or the web Sound checkbox enables it. `--mute` starts muted, same as the default; `sound = true` in config to start with SFX on)
 - **Cross-platform** — macOS, Linux, Windows; browser via WebAssembly
 
 ## Quick start
@@ -87,7 +87,8 @@ ua571 / ua571-pixel [OPTIONS]
       --tick-ms <MS>        UI tick interval  [default: 80]
       --no-boot             skip POST splash
       --demo                start demo after boot
-      --mute                disable fire SFX
+      --mute                start with fire SFX off (same as the default)
+      --version             print crate version and exit
   -c, --config <PATH>       load TOML config
   -s, --scale <N>           (pixel only) integer scale 1–6  [default: 2]
 ```

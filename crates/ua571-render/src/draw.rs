@@ -361,7 +361,7 @@ fn draw_boot(state: &AppState, fb: &mut Framebuffer) {
     let sw = Framebuffer::text_width(sub, SECTION_SCALE);
     fb.draw_text(sub, (WIDTH as i32 - sw) / 2, 112, SECTION_SCALE);
 
-    fb.draw_text("POST — MICROWAVE DATALINK", cx - 96, 140, SECTION_SCALE);
+    fb.draw_text("POST - MICROWAVE DATALINK", cx - 96, 140, SECTION_SCALE);
     fb.draw_text(
         "SENTRY-1..4 LINK CHECK .... OK",
         cx - 112,

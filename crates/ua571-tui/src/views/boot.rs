@@ -2,7 +2,7 @@ use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
-use ua571_core::AppState;
+use ua571_core::{AppState, VERSION};
 
 use crate::theme::ConsoleTheme;
 
@@ -41,9 +41,12 @@ pub fn draw(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rec
             "UA 571-C  REMOTE SENTRY WEAPON SYSTEM",
             theme.title(),
         )),
-        Line::from(Span::styled("OPERATOR CONSOLE  v0.1", theme.accent_style())),
+        Line::from(Span::styled(
+            format!("OPERATOR CONSOLE  v{VERSION}"),
+            theme.accent_style(),
+        )),
         Line::from(""),
-        Line::from(Span::styled("POST — MICROWAVE DATALINK", theme.base())),
+        Line::from(Span::styled("POST - MICROWAVE DATALINK", theme.base())),
         Line::from(Span::styled(
             "  SENTRY-1..4  LINK CHECK .... OK",
             theme.dim_style(),

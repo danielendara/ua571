@@ -235,4 +235,11 @@ mod tests {
         assert_eq!(cli.theme.as_deref(), Some("mono"));
         assert_eq!(cli.scale, 4);
     }
+
+    #[test]
+    fn reports_crate_version() {
+        let err = Cli::try_parse_from(["ua571-pixel", "--version"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
+        assert!(err.to_string().contains(env!("CARGO_PKG_VERSION")));
+    }
 }
