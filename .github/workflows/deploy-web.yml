@@ -21,26 +21,32 @@ on:
       - 'scripts/build-web.sh'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'rust-toolchain.toml'
       - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
 
+# Never cancel an in-flight production sync (half-uploaded pkg/ is worse).
 concurrency:
   group: deploy-web-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   id-token: write   # OIDC
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  WASM_BINDGEN_VERSION: "0.2.100"
+
 jobs:
   deploy:
     name: Build WASM + deploy
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # Canonical repo only — PRs/forks never deploy even if workflow is copied.
     if: github.repository == 'danielendara/ua571' && github.ref == 'refs/heads/main'
     environment: production
-    env:
-      CARGO_TERM_COLOR: always
 
     steps:
       - name: Checkout
@@ -72,19 +78,20 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          shared-key: wasm-deploy
-
-      - name: Install wasm-bindgen-cli
-        run: cargo install wasm-bindgen-cli --version 0.2.100 --locked
+          shared-key: wasm32
 
       - name: Build web package
-        run: ./scripts/build-web.sh
+        run: |
+          chmod +x scripts/build-web.sh
+          ./scripts/build-web.sh
 
       - name: Verify package artifacts
         run: |
           test -f web/index.html
           test -f web/pkg/ua571_web.js
           test -f web/pkg/ua571_web_bg.wasm
+          test -f web/build-id.js
+          wasm-bindgen --version | grep -F "${WASM_BINDGEN_VERSION}"
           ls -la web/pkg
 
       - name: Configure AWS credentials (OIDC)
@@ -97,25 +104,22 @@ jobs:
         env:
           UA571_S3_BUCKET: ${{ vars.UA571_S3_BUCKET }}
         run: |
-          # HTML/CSS/JS/build-id: short cache (entrypoints + cache-bust helpers)
-          aws s3 sync web/ "s3://${UA571_S3_BUCKET}/" \
+          set -euo pipefail
+          CACHE="public,max-age=60,must-revalidate"
+          # 1) pkg/ first with --delete scoped to that prefix (never delete dest
+          #    pkg/ from a parent sync that excludes it).
+          aws s3 sync web/pkg/ "s3://${UA571_S3_BUCKET}/pkg/" \
             --delete \
+            --cache-control "${CACHE}"
+          aws s3 cp web/pkg/ua571_web_bg.wasm "s3://${UA571_S3_BUCKET}/pkg/ua571_web_bg.wasm" \
+            --content-type "application/wasm" \
+            --cache-control "${CACHE}"
+          # 2) Site chrome. No --delete: excluding pkg/* plus --delete would
+          #    treat destination pkg/ as extra and wipe the just-uploaded WASM.
+          aws s3 sync web/ "s3://${UA571_S3_BUCKET}/" \
             --exclude "pkg/*" \
             --exclude ".gitignore" \
-            --cache-control "public,max-age=60,must-revalidate"
-
-          # pkg glue (JS): short cache; main.js loads with ?v=BUILD_ID
-          aws s3 sync web/pkg/ "s3://${UA571_S3_BUCKET}/pkg/" \
-            --delete \
-            --exclude "*.wasm" \
-            --cache-control "public,max-age=60,must-revalidate"
-
-          # WASM binary with correct content-type (also short; busted via import URL)
-          aws s3 sync web/pkg/ "s3://${UA571_S3_BUCKET}/pkg/" \
-            --exclude "*" \
-            --include "*.wasm" \
-            --content-type "application/wasm" \
-            --cache-control "public,max-age=60,must-revalidate"
+            --cache-control "${CACHE}"
 
       - name: Invalidate CloudFront
         env:

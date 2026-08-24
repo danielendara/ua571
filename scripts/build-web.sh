@@ -8,6 +8,7 @@ cd "$ROOT"
 TARGET="${TARGET:-wasm32-unknown-unknown}"
 PROFILE_FLAG="${PROFILE_FLAG:---release}"
 OUT_DIR="${OUT_DIR:-web/pkg}"
+WASM_BINDGEN_VERSION="${WASM_BINDGEN_VERSION:-0.2.100}"
 
 if ! command -v rustup >/dev/null; then
   echo "rustup required" >&2
@@ -16,13 +17,21 @@ fi
 
 rustup target add "$TARGET" >/dev/null
 
-if ! command -v wasm-bindgen >/dev/null; then
-  echo "Installing wasm-bindgen-cli 0.2.100..."
-  cargo install wasm-bindgen-cli --version 0.2.100 --locked
+need_bindgen=1
+if command -v wasm-bindgen >/dev/null; then
+  if wasm-bindgen --version 2>/dev/null | grep -Fq "${WASM_BINDGEN_VERSION}"; then
+    need_bindgen=0
+  else
+    echo "wasm-bindgen $(wasm-bindgen --version 2>/dev/null || echo unknown) != ${WASM_BINDGEN_VERSION}; reinstalling..."
+  fi
+fi
+if [[ "$need_bindgen" -eq 1 ]]; then
+  echo "Installing wasm-bindgen-cli ${WASM_BINDGEN_VERSION}..."
+  cargo install wasm-bindgen-cli --version "${WASM_BINDGEN_VERSION}" --locked --force
 fi
 
-echo "→ cargo build -p ua571-web --target $TARGET $PROFILE_FLAG"
-cargo build -p ua571-web --target "$TARGET" $PROFILE_FLAG
+echo "→ cargo build -p ua571-web --target $TARGET $PROFILE_FLAG --locked"
+cargo build -p ua571-web --target "$TARGET" $PROFILE_FLAG --locked
 
 if [[ "$PROFILE_FLAG" == "--release" ]]; then
   WASM_PATH="target/$TARGET/release/ua571_web.wasm"

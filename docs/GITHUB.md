@@ -43,7 +43,7 @@ Free personal **private** repos cannot use branch protection / rulesets. Once pu
 1. Confirm `git ls-files | grep -E 'cdk.context|cdk.out|\.env$|credentials'` is empty
 2. Confirm no account IDs / keys in tracked files (`./scripts/check-secrets.sh tracked`)
 3. Settings → **Change repository visibility** → Public
-4. Apply the ruleset (script or GitHub UI)
+4. Apply the ruleset in the GitHub UI (required checks: `secret-guard`, `ubuntu-latest`, `macos-latest`, `windows-latest`, `wasm32`)
 5. Re-run CI on open PRs
 
 Do **not** put `AWS_ROLE_ARN` or bucket/distribution IDs into source. They stay in the Environment.

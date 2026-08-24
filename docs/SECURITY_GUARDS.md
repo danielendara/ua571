@@ -22,7 +22,7 @@ GitHub Environment variables (`AWS_ROLE_ARN`, bucket, distribution ID) stay in *
 2. security/*-denylist*    — explicit path + content deny lists
 3. scripts/check-secrets.sh— local / CI scanner
 4. .githooks/pre-commit    — blocks bad commits in this clone
-5. CI job "secret-guard"   — fails the PR if denylisted files appear in the tree
+5. CI job "secret-guard"   — `check-secrets.sh tracked` (path denylist + content)
 6. AGENTS.md               — hard rules for AI coding agents
 ```
 
@@ -75,4 +75,6 @@ Agents **may**:
 - Paths → `security/commit-denylist.txt`  
 - Content regexes → `security/content-deny-patterns.txt`  
 
-CI and pre-commit pick them up automatically.
+CI and pre-commit pick them up automatically (`path_denied` is applied to
+tracked/staged/untracked lists; `!.env.example` and the guard script itself
+are allowlisted).

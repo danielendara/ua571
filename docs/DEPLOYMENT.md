@@ -100,7 +100,16 @@ Repo/org variables also work if you prefer; the workflow reads `vars.*`.
 
 ```bash
 ./scripts/build-web.sh
-aws s3 sync web/ s3://$UA571_S3_BUCKET/ --delete
+# Upload pkg/ first. Do not `aws s3 sync web/ … --delete` — excluding pkg/*
+# plus --delete wipes destination pkg/ (WASM 404 until re-upload).
+aws s3 sync web/pkg/ s3://$UA571_S3_BUCKET/pkg/ --delete \
+  --cache-control "public,max-age=60,must-revalidate"
+aws s3 cp web/pkg/ua571_web_bg.wasm s3://$UA571_S3_BUCKET/pkg/ua571_web_bg.wasm \
+  --content-type "application/wasm" \
+  --cache-control "public,max-age=60,must-revalidate"
+aws s3 sync web/ s3://$UA571_S3_BUCKET/ \
+  --exclude "pkg/*" --exclude ".gitignore" \
+  --cache-control "public,max-age=60,must-revalidate"
 aws cloudfront create-invalidation \
   --distribution-id $UA571_CLOUDFRONT_DISTRIBUTION_ID \
   --paths "/*"
