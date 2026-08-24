@@ -48,6 +48,14 @@ function showVersion(v) {
   wrap.hidden = false;
 }
 
+function isChromeTarget(el) {
+  return Boolean(
+    el &&
+      el.closest &&
+      el.closest("input, select, button, a, label, textarea")
+  );
+}
+
 async function boot() {
   const status = document.getElementById("status");
   const canvas = document.getElementById("ua571");
@@ -74,6 +82,10 @@ async function boot() {
     );
 
     onKey = (e) => {
+      // Let the HTML chrome (checkboxes, selects, links) keep native keys.
+      if (isChromeTarget(e.target)) return;
+      // Match TUI/pixel: one action per physical press, not OS key-repeat.
+      if (e.repeat) return;
       switch (e.code) {
         case "ArrowUp":
         case "ArrowDown":
@@ -94,7 +106,11 @@ async function boot() {
       app.frame();
       const soundBox = document.getElementById("sound");
       if (soundBox) soundBox.checked = app.sound_enabled;
-      status.textContent = `${app.screen_name().toUpperCase()} · ${app.status_line()}`;
+      const demoBox = document.getElementById("demo");
+      if (demoBox) demoBox.checked = app.demo_active;
+      const screen = app.screen_name().toUpperCase();
+      const quit = app.should_quit ? " · QUIT (Restart)" : "";
+      status.textContent = `${screen} · ${app.status_line()}${quit}`;
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -125,6 +141,17 @@ document.getElementById("sound").addEventListener("change", (e) => {
     app.set_sound(e.target.checked);
     document.getElementById("ua571").focus();
   }
+});
+
+document.getElementById("demo").addEventListener("change", (e) => {
+  if (app) {
+    app.set_demo(e.target.checked);
+    document.getElementById("ua571").focus();
+  }
+});
+
+document.getElementById("skipBoot").addEventListener("change", () => {
+  boot();
 });
 
 // Optional deep-link query params

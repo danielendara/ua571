@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- TUI boot splash shows crate version (`v0.2.0`) instead of leftover `v0.1`
+- Pixel/web POST line uses ASCII hyphen (bitmap font has no em dash)
+- Web chrome: Demo checkbox stays in sync with `d`; Skip boot applies on change
+- Web keys no longer steal Space/arrows from checkboxes and selects; key-repeat does not dump rounds
+- README: `--mute` starts muted (same as default); it does not lock SFX off
+- TUI restores the terminal on draw/poll errors and panic, not only on a clean quit
+
+### Changed
+
+- Web footer lists reload / Space; status shows `QUIT (Restart)` after `q`
+
 ## [0.2.0] — 2026-08-21
 
 ### Added

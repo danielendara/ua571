@@ -39,10 +39,11 @@ impl App {
 
     pub fn run(&mut self) -> Result<()> {
         let mut terminal = setup_terminal()?;
+        let _restore = TerminalRestore;
         let tick_rate = Duration::from_millis(self.state.config.tick_ms);
         let mut last_tick = Instant::now();
 
-        let result = loop {
+        loop {
             terminal.draw(|f| views::draw(f, &self.state, &self.theme))?;
 
             let timeout = tick_rate.saturating_sub(last_tick.elapsed());
@@ -64,12 +65,11 @@ impl App {
             self.drain_sfx();
 
             if self.state.should_quit {
-                break Ok(());
+                break;
             }
-        };
+        }
 
-        restore_terminal()?;
-        result
+        Ok(())
     }
 
     fn drain_sfx(&mut self) {
@@ -186,10 +186,22 @@ impl App {
     }
 }
 
+/// Restores cooked mode + primary screen on drop (errors, panic, or quit).
+struct TerminalRestore;
+
+impl Drop for TerminalRestore {
+    fn drop(&mut self) {
+        let _ = restore_terminal();
+    }
+}
+
 fn setup_terminal() -> Result<Terminal<CrosstermBackend<io::Stdout>>> {
     enable_raw_mode()?;
     let mut out = stdout();
-    execute!(out, EnterAlternateScreen)?;
+    if let Err(e) = execute!(out, EnterAlternateScreen) {
+        let _ = disable_raw_mode();
+        return Err(e.into());
+    }
     let backend = CrosstermBackend::new(out);
     let terminal = Terminal::new(backend)?;
     Ok(terminal)
