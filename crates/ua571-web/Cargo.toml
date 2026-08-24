@@ -18,6 +18,7 @@ crate-type = ["cdylib", "rlib"]
 ua571-core = { workspace = true }
 ua571-render = { workspace = true }
 wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
 js-sys = { workspace = true }
 console_error_panic_hook = { workspace = true }
 web-time = { workspace = true }
@@ -36,6 +37,7 @@ features = [
     "KeyboardEvent",
     # Fire SFX (Web Audio API)
     "AudioContext",
+    "AudioContextState",
     "BaseAudioContext",
     "AudioBuffer",
     "AudioBufferSourceNode",

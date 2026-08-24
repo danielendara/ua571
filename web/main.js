@@ -136,9 +136,16 @@ document.getElementById("scale").addEventListener("change", () => {
   boot();
 });
 
-document.getElementById("sound").addEventListener("change", (e) => {
+document.getElementById("sound").addEventListener("change", async (e) => {
   if (app) {
     app.set_sound(e.target.checked);
+    if (e.target.checked) {
+      try {
+        await app.unlock_audio();
+      } catch (_) {
+        /* autoplay policy — next key still retries */
+      }
+    }
     document.getElementById("ua571").focus();
   }
 });

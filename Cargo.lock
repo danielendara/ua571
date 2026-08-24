@@ -2760,6 +2760,7 @@ dependencies = [
  "ua571-core",
  "ua571-render",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
  "web-time",
 ]

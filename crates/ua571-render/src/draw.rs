@@ -330,22 +330,37 @@ fn fill_gauge_bottom_up(
     fb.fill_rect(x, y0, width, filled, true);
 }
 
-fn draw_status_strip(state: &AppState, fb: &mut Framebuffer) {
-    // Thin footer below original content.
-    let y = 218;
-    fb.line(0, y - 2, WIDTH as i32 - 1, y - 2);
+fn status_strip_lines(state: &AppState) -> [String; 2] {
     let s = state.active_sentry();
-    let demo = if state.demo.is_active() { "DEMO" } else { "" };
-    let line = format!(
-        "S{}  {}rds  {}  {}  {}  [1-4] f/o a arm  d demo  m sound  q quit  {}",
+    let link = if !s.online {
+        "OFFLINE"
+    } else if !s.link_ok {
+        "LINK DOWN"
+    } else {
+        "LINK OK"
+    };
+    let demo = if state.demo.is_active() { " DEMO" } else { "" };
+    let status = format!(
+        "S{} {}rds {} {} {} {}{}",
         s.id,
         s.fire.rounds,
         s.options.system_mode.label(),
         s.options.iff_status.label(),
         if s.is_armed() { "ARMED" } else { "SAFE" },
+        link,
         demo
     );
-    fb.draw_text(&line, 4, y, SECTION_SCALE);
+    let keys = "[1-4] f/o a arm  r reload  d demo  m sound  q quit".to_string();
+    [status, keys]
+}
+
+fn draw_status_strip(state: &AppState, fb: &mut Framebuffer) {
+    // Two lines so INTERROGATE + LINK DOWN + DEMO still fit in 640px.
+    let y = 216;
+    fb.line(0, y - 2, WIDTH as i32 - 1, y - 2);
+    let [status, keys] = status_strip_lines(state);
+    fb.draw_text(&status, 4, y, SECTION_SCALE);
+    fb.draw_text(&keys, 4, y + 10, SECTION_SCALE);
 }
 
 fn draw_boot(state: &AppState, fb: &mut Framebuffer) {
@@ -406,6 +421,33 @@ mod tests {
             render(&state, &mut fb);
             assert!(lit(&fb) > 50, "{screen:?} should draw a console");
         }
+    }
+
+    #[test]
+    fn status_strip_fits_canvas_width() {
+        let mut state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        state.set_screen(Screen::Fire);
+        state.start_demo();
+        if let Some(s) = state.active_sentry_mut() {
+            s.options.system_mode = ua571_core::SystemMode::ManOverride;
+            s.options.iff_status = ua571_core::IffStatus::Interrogate;
+            s.link_ok = false;
+            s.options.weapon_status = WeaponStatus::Armed;
+        }
+        let [status, keys] = status_strip_lines(&state);
+        let max = WIDTH as i32 - 4;
+        assert!(
+            Framebuffer::text_width(&status, SECTION_SCALE) <= max,
+            "status too wide: {status:?} w={}",
+            Framebuffer::text_width(&status, SECTION_SCALE)
+        );
+        assert!(
+            Framebuffer::text_width(&keys, SECTION_SCALE) <= max,
+            "keys too wide: {keys:?}"
+        );
     }
 
     #[test]
