@@ -52,6 +52,7 @@ path_denied() {
   local pattern
   while IFS= read -r pattern || [[ -n "$pattern" ]]; do
     [[ -z "$pattern" || "$pattern" =~ ^[[:space:]]*# ]] && continue
+    [[ "$pattern" == !* ]] && continue
     # strip leading ./ 
     pattern="${pattern#./}"
     # Use bash pattern matching; translate ** to *
@@ -74,6 +75,28 @@ path_denied() {
     fi
   done < "$DENY_PATHS"
   return 1
+}
+
+path_allowlisted() {
+  local path="$1"
+  case "$path" in
+    .env.example|*/.env.example) return 0 ;;
+    scripts/check-secrets.sh) return 0 ;;
+    docs/SECURITY_GUARDS.md) return 0 ;;
+  esac
+  return 1
+}
+
+scan_denied_paths() {
+  local f
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    path_allowlisted "$f" && continue
+    if path_denied "$f"; then
+      log_err "FORBIDDEN denylisted path: $f"
+      fail=1
+    fi
+  done < <(list_files)
 }
 
 # Stronger explicit checks (always)
@@ -182,6 +205,7 @@ explicit_forbidden_tracked
 if [[ "$MODE" == "staged" || "$MODE" == "all" ]]; then
   explicit_forbidden_staged
 fi
+scan_denied_paths
 check_assume_unchanged_context
 scan_content
 

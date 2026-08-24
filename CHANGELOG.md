@@ -15,10 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web keys no longer steal Space/arrows from checkboxes and selects; key-repeat does not dump rounds
 - README: `--mute` starts muted (same as default); it does not lock SFX off
 - TUI restores the terminal on draw/poll errors and panic, not only on a clean quit
+- Secret-guard now applies `security/commit-denylist.txt` to tracked/staged paths
 
 ### Changed
 
 - Web footer lists reload / Space; status shows `QUIT (Restart)` after `q`
+- CI: cancel superseded PRs, timeouts, Linux-only release build, locked WASM build, CDK `tsc` (`types: ["node"]`), shared wasm cache
+- Deploy: upload `pkg/` first (no parent `--delete` of WASM); do not cancel in-flight production syncs
+- Dependabot ignores rodio 0.x minors and wasm-bindgen (must match CLI 0.2.100)
 
 ## [0.2.0] — 2026-08-21
 

@@ -33,8 +33,11 @@ infra/cdk.out/**
 config.local.toml
 **/*.local.toml
 **/*.local.json
-**/*secret*
-**/*secrets*
+# Do not use *secret* — that matches scripts/check-secrets.sh
+**/secrets.env
+**/secrets.json
+**/secrets.toml
+**/.secrets/**
 
 # Build artifacts that must not ship credentials by accident
 web/pkg/**

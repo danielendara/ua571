@@ -25,6 +25,14 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # 0.x "minor" bumps are breaking (rodio 0.20→0.22 broke the audio crate).
+    # wasm-bindgen crate must stay pinned to the CLI version in CI / build-web.sh.
+    ignore:
+      - dependency-name: "rodio"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "wasm-bindgen"
+      - dependency-name: "js-sys"
+      - dependency-name: "web-sys"
 
   # AWS CDK tooling under infra/
   - package-ecosystem: npm

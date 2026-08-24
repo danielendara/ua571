@@ -2,9 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
+
+# Cancel superseded PR runs; never cancel a `main` build (status checks / cache).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Least privilege for a public repo. Jobs that need more must opt in.
 permissions:
@@ -12,11 +17,14 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  WASM_BINDGEN_VERSION: "0.2.100"
 
 jobs:
   secret-guard:
     name: secret-guard
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -25,12 +33,10 @@ jobs:
         run: |
           chmod +x scripts/check-secrets.sh
           ./scripts/check-secrets.sh tracked
-          # Extra belt: these paths must never appear in the tree
-          if git ls-files | grep -E '(^|/)cdk\.context\.json$|(^|/)cdk\.out/|\.env$|credentials$'; then
+          if git ls-files | grep -E '(^|/)cdk\.context\.json$|(^|/)cdk\.out/|(^|/)web/pkg/|\.env$|credentials$|\.pem$'; then
             echo "::error::Forbidden path is tracked by git"
             exit 1
           fi
-          # Agent working files must stay ignored / denylisted
           git check-ignore -q .sessions/tmp || {
             echo "::error::.sessions/ is not gitignored"
             exit 1
@@ -45,6 +51,7 @@ jobs:
   check:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -55,13 +62,13 @@ jobs:
           persist-credentials: false
       - name: Linux audio libs (rodio / ALSA)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
+        run: sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libasound2-dev pkg-config
       - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # action pin
         with:
           toolchain: "1.98.0"
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      # rustfmt/clippy are platform-independent — run once on Linux.
+      # rustfmt/clippy/release are platform-independent — run once on Linux.
       - name: Format
         if: runner.os == 'Linux'
         run: cargo fmt --all -- --check
@@ -71,11 +78,13 @@ jobs:
       - name: Test
         run: cargo test --workspace --locked
       - name: Build release
+        if: runner.os == 'Linux'
         run: cargo build --workspace --release --locked
 
   wasm:
     name: wasm32
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -85,7 +94,32 @@ jobs:
           toolchain: "1.98.0"
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - name: Install wasm-bindgen-cli
-        run: cargo install wasm-bindgen-cli --version 0.2.100 --locked
+        with:
+          shared-key: wasm32
       - name: Build web package
-        run: ./scripts/build-web.sh
+        run: |
+          chmod +x scripts/build-web.sh
+          ./scripts/build-web.sh
+      - name: Verify package artifacts
+        run: |
+          test -f web/index.html
+          test -f web/pkg/ua571_web.js
+          test -f web/pkg/ua571_web_bg.wasm
+          test -f web/build-id.js
+          wasm-bindgen --version | grep -F "${WASM_BINDGEN_VERSION}"
+
+  infra:
+    name: infra
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install and typecheck CDK
+        run: |
+          npm ci
+          npx tsc --noEmit
