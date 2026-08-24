@@ -7,7 +7,10 @@ use ua571_core::{AppState, Config, Screen, Theme};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
-use web_sys::{AudioContext, CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{
+    AudioContext, AudioContextState, CanvasRenderingContext2d, HtmlCanvasElement, ImageData,
+};
 use web_time::{Duration, Instant};
 
 /// Browser console app bound to a canvas element id.
@@ -84,16 +87,8 @@ impl Ua571Web {
         let (on_rgba, off_rgba) = (theme.on_rgba(), theme.off_rgba());
         let rgba = vec![0u8; (display_w * display_h * 4) as usize];
 
-        // Audio is optional: some environments block it until a user gesture.
-        let (audio, sample_rate) = match AudioContext::new() {
-            Ok(ac) => {
-                let sr = ac.sample_rate();
-                (Some(ac), sr)
-            }
-            Err(_) => (None, 22_050.0),
-        };
+        // Decode PCM now; AudioContext is created on a user gesture (Sound / key).
         let (burst_sr, fire_samples) = fire_burst_pcm();
-        let _ = sample_rate; // device rate unused; AudioBuffer plays at burst_sr
 
         Ok(Self {
             state: AppState::new(config),
@@ -105,7 +100,7 @@ impl Ua571Web {
             last_tick: Instant::now(),
             display_w,
             display_h,
-            audio,
+            audio: None,
             fire_samples,
             fire_sample_rate: burst_sr as f32,
         })
@@ -133,7 +128,7 @@ impl Ua571Web {
 
         let n = self.state.take_fire_sfx();
         if n > 0 {
-            self.play_fires(n); // &mut self — rotates pulse variants
+            self.play_fires(n);
         }
 
         render(&self.state, &mut self.fb);
@@ -157,7 +152,7 @@ impl Ua571Web {
 
     /// Handle a browser keydown. `code` is `KeyboardEvent.code` (e.g. `KeyF`, `ArrowLeft`).
     pub fn key_down(&mut self, code: &str) {
-        // Browsers suspend AudioContext until a user gesture — resume on any key.
+        self.ensure_audio();
         self.resume_audio();
         handle_key(&mut self.state, code);
     }
@@ -202,8 +197,20 @@ impl Ua571Web {
             self.state.toggle_sound();
         }
         if on {
+            self.ensure_audio();
             self.resume_audio();
         }
+    }
+
+    /// Create (if needed) and await resume. Must run inside a user gesture.
+    pub async fn unlock_audio(&mut self) -> Result<(), JsValue> {
+        self.ensure_audio();
+        let Some(ac) = self.audio.as_ref() else {
+            return Ok(());
+        };
+        let p = ac.resume()?;
+        JsFuture::from(p).await?;
+        Ok(())
     }
 
     /// Short status line for HTML chrome.
@@ -230,7 +237,21 @@ impl Ua571Web {
     }
 }
 
+impl Drop for Ua571Web {
+    fn drop(&mut self) {
+        if let Some(ac) = self.audio.take() {
+            let _ = ac.close();
+        }
+    }
+}
+
 impl Ua571Web {
+    fn ensure_audio(&mut self) {
+        if self.audio.is_none() {
+            self.audio = AudioContext::new().ok();
+        }
+    }
+
     fn resume_audio(&self) {
         if let Some(ac) = self.audio.as_ref() {
             let _ = ac.resume();
@@ -244,6 +265,9 @@ impl Ua571Web {
         let Some(ac) = self.audio.as_ref() else {
             return;
         };
+        if ac.state() == AudioContextState::Suspended {
+            let _ = ac.resume();
+        }
         let n = count.min(6);
         let period = 1.0 / f64::from(FIRE_CYCLIC_HZ);
         let now = ac.current_time();

@@ -315,6 +315,10 @@ impl AppState {
     // --- Demo ---
 
     pub fn start_demo(&mut self) {
+        for s in self.bank.iter_mut() {
+            s.link_ok = true;
+            s.online = true;
+        }
         self.demo = DemoPlayer::default_demo();
         self.demo.start();
         self.log.push(LogKind::Demo {

@@ -35,6 +35,14 @@ pub enum DemoStep {
     Fire {
         times: u16,
     },
+    /// Microwave datalink OK / DOWN (TUI + pixel/web status strip).
+    SetLink {
+        ok: bool,
+    },
+    /// Unit powered; `false` refuses fire (`SENTRY-n OFFLINE`).
+    SetOnline {
+        online: bool,
+    },
     Log {
         message: &'static str,
     },
@@ -86,7 +94,18 @@ pub fn default_script() -> Vec<DemoStep> {
         DemoStep::Log {
             message: "ALL UNITS ARMED — LINK NOMINAL",
         },
+        DemoStep::Wait { ticks: 6 },
+        DemoStep::SelectSentry { index: 2 },
+        DemoStep::SetLink { ok: false },
+        DemoStep::Log {
+            message: "SENTRY-3 DATALINK FAULT",
+        },
         DemoStep::Wait { ticks: 8 },
+        DemoStep::SetLink { ok: true },
+        DemoStep::Log {
+            message: "SENTRY-3 LINK RESTORED",
+        },
+        DemoStep::Wait { ticks: 4 },
         DemoStep::SelectSentry { index: 0 },
         DemoStep::SetIff {
             status: IffStatus::Engaged,
@@ -249,6 +268,25 @@ impl DemoPlayer {
                     state.fire();
                     return true;
                 }
+                DemoStep::SetLink { ok } => {
+                    if let Some(s) = state.active_sentry_mut() {
+                        s.link_ok = ok;
+                        let id = s.id;
+                        state.log.push_info(format!(
+                            "SENTRY-{id} LINK {}",
+                            if ok { "OK" } else { "DOWN" }
+                        ));
+                    }
+                }
+                DemoStep::SetOnline { online } => {
+                    if let Some(s) = state.active_sentry_mut() {
+                        s.online = online;
+                        let id = s.id;
+                        if !online {
+                            state.log.push_info(format!("SENTRY-{id} OFFLINE"));
+                        }
+                    }
+                }
                 DemoStep::Log { message } => {
                     state.log.push(LogKind::Demo {
                         message: message.into(),
@@ -315,5 +353,24 @@ mod tests {
         let start = state.fire_telemetry().rounds;
         while demo.tick(&mut state) {}
         assert_eq!(state.fire_telemetry().rounds, start - 3);
+    }
+
+    #[test]
+    fn set_link_and_offline_drive_sentry_flags() {
+        let mut state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        let mut demo = DemoPlayer::new(vec![
+            DemoStep::SetLink { ok: false },
+            DemoStep::SetOnline { online: false },
+            DemoStep::Done,
+        ]);
+        demo.start();
+        while demo.tick(&mut state) {}
+        let s = state.active_sentry();
+        assert!(!s.link_ok);
+        assert!(!s.online);
+        assert!(!state.fire());
     }
 }

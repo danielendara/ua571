@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Web Audio: create/resume `AudioContext` on Sound checkbox or a key (not page load); close it on Restart
+- Pixel/web status strip is two lines so INTERROGATE + LINK DOWN + help keys fit in 640px
+- Demo drives sentry `link_ok` (datalink fault on SENTRY-3) so TUI LINK DOWN and the status strip are reachable
 - TUI boot splash shows crate version (`v0.2.0`) instead of leftover `v0.1`
 - Pixel/web POST line uses ASCII hyphen (bitmap font has no em dash)
 - Web chrome: Demo checkbox stays in sync with `d`; Skip boot applies on change
