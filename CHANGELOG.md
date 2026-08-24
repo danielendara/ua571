@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web chrome: Demo checkbox stays in sync with `d`; Skip boot applies on change
 - Web keys no longer steal Space/arrows from checkboxes and selects; key-repeat does not dump rounds
 - README: `--mute` starts muted (same as default); it does not lock SFX off
+- TUI restores the terminal on draw/poll errors and panic, not only on a clean quit
 
 ### Changed
 
