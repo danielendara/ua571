@@ -178,17 +178,21 @@ impl Ua571Web {
         self.state.config.sound
     }
 
-    /// Whether demo auto-play is running (checkbox / `d` stay in sync).
+    /// Whether the Demo checkbox should be checked (stays in sync with `d`).
+    ///
+    /// During POST the player has not started yet, so this follows the
+    /// scheduled `demo_on_start` flag instead of the live player.
     #[wasm_bindgen(getter)]
     pub fn demo_active(&self) -> bool {
-        self.state.demo.is_active()
+        demo_checkbox_on(&self.state)
     }
 
     /// Start or stop demo auto-play without rebuilding the WASM app.
+    ///
+    /// During POST this only records the preference; auto-play still starts
+    /// when the splash ends (or is skipped).
     pub fn set_demo(&mut self, on: bool) {
-        if on != self.state.demo.is_active() {
-            self.state.toggle_demo();
-        }
+        apply_demo_checkbox(&mut self.state, on);
     }
 
     /// Enable or mute fire SFX. Enabling resumes the AudioContext after a gesture.
@@ -304,6 +308,27 @@ fn play_buffer(
 #[wasm_bindgen]
 pub fn pkg_version() -> String {
     ua571_core::VERSION.to_string()
+}
+
+/// Chrome Demo checkbox: during POST reflect the scheduled auto-play flag.
+fn demo_checkbox_on(state: &AppState) -> bool {
+    if state.screen == Screen::Boot {
+        state.config.demo_on_start
+    } else {
+        state.demo.is_active()
+    }
+}
+
+/// Apply the Demo checkbox. During POST only the pending flag is stored so
+/// unchecking cancels auto-play that would otherwise start after splash.
+fn apply_demo_checkbox(state: &mut AppState, on: bool) {
+    state.config.demo_on_start = on;
+    if state.screen == Screen::Boot {
+        return;
+    }
+    if on != state.demo.is_active() {
+        state.toggle_demo();
+    }
 }
 
 fn handle_key(state: &mut AppState, code: &str) {
@@ -436,6 +461,58 @@ mod tests {
         assert!(state.demo.is_active());
         handle_key(&mut state, "KeyD");
         assert!(!state.demo.is_active());
+    }
+
+    #[test]
+    fn demo_checkbox_stays_on_during_boot() {
+        let state = AppState::new(Config {
+            show_boot: true,
+            demo_on_start: true,
+            ..Config::default()
+        });
+        assert_eq!(state.screen, Screen::Boot);
+        assert!(!state.demo.is_active());
+        assert!(demo_checkbox_on(&state));
+    }
+
+    #[test]
+    fn unchecking_demo_during_boot_cancels_pending_autoplay() {
+        let mut state = AppState::new(Config {
+            show_boot: true,
+            demo_on_start: true,
+            ..Config::default()
+        });
+        apply_demo_checkbox(&mut state, false);
+        assert!(!demo_checkbox_on(&state));
+        state.skip_boot();
+        assert!(!state.demo.is_active());
+        assert!(!demo_checkbox_on(&state));
+    }
+
+    #[test]
+    fn checking_demo_during_boot_starts_after_splash() {
+        let mut state = AppState::new(Config {
+            show_boot: true,
+            demo_on_start: false,
+            ..Config::default()
+        });
+        apply_demo_checkbox(&mut state, true);
+        assert!(!state.demo.is_active());
+        assert!(demo_checkbox_on(&state));
+        state.skip_boot();
+        assert!(state.demo.is_active());
+        assert!(demo_checkbox_on(&state));
+    }
+
+    #[test]
+    fn demo_checkbox_after_boot_toggles_player() {
+        let mut state = web_state();
+        apply_demo_checkbox(&mut state, true);
+        assert!(state.demo.is_active());
+        assert!(demo_checkbox_on(&state));
+        apply_demo_checkbox(&mut state, false);
+        assert!(!state.demo.is_active());
+        assert!(!demo_checkbox_on(&state));
     }
 
     #[test]
