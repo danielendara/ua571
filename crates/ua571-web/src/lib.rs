@@ -219,25 +219,7 @@ impl Ua571Web {
 
     /// Short status line for HTML chrome.
     pub fn status_line(&self) -> String {
-        let s = self.state.active_sentry();
-        let audio = if self.state.config.sound {
-            "SND"
-        } else {
-            "MUTE"
-        };
-        format!(
-            "S{} · {} rds · {} · {} · {} · {}",
-            s.id,
-            s.fire.rounds,
-            s.options.system_mode.label(),
-            if s.is_armed() { "ARMED" } else { "SAFE" },
-            if self.state.demo.is_active() {
-                "DEMO"
-            } else {
-                "MANUAL"
-            },
-            audio
-        )
+        chrome_status_line(&self.state)
     }
 }
 
@@ -317,6 +299,31 @@ fn demo_checkbox_on(state: &AppState) -> bool {
     } else {
         state.demo.is_active()
     }
+}
+
+/// HTML chrome status. During POST, DEMO/MANUAL follows the Demo checkbox
+/// (scheduled `demo_on_start`) so the strip does not say MANUAL while the
+/// box is still checked.
+fn chrome_status_line(state: &AppState) -> String {
+    let s = state.active_sentry();
+    let audio = if state.config.sound {
+        "SND"
+    } else {
+        "MUTE"
+    };
+    format!(
+        "S{} · {} rds · {} · {} · {} · {}",
+        s.id,
+        s.fire.rounds,
+        s.options.system_mode.label(),
+        if s.is_armed() { "ARMED" } else { "SAFE" },
+        if demo_checkbox_on(state) {
+            "DEMO"
+        } else {
+            "MANUAL"
+        },
+        audio
+    )
 }
 
 /// Apply the Demo checkbox. During POST only the pending flag is stored so
@@ -473,6 +480,28 @@ mod tests {
         assert_eq!(state.screen, Screen::Boot);
         assert!(!state.demo.is_active());
         assert!(demo_checkbox_on(&state));
+    }
+
+    #[test]
+    fn boot_status_line_says_demo_not_manual_when_checkbox_on() {
+        let mut state = AppState::new(Config {
+            show_boot: true,
+            demo_on_start: true,
+            ..Config::default()
+        });
+        assert!(!state.demo.is_active());
+        let line = chrome_status_line(&state);
+        assert!(
+            line.contains("DEMO") && !line.contains("MANUAL"),
+            "checked Demo must not read MANUAL during POST: {line}"
+        );
+
+        apply_demo_checkbox(&mut state, false);
+        let line = chrome_status_line(&state);
+        assert!(
+            line.contains("MANUAL") && !line.contains("DEMO"),
+            "unchecked Demo should read MANUAL during POST: {line}"
+        );
     }
 
     #[test]
