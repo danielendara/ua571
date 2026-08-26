@@ -306,11 +306,7 @@ fn demo_checkbox_on(state: &AppState) -> bool {
 /// box is still checked.
 fn chrome_status_line(state: &AppState) -> String {
     let s = state.active_sentry();
-    let audio = if state.config.sound {
-        "SND"
-    } else {
-        "MUTE"
-    };
+    let audio = if state.config.sound { "SND" } else { "MUTE" };
     format!(
         "S{} · {} rds · {} · {} · {} · {}",
         s.id,
