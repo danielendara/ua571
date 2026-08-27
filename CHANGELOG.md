@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pixel/web POST line uses ASCII hyphen (bitmap font has no em dash)
 - Web chrome: Demo checkbox stays in sync with `d`; Skip boot applies on change
 - Web Demo checkbox stays checked through POST when demo is requested (`?demo=1` / Restart); unchecking it during boot cancels the pending auto-play
+- Web chrome: POST status says DEMO (not MANUAL) when the Demo checkbox is checked
 - Web keys no longer steal Space/arrows from checkboxes and selects; key-repeat does not dump rounds
 - README: `--mute` starts muted (same as default); it does not lock SFX off
 - TUI restores the terminal on draw/poll errors and panic, not only on a clean quit
