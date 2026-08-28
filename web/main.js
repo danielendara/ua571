@@ -84,8 +84,10 @@ async function boot() {
     onKey = (e) => {
       // Let the HTML chrome (checkboxes, selects, links) keep native keys.
       if (isChromeTarget(e.target)) return;
-      // Match TUI/pixel: one action per physical press, not OS key-repeat.
-      if (e.repeat) return;
+      // Match TUI/pixel: ignore OS key-repeat for navigation/options, but allow Space/Enter to hold-to-fire.
+      if (e.repeat && e.code !== "Space" && e.code !== "Enter" && e.code !== "NumpadEnter") {
+        return;
+      }
       switch (e.code) {
         case "ArrowUp":
         case "ArrowDown":
