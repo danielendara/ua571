@@ -549,4 +549,38 @@ mod tests {
         handle_key(&mut state, "KeyZ");
         assert_eq!(state.screen, Screen::Options);
     }
+
+    #[test]
+    fn space_during_boot_stays_on_options_with_demo() {
+        let mut state = AppState::new(Config {
+            show_boot: true,
+            demo_on_start: true,
+            ..Config::default()
+        });
+        handle_key(&mut state, "Space");
+        assert_eq!(state.screen, Screen::Options);
+        assert!(state.demo.is_active());
+    }
+
+    #[test]
+    fn space_on_options_opens_fire_and_stops_demo() {
+        let mut state = web_state();
+        handle_key(&mut state, "KeyD");
+        assert_eq!(state.screen, Screen::Options);
+        assert!(state.demo.is_active());
+        handle_key(&mut state, "Space");
+        assert_eq!(state.screen, Screen::Fire);
+        assert!(!state.demo.is_active());
+    }
+
+    #[test]
+    fn enter_on_fire_expends_a_round() {
+        let mut state = web_state();
+        handle_key(&mut state, "KeyA");
+        handle_key(&mut state, "KeyF");
+        handle_key(&mut state, "Enter");
+        assert_eq!(state.fire_telemetry().rounds, 499);
+        handle_key(&mut state, "NumpadEnter");
+        assert_eq!(state.fire_telemetry().rounds, 498);
+    }
 }
