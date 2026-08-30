@@ -304,8 +304,19 @@ mod tests {
         KeyEvent::new_with_kind(code, KeyModifiers::NONE, kind)
     }
 
+    /// Skip rodio/WASAPI: `FireAudio::try_new` ACCESS_VIOLATIONs under
+    /// parallel `cargo test` on Windows CI.
+    fn silent(config: Config) -> App {
+        App {
+            theme: ConsoleTheme::from_kind(config.theme),
+            state: AppState::new(config),
+            audio: None,
+            confirm_hold: ConfirmHold::default(),
+        }
+    }
+
     fn boot_app() -> App {
-        App::new(Config {
+        silent(Config {
             show_boot: true,
             demo_on_start: true,
             ..Config::default()
@@ -313,7 +324,7 @@ mod tests {
     }
 
     fn options_app() -> App {
-        App::new(Config {
+        silent(Config {
             show_boot: false,
             ..Config::default()
         })
