@@ -6,6 +6,7 @@
 let raf = 0;
 let app = null;
 let onKey = null;
+let onKeyUp = null;
 
 function readOptions() {
   return {
@@ -23,6 +24,10 @@ function teardown() {
   if (onKey) {
     window.removeEventListener("keydown", onKey);
     onKey = null;
+  }
+  if (onKeyUp) {
+    window.removeEventListener("keyup", onKeyUp);
+    onKeyUp = null;
   }
   // Drop WASM app so a new theme/scale re-instantiates cleanly.
   if (app && typeof app.free === "function") {
@@ -84,13 +89,6 @@ async function boot() {
     onKey = (e) => {
       // Let the HTML chrome (checkboxes, selects, links) keep native keys.
       if (isChromeTarget(e.target)) return;
-      if (e.repeat) {
-        const holdFire =
-          app &&
-          app.screen_name() === "fire" &&
-          (e.code === "Space" || e.code === "Enter" || e.code === "NumpadEnter");
-        if (!holdFire) return;
-      }
       switch (e.code) {
         case "ArrowUp":
         case "ArrowDown":
@@ -102,9 +100,15 @@ async function boot() {
         default:
           break;
       }
-      if (app) app.key_down(e.code);
+      // Repeat is gated in WASM: Space/Enter hold-to-fire only if the
+      // originating (non-repeat) keydown was already on Fire.
+      if (app) app.key_down(e.code, e.repeat);
+    };
+    onKeyUp = (e) => {
+      if (app) app.key_up(e.code);
     };
     window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
 
     const loop = () => {
       if (!app) return;
