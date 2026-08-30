@@ -206,7 +206,10 @@ fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAu
         }
     }
 
-    if pressed(Key::Enter) || pressed(Key::Space) {
+    let confirm_repeat = space_enter_repeat(state.screen);
+    if window.is_key_pressed(Key::Enter, confirm_repeat)
+        || window.is_key_pressed(Key::Space, confirm_repeat)
+    {
         state.stop_demo();
         match state.screen {
             Screen::Fire => {
@@ -215,6 +218,15 @@ fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAu
             Screen::Options => state.set_screen(Screen::Fire),
             Screen::Boot => {}
         }
+    }
+}
+
+/// Hold-to-fire uses OS key-repeat on Fire only. Boot/Options stay `No` so a
+/// Space held through POST does not confirm Options after `skip_boot`.
+fn space_enter_repeat(screen: Screen) -> KeyRepeat {
+    match screen {
+        Screen::Fire => KeyRepeat::Yes,
+        Screen::Options | Screen::Boot => KeyRepeat::No,
     }
 }
 
@@ -241,5 +253,12 @@ mod tests {
         let err = Cli::try_parse_from(["ua571-pixel", "--version"]).unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
         assert!(err.to_string().contains(env!("CARGO_PKG_VERSION")));
+    }
+
+    #[test]
+    fn space_enter_repeat_only_on_fire() {
+        assert_eq!(space_enter_repeat(Screen::Fire), KeyRepeat::Yes);
+        assert_eq!(space_enter_repeat(Screen::Options), KeyRepeat::No);
+        assert_eq!(space_enter_repeat(Screen::Boot), KeyRepeat::No);
     }
 }

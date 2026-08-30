@@ -18,7 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web Demo checkbox stays checked through POST when demo is requested (`?demo=1` / Restart); unchecking it during boot cancels the pending auto-play
 - Web chrome: POST status says DEMO (not MANUAL) when the Demo checkbox is checked
 - Web keys no longer steal Space/arrows from checkboxes and selects; key-repeat does not dump rounds
-- Web: Space/Enter key-repeat only hold-to-fires on the Fire screen (holding through POST no longer leaves Options or stops Demo)
+- Web: Space/Enter key-repeat hold-to-fires only if the original keydown was already on Fire (holding through POST or Options no longer leaves Options, stops Demo, or dumps rounds)
+- TUI (Unix): holding Space/Enter through POST no longer confirms Options or stops Demo (Press-repeats wait for key-up or a 1s gap)
+- Pixel: Space/Enter OS-repeat hold-to-fires on Fire; Boot/Options still ignore repeat so a POST hold stays safe
 - README: `--mute` starts muted (same as default); it does not lock SFX off
 - TUI restores the terminal on draw/poll errors and panic, not only on a clean quit
 - Secret-guard now applies `security/commit-denylist.txt` to tracked/staged paths

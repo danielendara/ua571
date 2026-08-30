@@ -28,6 +28,7 @@ pub struct Ua571Web {
     audio: Option<AudioContext>,
     fire_samples: Vec<f32>,
     fire_sample_rate: f32,
+    confirm_gate: ConfirmRepeatGate,
 }
 
 #[wasm_bindgen]
@@ -103,6 +104,7 @@ impl Ua571Web {
             audio: None,
             fire_samples,
             fire_sample_rate: burst_sr as f32,
+            confirm_gate: ConfirmRepeatGate::default(),
         })
     }
 
@@ -151,10 +153,18 @@ impl Ua571Web {
     }
 
     /// Handle a browser keydown. `code` is `KeyboardEvent.code` (e.g. `KeyF`, `ArrowLeft`).
-    pub fn key_down(&mut self, code: &str) {
+    ///
+    /// `repeat` is `KeyboardEvent.repeat`. Space/Enter repeats hold-to-fire only
+    /// when the originating (non-repeat) keydown was already on Fire.
+    pub fn key_down(&mut self, code: &str, repeat: bool) {
         self.ensure_audio();
         self.resume_audio();
-        handle_key(&mut self.state, code);
+        apply_key(&mut self.state, &mut self.confirm_gate, code, repeat);
+    }
+
+    /// Handle a browser keyup so a held Space/Enter can start a new hold-to-fire.
+    pub fn key_up(&mut self, code: &str) {
+        self.confirm_gate.key_up(code);
     }
 
     /// Whether the operator requested quit (`q`). Web page may ignore or show a message.
@@ -332,6 +342,42 @@ fn apply_demo_checkbox(state: &mut AppState, on: bool) {
     if on != state.demo.is_active() {
         state.toggle_demo();
     }
+}
+
+fn is_confirm_code(code: &str) -> bool {
+    matches!(code, "Enter" | "NumpadEnter" | "Space")
+}
+
+/// Space/Enter OS-repeat may fire only if the originating keydown was on Fire.
+#[derive(Debug, Default)]
+struct ConfirmRepeatGate {
+    origin_fire: bool,
+}
+
+impl ConfirmRepeatGate {
+    /// Whether this key event should be delivered to [`handle_key`].
+    fn allow(&mut self, screen: Screen, code: &str, repeat: bool) -> bool {
+        if repeat {
+            return is_confirm_code(code) && self.origin_fire;
+        }
+        if is_confirm_code(code) {
+            self.origin_fire = screen == Screen::Fire;
+        }
+        true
+    }
+
+    fn key_up(&mut self, code: &str) {
+        if is_confirm_code(code) {
+            self.origin_fire = false;
+        }
+    }
+}
+
+fn apply_key(state: &mut AppState, gate: &mut ConfirmRepeatGate, code: &str, repeat: bool) {
+    if !gate.allow(state.screen, code, repeat) {
+        return;
+    }
+    handle_key(state, code);
 }
 
 fn handle_key(state: &mut AppState, code: &str) {
@@ -582,5 +628,80 @@ mod tests {
         assert_eq!(state.fire_telemetry().rounds, 499);
         handle_key(&mut state, "NumpadEnter");
         assert_eq!(state.fire_telemetry().rounds, 498);
+    }
+
+    #[test]
+    fn space_repeat_through_post_stays_on_options_with_demo() {
+        let mut state = AppState::new(Config {
+            show_boot: true,
+            demo_on_start: true,
+            ..Config::default()
+        });
+        let mut gate = ConfirmRepeatGate::default();
+        apply_key(&mut state, &mut gate, "Space", false);
+        assert_eq!(state.screen, Screen::Options);
+        assert!(state.demo.is_active());
+        apply_key(&mut state, &mut gate, "Space", true);
+        apply_key(&mut state, &mut gate, "Enter", true);
+        assert_eq!(state.screen, Screen::Options);
+        assert!(state.demo.is_active());
+    }
+
+    #[test]
+    fn space_repeat_after_options_confirm_does_not_fire() {
+        let mut state = web_state();
+        let mut gate = ConfirmRepeatGate::default();
+        apply_key(&mut state, &mut gate, "KeyA", false);
+        apply_key(&mut state, &mut gate, "Space", false);
+        assert_eq!(state.screen, Screen::Fire);
+        let rounds = state.fire_telemetry().rounds;
+        apply_key(&mut state, &mut gate, "Space", true);
+        apply_key(&mut state, &mut gate, "Enter", true);
+        assert_eq!(state.fire_telemetry().rounds, rounds);
+    }
+
+    #[test]
+    fn space_repeat_after_options_confirm_unarmed_does_not_log_safe() {
+        let mut state = web_state();
+        let mut gate = ConfirmRepeatGate::default();
+        apply_key(&mut state, &mut gate, "Space", false);
+        assert_eq!(state.screen, Screen::Fire);
+        apply_key(&mut state, &mut gate, "Space", true);
+        assert!(
+            !state
+                .log
+                .recent(16)
+                .iter()
+                .any(|e| e.kind.to_string().contains("CANNOT FIRE")),
+            "Options hold must not spam SAFE fire attempts"
+        );
+    }
+
+    #[test]
+    fn space_repeat_on_fire_hold_to_fires_until_keyup() {
+        let mut state = web_state();
+        let mut gate = ConfirmRepeatGate::default();
+        apply_key(&mut state, &mut gate, "KeyA", false);
+        apply_key(&mut state, &mut gate, "KeyF", false);
+        apply_key(&mut state, &mut gate, "Space", false);
+        assert_eq!(state.fire_telemetry().rounds, 499);
+        apply_key(&mut state, &mut gate, "Space", true);
+        assert_eq!(state.fire_telemetry().rounds, 498);
+        gate.key_up("Space");
+        apply_key(&mut state, &mut gate, "Space", true);
+        assert_eq!(state.fire_telemetry().rounds, 498);
+        apply_key(&mut state, &mut gate, "Space", false);
+        assert_eq!(state.fire_telemetry().rounds, 497);
+    }
+
+    #[test]
+    fn arrow_repeat_is_ignored() {
+        let mut state = web_state();
+        let mut gate = ConfirmRepeatGate::default();
+        let before = state.active_sentry().options;
+        apply_key(&mut state, &mut gate, "ArrowDown", true);
+        assert_eq!(state.active_sentry().options, before);
+        apply_key(&mut state, &mut gate, "ArrowDown", false);
+        assert_ne!(state.active_sentry().options, before);
     }
 }
