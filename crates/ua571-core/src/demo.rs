@@ -373,4 +373,21 @@ mod tests {
         assert!(!s.online);
         assert!(!state.fire());
     }
+
+    #[test]
+    fn set_link_blocks_fire_while_online() {
+        let mut state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        state.active_sentry_mut().unwrap().options.weapon_status = WeaponStatus::Armed;
+        let mut demo = DemoPlayer::new(vec![DemoStep::SetLink { ok: false }, DemoStep::Done]);
+        demo.start();
+        while demo.tick(&mut state) {}
+        assert!(!state.active_sentry().link_ok);
+        assert!(state.active_sentry().online);
+        assert!(!state.fire());
+        state.active_sentry_mut().unwrap().link_ok = true;
+        assert!(state.fire());
+    }
 }
