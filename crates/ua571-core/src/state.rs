@@ -235,17 +235,23 @@ impl AppState {
 
     // --- Fire ---
 
-    /// Fire the active sentry if armed and online.
+    /// Fire the active sentry if armed, online, and datalink is nominal.
     pub fn fire(&mut self) -> bool {
         let id = self.active_sentry().id;
         let armed = self.active_sentry().is_armed();
         let online = self.active_sentry().online;
+        let link_ok = self.active_sentry().link_ok;
         let profile = self.active_sentry().options.target_profile;
         let spectral = self.active_sentry().options.spectral_profile;
         let was_critical = self.active_sentry().fire.critical;
 
         if !online {
             self.log.push_info(format!("SENTRY-{id} OFFLINE"));
+            return false;
+        }
+        if !link_ok {
+            self.log
+                .push_info(format!("SENTRY-{id} CANNOT FIRE — LINK DOWN"));
             return false;
         }
         if !armed {
@@ -552,6 +558,21 @@ mod tests {
         let kinds: Vec<_> = app.log.iter().map(|e| e.kind.to_string()).collect();
         assert!(kinds.iter().any(|k| k.contains("OFFLINE")));
         assert!(kinds.iter().any(|k| k.contains("EMPTY")));
+    }
+
+    #[test]
+    fn fire_blocked_when_datalink_down() {
+        let mut app = fresh();
+        app.toggle_arm();
+        app.active_sentry_mut().unwrap().link_ok = false;
+        assert!(!app.fire());
+        assert_eq!(app.fire_telemetry().rounds, app.config.starting_rounds);
+        assert!(app
+            .log
+            .iter()
+            .any(|e| e.kind.to_string().contains("LINK DOWN")));
+        app.active_sentry_mut().unwrap().link_ok = true;
+        assert!(app.fire());
     }
 
     #[test]
