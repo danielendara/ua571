@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Fire is blocked when the active sentry's microwave datalink is down (`link_ok`); log shows `CANNOT FIRE — LINK DOWN` (demo datalink fault on SENTRY-3 is now enforced, not display-only)
+
 ### Fixed
 
 - Web Audio: create/resume `AudioContext` on Sound checkbox or a key (not page load); close it on Restart
