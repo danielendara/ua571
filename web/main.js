@@ -119,7 +119,11 @@ async function boot() {
       if (demoBox) demoBox.checked = app.demo_active;
       const screen = app.screen_name().toUpperCase();
       const quit = app.should_quit ? " · QUIT (Restart)" : "";
-      status.textContent = `${screen} · ${app.status_line()}${quit}`;
+      const next = `${screen} · ${app.status_line()}${quit}`;
+      // Only write when the text changes so the live region does not chatter.
+      if (status.textContent !== next) {
+        status.textContent = next;
+      }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
