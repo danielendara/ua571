@@ -29,6 +29,8 @@ pub struct Ua571Web {
     fire_samples: Vec<f32>,
     fire_sample_rate: f32,
     confirm_gate: ConfirmRepeatGate,
+    /// Brief chrome confirmation (e.g. Demo on/off) until the next key.
+    status_hint: Option<&'static str>,
 }
 
 #[wasm_bindgen]
@@ -105,6 +107,7 @@ impl Ua571Web {
             fire_samples,
             fire_sample_rate: burst_sr as f32,
             confirm_gate: ConfirmRepeatGate::default(),
+            status_hint: None,
         })
     }
 
@@ -159,7 +162,13 @@ impl Ua571Web {
     pub fn key_down(&mut self, code: &str, repeat: bool) {
         self.ensure_audio();
         self.resume_audio();
-        apply_key(&mut self.state, &mut self.confirm_gate, code, repeat);
+        apply_key(
+            &mut self.state,
+            &mut self.confirm_gate,
+            code,
+            repeat,
+            &mut self.status_hint,
+        );
     }
 
     /// Handle a browser keyup so a held Space/Enter can start a new hold-to-fire.
@@ -229,7 +238,7 @@ impl Ua571Web {
 
     /// Short status line for HTML chrome.
     pub fn status_line(&self) -> String {
-        chrome_status_line(&self.state)
+        chrome_status_line(&self.state, self.status_hint)
     }
 }
 
@@ -314,10 +323,10 @@ fn demo_checkbox_on(state: &AppState) -> bool {
 /// HTML chrome status. During POST, DEMO/MANUAL follows the Demo checkbox
 /// (scheduled `demo_on_start`) so the strip does not say MANUAL while the
 /// box is still checked.
-fn chrome_status_line(state: &AppState) -> String {
+fn chrome_status_line(state: &AppState, hint: Option<&str>) -> String {
     let s = state.active_sentry();
     let audio = if state.config.sound { "SND" } else { "MUTE" };
-    format!(
+    let mut line = format!(
         "S{} · {} rds · {} · {} · {} · {}",
         s.id,
         s.fire.rounds,
@@ -329,7 +338,12 @@ fn chrome_status_line(state: &AppState) -> String {
             "MANUAL"
         },
         audio
-    )
+    );
+    if let Some(hint) = hint {
+        line.push_str(" · ");
+        line.push_str(hint);
+    }
+    line
 }
 
 /// Apply the Demo checkbox. During POST only the pending flag is stored so
@@ -373,14 +387,21 @@ impl ConfirmRepeatGate {
     }
 }
 
-fn apply_key(state: &mut AppState, gate: &mut ConfirmRepeatGate, code: &str, repeat: bool) {
+fn apply_key(
+    state: &mut AppState,
+    gate: &mut ConfirmRepeatGate,
+    code: &str,
+    repeat: bool,
+    status_hint: &mut Option<&'static str>,
+) {
     if !gate.allow(state.screen, code, repeat) {
         return;
     }
-    handle_key(state, code);
+    handle_key(state, code, status_hint);
 }
 
-fn handle_key(state: &mut AppState, code: &str) {
+fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'static str>) {
+    *status_hint = None;
     if state.screen == Screen::Boot {
         state.skip_boot();
         return;
@@ -390,15 +411,26 @@ fn handle_key(state: &mut AppState, code: &str) {
         "KeyQ" => {
             state.quit();
         }
-        "KeyD" => state.toggle_demo(),
+        "KeyD" => {
+            state.toggle_demo();
+            *status_hint = Some(if demo_checkbox_on(state) {
+                "Demo on"
+            } else {
+                "Demo off"
+            });
+        }
         "KeyM" => state.toggle_sound(),
         "KeyF" => {
             state.stop_demo();
             state.set_screen(Screen::Fire);
         }
-        "KeyO" | "Escape" => {
+        "KeyO" => {
             state.stop_demo();
             state.set_screen(Screen::Options);
+        }
+        "Escape" => {
+            state.stop_demo();
+            state.toggle_fire_panel();
         }
         "KeyA" => {
             state.stop_demo();
@@ -458,6 +490,18 @@ fn handle_key(state: &mut AppState, code: &str) {
 mod tests {
     use super::*;
 
+    fn handle_key(state: &mut AppState, code: &str) {
+        super::handle_key(state, code, &mut None);
+    }
+
+    fn apply_key(state: &mut AppState, gate: &mut ConfirmRepeatGate, code: &str, repeat: bool) {
+        super::apply_key(state, gate, code, repeat, &mut None);
+    }
+
+    fn chrome_status_line(state: &AppState) -> String {
+        super::chrome_status_line(state, None)
+    }
+
     #[test]
     fn pkg_version_matches_core() {
         assert_eq!(pkg_version(), ua571_core::VERSION);
@@ -499,7 +543,31 @@ mod tests {
         assert!(!state.config.sound);
         handle_key(&mut state, "KeyM");
         assert!(state.config.sound);
+        handle_key(&mut state, "KeyF");
         handle_key(&mut state, "Escape");
+        assert_eq!(state.screen, Screen::Options);
+    }
+
+    #[test]
+    fn escape_on_options_returns_to_fire() {
+        let mut state = web_state();
+        assert_eq!(state.screen, Screen::Options);
+        handle_key(&mut state, "Escape");
+        assert_eq!(state.screen, Screen::Fire);
+        handle_key(&mut state, "Escape");
+        assert_eq!(state.screen, Screen::Options);
+    }
+
+    #[test]
+    fn key_o_opens_options_from_fire_and_stays_on_options() {
+        let mut state = web_state();
+        handle_key(&mut state, "KeyO");
+        assert_eq!(state.screen, Screen::Options);
+        handle_key(&mut state, "KeyF");
+        assert_eq!(state.screen, Screen::Fire);
+        handle_key(&mut state, "KeyO");
+        assert_eq!(state.screen, Screen::Options);
+        handle_key(&mut state, "KeyO");
         assert_eq!(state.screen, Screen::Options);
     }
 
@@ -510,6 +578,35 @@ mod tests {
         assert!(state.demo.is_active());
         handle_key(&mut state, "KeyD");
         assert!(!state.demo.is_active());
+    }
+
+    #[test]
+    fn demo_toggle_confirms_in_status_line() {
+        let mut state = web_state();
+        let mut hint = None;
+        super::handle_key(&mut state, "KeyD", &mut hint);
+        assert!(state.demo.is_active());
+        let line = super::chrome_status_line(&state, hint);
+        assert!(line.contains("Demo on"), "toggle on should confirm: {line}");
+        assert!(
+            line.contains("SAFE"),
+            "Demo confirm must not drop SAFE chrome: {line}"
+        );
+
+        super::handle_key(&mut state, "KeyD", &mut hint);
+        assert!(!state.demo.is_active());
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("Demo off"),
+            "toggle off should confirm: {line}"
+        );
+
+        super::handle_key(&mut state, "KeyM", &mut hint);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            !line.contains("Demo on") && !line.contains("Demo off"),
+            "hint should clear on the next action: {line}"
+        );
     }
 
     #[test]
@@ -703,5 +800,26 @@ mod tests {
         assert_eq!(state.active_sentry().options, before);
         apply_key(&mut state, &mut gate, "ArrowDown", false);
         assert_ne!(state.active_sentry().options, before);
+    }
+
+    #[test]
+    fn status_element_is_polite_named_live_region() {
+        let html = include_str!("../../../web/index.html");
+        let status = html
+            .split("<p")
+            .find(|chunk| chunk.contains(r#"id="status""#))
+            .unwrap_or("");
+        assert!(
+            status.contains(r#"role="status""#),
+            "status node must be a live region"
+        );
+        assert!(
+            status.contains(r#"aria-live="polite""#),
+            "status live region must be polite"
+        );
+        assert!(
+            status.contains(r#"aria-label="Game status""#),
+            "status region must have an accessible name"
+        );
     }
 }
