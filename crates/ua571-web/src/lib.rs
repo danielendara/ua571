@@ -489,6 +489,7 @@ fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'stati
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ua571_core::MenuSection;
 
     fn handle_key(state: &mut AppState, code: &str) {
         super::handle_key(state, code, &mut None);
@@ -545,6 +546,65 @@ mod tests {
         assert!(state.config.sound);
         handle_key(&mut state, "KeyF");
         handle_key(&mut state, "Escape");
+        assert_eq!(state.screen, Screen::Options);
+    }
+
+    #[test]
+    fn options_arrows_and_hl_change_section_focus() {
+        let mut state = web_state();
+        assert_eq!(state.screen, Screen::Options);
+        assert_eq!(state.active_sentry().options.focus, MenuSection::SystemMode);
+
+        handle_key(&mut state, "ArrowRight");
+        assert_eq!(
+            state.active_sentry().options.focus,
+            MenuSection::WeaponStatus
+        );
+        handle_key(&mut state, "ArrowLeft");
+        assert_eq!(state.active_sentry().options.focus, MenuSection::SystemMode);
+
+        handle_key(&mut state, "KeyL");
+        assert_eq!(
+            state.active_sentry().options.focus,
+            MenuSection::WeaponStatus
+        );
+        handle_key(&mut state, "KeyH");
+        assert_eq!(state.active_sentry().options.focus, MenuSection::SystemMode);
+
+        handle_key(&mut state, "ArrowLeft");
+        assert_eq!(
+            state.active_sentry().options.focus,
+            MenuSection::TargetSelect
+        );
+        handle_key(&mut state, "KeyL");
+        assert_eq!(state.active_sentry().options.focus, MenuSection::SystemMode);
+        assert_eq!(state.screen, Screen::Options);
+        assert_eq!(state.active_sentry().id, 1);
+    }
+
+    #[test]
+    fn digit_and_numpad_select_matching_sentry() {
+        let mut state = web_state();
+        assert_eq!(state.screen, Screen::Options);
+        assert_eq!(state.active_sentry().id, 1);
+
+        handle_key(&mut state, "Digit2");
+        assert_eq!(state.active_sentry().id, 2);
+        handle_key(&mut state, "Digit3");
+        assert_eq!(state.active_sentry().id, 3);
+        handle_key(&mut state, "Digit4");
+        assert_eq!(state.active_sentry().id, 4);
+        handle_key(&mut state, "Digit1");
+        assert_eq!(state.active_sentry().id, 1);
+
+        handle_key(&mut state, "Numpad2");
+        assert_eq!(state.active_sentry().id, 2);
+        handle_key(&mut state, "Numpad3");
+        assert_eq!(state.active_sentry().id, 3);
+        handle_key(&mut state, "Numpad4");
+        assert_eq!(state.active_sentry().id, 4);
+        handle_key(&mut state, "Numpad1");
+        assert_eq!(state.active_sentry().id, 1);
         assert_eq!(state.screen, Screen::Options);
     }
 
