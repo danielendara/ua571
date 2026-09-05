@@ -1,6 +1,7 @@
 /**
  * Boots the UA 571-C WASM module against the page canvas.
  * Expects `./pkg/ua571_web.js` from `scripts/build-web.sh`.
+ * Chrome helpers are exported for Node tests (no WASM).
  */
 
 let raf = 0;
@@ -53,12 +54,54 @@ function showVersion(v) {
   wrap.hidden = false;
 }
 
-function isChromeTarget(el) {
+export function isChromeTarget(el) {
   return Boolean(
     el &&
       el.closest &&
       el.closest("input, select, button, a, label, textarea")
   );
+}
+
+/** Write `next` only when the visible text changes (avoids live-region chatter). */
+export function writeLiveRegion(el, next) {
+  if (!el || el.textContent === next) return false;
+  el.textContent = next;
+  return true;
+}
+
+export function formatChromeStatus(app) {
+  const screen = app.screen_name().toUpperCase();
+  const quit = app.should_quit ? " · QUIT (Restart)" : "";
+  return `${screen} · ${app.status_line()}${quit}`;
+}
+
+/** One animation-frame of chrome: checkboxes + #status live region. */
+export function syncChromeFromApp(app, els) {
+  if (!app) return false;
+  if (typeof app.frame === "function") app.frame();
+  if (els.sound) els.sound.checked = app.sound_enabled;
+  if (els.demo) els.demo.checked = app.demo_active;
+  return writeLiveRegion(els.status, formatChromeStatus(app));
+}
+
+export function handleGameKeyDown(app, e) {
+  // Let the HTML chrome (checkboxes, selects, links) keep native keys.
+  if (isChromeTarget(e.target)) return false;
+  switch (e.code) {
+    case "ArrowUp":
+    case "ArrowDown":
+    case "ArrowLeft":
+    case "ArrowRight":
+    case "Space":
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      break;
+    default:
+      break;
+  }
+  // Repeat is gated in WASM: Space/Enter hold-to-fire only if the
+  // originating (non-repeat) keydown was already on Fire.
+  if (app) app.key_down(e.code, e.repeat);
+  return true;
 }
 
 async function boot() {
@@ -87,22 +130,7 @@ async function boot() {
     );
 
     onKey = (e) => {
-      // Let the HTML chrome (checkboxes, selects, links) keep native keys.
-      if (isChromeTarget(e.target)) return;
-      switch (e.code) {
-        case "ArrowUp":
-        case "ArrowDown":
-        case "ArrowLeft":
-        case "ArrowRight":
-        case "Space":
-          e.preventDefault();
-          break;
-        default:
-          break;
-      }
-      // Repeat is gated in WASM: Space/Enter hold-to-fire only if the
-      // originating (non-repeat) keydown was already on Fire.
-      if (app) app.key_down(e.code, e.repeat);
+      handleGameKeyDown(app, e);
     };
     onKeyUp = (e) => {
       if (app) app.key_up(e.code);
@@ -112,18 +140,11 @@ async function boot() {
 
     const loop = () => {
       if (!app) return;
-      app.frame();
-      const soundBox = document.getElementById("sound");
-      if (soundBox) soundBox.checked = app.sound_enabled;
-      const demoBox = document.getElementById("demo");
-      if (demoBox) demoBox.checked = app.demo_active;
-      const screen = app.screen_name().toUpperCase();
-      const quit = app.should_quit ? " · QUIT (Restart)" : "";
-      const next = `${screen} · ${app.status_line()}${quit}`;
-      // Only write when the text changes so the live region does not chatter.
-      if (status.textContent !== next) {
-        status.textContent = next;
-      }
+      syncChromeFromApp(app, {
+        status,
+        demo: document.getElementById("demo"),
+        sound: document.getElementById("sound"),
+      });
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -136,46 +157,46 @@ async function boot() {
   }
 }
 
-document.getElementById("restart").addEventListener("click", () => {
-  boot();
-});
+function startPage() {
+  document.getElementById("restart").addEventListener("click", () => {
+    boot();
+  });
 
-// Theme/scale must re-create the WASM app (canvas pixels are not CSS).
-document.getElementById("theme").addEventListener("change", (e) => {
-  applyPageTheme(e.target.value);
-  boot();
-});
-document.getElementById("scale").addEventListener("change", () => {
-  boot();
-});
+  // Theme/scale must re-create the WASM app (canvas pixels are not CSS).
+  document.getElementById("theme").addEventListener("change", (e) => {
+    applyPageTheme(e.target.value);
+    boot();
+  });
+  document.getElementById("scale").addEventListener("change", () => {
+    boot();
+  });
 
-document.getElementById("sound").addEventListener("change", async (e) => {
-  if (app) {
-    app.set_sound(e.target.checked);
-    if (e.target.checked) {
-      try {
-        await app.unlock_audio();
-      } catch (_) {
-        /* autoplay policy — next key still retries */
+  document.getElementById("sound").addEventListener("change", async (e) => {
+    if (app) {
+      app.set_sound(e.target.checked);
+      if (e.target.checked) {
+        try {
+          await app.unlock_audio();
+        } catch (_) {
+          /* autoplay policy — next key still retries */
+        }
       }
+      document.getElementById("ua571").focus();
     }
-    document.getElementById("ua571").focus();
-  }
-});
+  });
 
-document.getElementById("demo").addEventListener("change", (e) => {
-  if (app) {
-    app.set_demo(e.target.checked);
-    document.getElementById("ua571").focus();
-  }
-});
+  document.getElementById("demo").addEventListener("change", (e) => {
+    if (app) {
+      app.set_demo(e.target.checked);
+      document.getElementById("ua571").focus();
+    }
+  });
 
-document.getElementById("skipBoot").addEventListener("change", () => {
-  boot();
-});
+  document.getElementById("skipBoot").addEventListener("change", () => {
+    boot();
+  });
 
-// Optional deep-link query params
-(() => {
+  // Optional deep-link query params
   const p = new URLSearchParams(location.search);
   if (p.get("theme")) document.getElementById("theme").value = p.get("theme");
   if (p.get("scale")) document.getElementById("scale").value = p.get("scale");
@@ -183,6 +204,10 @@ document.getElementById("skipBoot").addEventListener("change", () => {
   if (p.get("sound") === "1") document.getElementById("sound").checked = true;
   if (p.get("boot") === "0") document.getElementById("skipBoot").checked = true;
   applyPageTheme(document.getElementById("theme").value);
-})();
 
-boot();
+  boot();
+}
+
+if (typeof document !== "undefined") {
+  startPage();
+}

@@ -1,0 +1,9 @@
+{
+  "name": "ua571-web",
+  "private": true,
+  "type": "module",
+  "description": "Browser chrome for the UA 571-C WASM console",
+  "scripts": {
+    "test": "node --test"
+  }
+}
