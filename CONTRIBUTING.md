@@ -13,6 +13,9 @@ On Linux, native fire SFX needs ALSA headers (Debian/Ubuntu: `sudo apt-get insta
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
+# Coverage (CI job `coverage`; fails under 65% workspace lines)
+# needs cargo-llvm-cov + rustup component llvm-tools-preview
+cargo llvm-cov --workspace --locked --fail-under-lines 65
 cargo run -p ua571-tui
 cargo run -p ua571-pixel -- --no-boot
 
@@ -58,7 +61,7 @@ node --test web/main.test.js
 
 1. Fork and branch from `main`.
 2. Keep commits focused.
-3. Ensure CI passes (fmt, clippy, tests on Linux/macOS/Windows, wasm, secret-guard).
+3. Ensure CI passes (fmt, clippy, tests on Linux/macOS/Windows, coverage, wasm, secret-guard).
 4. Maintainer squash-merges. Do not expect direct push access.
 
 Maintainer GitHub settings: [docs/GITHUB.md](docs/GITHUB.md).

@@ -30,7 +30,7 @@ Free personal **private** repos cannot use branch protection / rulesets. Once pu
    - Target: `main`
    - Require a pull request (0 extra approvals — solo maintainer)
    - Require conversation resolution
-   - Require status checks (strict): `secret-guard`, `ubuntu-latest`, `macos-latest`, `windows-latest`, `wasm32`
+   - Require status checks (strict): `secret-guard`, `ubuntu-latest`, `macos-latest`, `windows-latest`, `coverage`, `wasm32`
    - Block force-push and branch deletion
    - Bypass actor: maintainer (emergency only)
 2. Environment `production`: deploy from `main` only
@@ -43,7 +43,7 @@ Free personal **private** repos cannot use branch protection / rulesets. Once pu
 1. Confirm `git ls-files | grep -E 'cdk.context|cdk.out|\.env$|credentials'` is empty
 2. Confirm no account IDs / keys in tracked files (`./scripts/check-secrets.sh tracked`)
 3. Settings → **Change repository visibility** → Public
-4. Apply the ruleset in the GitHub UI (required checks: `secret-guard`, `ubuntu-latest`, `macos-latest`, `windows-latest`, `wasm32`)
+4. Apply the ruleset in the GitHub UI (required checks: `secret-guard`, `ubuntu-latest`, `macos-latest`, `windows-latest`, `coverage`, `wasm32`)
 5. Re-run CI on open PRs
 
 Do **not** put `AWS_ROLE_ARN` or bucket/distribution IDs into source. They stay in the Environment.

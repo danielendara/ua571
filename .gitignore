@@ -1,4 +1,5 @@
 /target
+/lcov.info
 **/*.rs.bk
 .DS_Store
 *.swp
