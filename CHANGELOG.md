@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Fire is blocked when the active sentry's microwave datalink is down (`link_ok`); log shows `CANNOT FIRE — LINK DOWN` (demo datalink fault on SENTRY-3 is now enforced, not display-only)
+- Node tests for web `#status` live-region writes (only on text change; Demo on/off after `d`); Linux `cargo test` runs them
 
 ### Fixed
 

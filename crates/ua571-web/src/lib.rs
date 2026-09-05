@@ -882,4 +882,27 @@ mod tests {
             "status region must have an accessible name"
         );
     }
+
+    /// `web/main.test.js` — live-region writes and Demo on/off after `d`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn status_live_region_node_tests() {
+        use std::path::PathBuf;
+        use std::process::Command;
+
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let spec = root.join("web/main.test.js");
+        let output = Command::new("node")
+            .arg("--test")
+            .arg(&spec)
+            .current_dir(&root)
+            .output()
+            .expect("spawn node (install Node.js to run web chrome tests)");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            output.status.success(),
+            "node --test web/main.test.js failed\nstdout:\n{stdout}\nstderr:\n{stderr}"
+        );
+    }
 }

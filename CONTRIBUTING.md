@@ -28,6 +28,9 @@ Web frontend:
 ```bash
 ./scripts/build-web.sh
 python3 -m http.server 8080 --directory web
+
+# Status live-region chrome (no WASM; Linux `cargo test --workspace` also runs this)
+node --test web/main.test.js
 ```
 
 ## Project layout
