@@ -291,4 +291,3 @@ mod tests {
         assert_eq!(space_enter_repeat(Screen::Boot), KeyRepeat::No);
     }
 }
-
