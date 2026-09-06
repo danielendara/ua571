@@ -88,7 +88,7 @@ fn main() -> Result<()> {
     )
     .map_err(|e| eyre!("window: {e}"))?;
 
-    window.limit_update_rate(None);
+    window.set_target_fps(0);
 
     let mut state = AppState::new(config);
     let mut audio = FireAudio::try_new();
@@ -291,3 +291,4 @@ mod tests {
         assert_eq!(space_enter_repeat(Screen::Boot), KeyRepeat::No);
     }
 }
+
