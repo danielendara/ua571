@@ -192,30 +192,31 @@ impl DemoPlayer {
         self.wait_remaining = 0;
     }
 
-    /// Advance one tick. Returns true if still running.
-    pub fn tick(&mut self, state: &mut AppState) -> bool {
+    /// Advance one tick. Returns `(still_running, visual_dirty)`.
+    pub fn tick(&mut self, state: &mut AppState) -> (bool, bool) {
         if !self.active {
-            return false;
+            return (false, false);
         }
 
         if self.wait_remaining > 0 {
             self.wait_remaining -= 1;
-            return true;
+            return (true, false);
         }
 
         if self.fire_remaining > 0 {
             state.fire();
             self.fire_remaining -= 1;
-            return true;
+            return (true, true);
         }
 
+        let mut dirty = false;
         loop {
             if self.index >= self.steps.len() {
                 self.active = false;
                 state.log.push(LogKind::Demo {
                     message: "SEQUENCE COMPLETE".into(),
                 });
-                return false;
+                return (false, true);
             }
 
             let step = self.steps[self.index].clone();
@@ -224,17 +225,20 @@ impl DemoPlayer {
             match step {
                 DemoStep::Wait { ticks } => {
                     self.wait_remaining = ticks.saturating_sub(1);
-                    return true;
+                    return (true, dirty);
                 }
                 DemoStep::SelectSentry { index } => {
                     state.select_sentry(index);
+                    dirty = true;
                 }
                 DemoStep::SetScreen { screen } => {
                     state.set_screen(screen);
+                    dirty = true;
                 }
                 DemoStep::SetMode { mode } => {
                     if let Some(s) = state.active_sentry_mut() {
                         s.options.system_mode = mode;
+                        dirty = true;
                     }
                 }
                 DemoStep::SetWeapon { status } => {
@@ -245,11 +249,13 @@ impl DemoPlayer {
                             WeaponStatus::Armed => state.log.push(LogKind::Armed { sentry: id }),
                             WeaponStatus::Safe => state.log.push(LogKind::Safe { sentry: id }),
                         }
+                        dirty = true;
                     }
                 }
                 DemoStep::SetIff { status } => {
                     if let Some(s) = state.active_sentry_mut() {
                         s.options.iff_status = status;
+                        dirty = true;
                     }
                 }
                 DemoStep::SetProfile {
@@ -261,12 +267,13 @@ impl DemoPlayer {
                         s.options.target_profile = profile;
                         s.options.spectral_profile = spectral;
                         s.options.target_select = select;
+                        dirty = true;
                     }
                 }
                 DemoStep::Fire { times } => {
                     self.fire_remaining = times.saturating_sub(1);
                     state.fire();
-                    return true;
+                    return (true, true);
                 }
                 DemoStep::SetLink { ok } => {
                     if let Some(s) = state.active_sentry_mut() {
@@ -276,6 +283,7 @@ impl DemoPlayer {
                             "SENTRY-{id} LINK {}",
                             if ok { "OK" } else { "DOWN" }
                         ));
+                        dirty = true;
                     }
                 }
                 DemoStep::SetOnline { online } => {
@@ -285,6 +293,7 @@ impl DemoPlayer {
                         if !online {
                             state.log.push_info(format!("SENTRY-{id} OFFLINE"));
                         }
+                        dirty = true;
                     }
                 }
                 DemoStep::Log { message } => {
@@ -297,7 +306,7 @@ impl DemoPlayer {
                     state.log.push(LogKind::Demo {
                         message: "SEQUENCE COMPLETE".into(),
                     });
-                    return false;
+                    return (false, true);
                 }
             }
         }
@@ -315,7 +324,7 @@ mod tests {
         let mut demo = DemoPlayer::default_demo();
         demo.start();
         let mut guard = 0;
-        while demo.tick(&mut state) {
+        while demo.tick(&mut state).0 {
             guard += 1;
             assert!(guard < 10_000, "demo did not finish");
         }
@@ -330,10 +339,10 @@ mod tests {
         });
         let mut demo = DemoPlayer::default_demo();
         demo.start();
-        assert!(demo.tick(&mut state));
+        assert!(demo.tick(&mut state).0);
         demo.stop();
         assert!(!demo.is_active());
-        assert!(!demo.tick(&mut state));
+        assert!(!demo.tick(&mut state).0);
     }
 
     #[test]
@@ -351,7 +360,7 @@ mod tests {
         ]);
         demo.start();
         let start = state.fire_telemetry().rounds;
-        while demo.tick(&mut state) {}
+        while demo.tick(&mut state).0 {}
         assert_eq!(state.fire_telemetry().rounds, start - 3);
     }
 
@@ -367,7 +376,7 @@ mod tests {
             DemoStep::Done,
         ]);
         demo.start();
-        while demo.tick(&mut state) {}
+        while demo.tick(&mut state).0 {}
         let s = state.active_sentry();
         assert!(!s.link_ok);
         assert!(!s.online);
@@ -383,7 +392,7 @@ mod tests {
         state.active_sentry_mut().unwrap().options.weapon_status = WeaponStatus::Armed;
         let mut demo = DemoPlayer::new(vec![DemoStep::SetLink { ok: false }, DemoStep::Done]);
         demo.start();
-        while demo.tick(&mut state) {}
+        while demo.tick(&mut state).0 {}
         assert!(!state.active_sentry().link_ok);
         assert!(state.active_sentry().online);
         assert!(!state.fire());
