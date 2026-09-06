@@ -142,9 +142,17 @@ impl FireTelemetry {
     }
 
     /// Periodic UI tick: CRITICAL blink + natural cool-down / R(M) decay when idle.
-    pub fn tick(&mut self) {
+    ///
+    /// Returns `true` when a value shown on the firing panel may have changed.
+    pub fn tick(&mut self) -> bool {
+        let blink_before = self.critical_blink;
         self.tick_blink();
+        let blink_dirty = self.critical && self.critical_blink != blink_before;
+
+        let temp_before = self.temperature;
+        let rm_before = self.rm;
         self.tick_cooldown();
+        blink_dirty || self.temperature != temp_before || self.rm != rm_before
     }
 
     /// Idle tick for blink animation only (legacy name).
@@ -231,7 +239,7 @@ mod tests {
         assert!(hot > 0);
         // Hold + cool steps: enough ticks to drop at least a few degrees.
         for _ in 0..50 {
-            f.tick();
+            let _ = f.tick();
         }
         assert!(
             f.temperature < hot,
@@ -249,7 +257,7 @@ mod tests {
         let peak = f.rm;
         assert!(peak > 0);
         for _ in 0..30 {
-            f.tick();
+            let _ = f.tick();
         }
         assert!(
             f.rm < peak,
@@ -265,7 +273,7 @@ mod tests {
             let _ = f.fire();
         }
         for _ in 0..20 {
-            f.tick();
+            let _ = f.tick();
         }
         let cooled = f.temperature;
         // Resume fire — should heat again, not keep cooling that tick path only
@@ -342,7 +350,7 @@ mod tests {
         let mut saw_true = false;
         let mut saw_false = false;
         for _ in 0..12 {
-            f.tick();
+            let _ = f.tick();
             if f.critical_blink {
                 saw_true = true;
             } else {
@@ -351,7 +359,7 @@ mod tests {
         }
         assert!(saw_true && saw_false, "CRITICAL should blink");
         f.reset(500);
-        f.tick();
+        let _ = f.tick();
         assert!(!f.critical);
         assert!(!f.critical_blink);
     }

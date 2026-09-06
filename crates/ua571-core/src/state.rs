@@ -352,7 +352,9 @@ impl AppState {
     // --- Tick ---
 
     /// Periodic tick: boot countdown, demo, CRITICAL blink, barrel cool-down / R(M) decay.
-    pub fn tick(&mut self) {
+    ///
+    /// Returns `true` when the framebuffer may need a redraw this tick.
+    pub fn tick(&mut self) -> bool {
         if self.screen == Screen::Boot {
             if self.boot_ticks_remaining > 0 {
                 self.boot_ticks_remaining -= 1;
@@ -366,20 +368,28 @@ impl AppState {
                     self.start_demo();
                 }
             }
-            return;
+            return true;
         }
+
+        let mut dirty = false;
 
         if self.demo.is_active() {
             // Avoid double-borrow of `self` and `self.demo`.
             let mut demo = std::mem::take(&mut self.demo);
-            demo.tick(self);
+            let (running, demo_dirty) = demo.tick(self);
             self.demo = demo;
+            if !running {
+                // demo finished this tick
+            }
+            dirty |= demo_dirty;
         }
 
         for s in self.bank.iter_mut() {
             // Heat/R(M) rise on fire(); cool and spin down while idle.
-            s.fire.tick();
+            dirty |= s.fire.tick();
         }
+
+        dirty
     }
 
     pub fn options(&self) -> &OptionsState {
@@ -656,5 +666,24 @@ mod tests {
         assert_eq!(Screen::Options.label(), "OPTIONS");
         assert_eq!(Screen::Fire.label(), "FIRING PANEL");
         assert_eq!(Screen::Boot.label(), "BOOT");
+    }
+
+    #[test]
+    fn tick_idle_fire_panel_not_dirty() {
+        let mut app = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        app.set_screen(Screen::Fire);
+        assert!(!app.tick());
+    }
+
+    #[test]
+    fn tick_boot_progress_is_dirty() {
+        let mut app = AppState::new(Config {
+            show_boot: true,
+            ..Config::default()
+        });
+        assert!(app.tick());
     }
 }

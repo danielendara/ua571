@@ -31,6 +31,8 @@ pub struct Ua571Web {
     confirm_gate: ConfirmRepeatGate,
     /// Brief chrome confirmation (e.g. Demo on/off) until the next key.
     status_hint: Option<&'static str>,
+    /// Redraw the canvas on the next [`frame`] call.
+    dirty: bool,
 }
 
 #[wasm_bindgen]
@@ -108,6 +110,7 @@ impl Ua571Web {
             fire_sample_rate: burst_sr as f32,
             confirm_gate: ConfirmRepeatGate::default(),
             status_hint: None,
+            dirty: true,
         })
     }
 
@@ -123,17 +126,24 @@ impl Ua571Web {
         self.display_h
     }
 
-    /// Advance simulation (if tick elapsed) and redraw the canvas.
+    /// Advance simulation (if tick elapsed) and redraw the canvas when needed.
     pub fn frame(&mut self) -> Result<(), JsValue> {
+        let mut dirty = self.dirty;
+        self.dirty = false;
+
         let tick = Duration::from_millis(self.state.config.tick_ms);
         if self.last_tick.elapsed() >= tick {
-            self.state.tick();
+            dirty |= self.state.tick();
             self.last_tick = Instant::now();
         }
 
         let n = self.state.take_fire_sfx();
         if n > 0 {
             self.play_fires(n);
+        }
+
+        if !dirty {
+            return Ok(());
         }
 
         render(&self.state, &mut self.fb);
@@ -162,13 +172,15 @@ impl Ua571Web {
     pub fn key_down(&mut self, code: &str, repeat: bool) {
         self.ensure_audio();
         self.resume_audio();
-        apply_key(
+        if apply_key(
             &mut self.state,
             &mut self.confirm_gate,
             code,
             repeat,
             &mut self.status_hint,
-        );
+        ) {
+            self.dirty = true;
+        }
     }
 
     /// Handle a browser keyup so a held Space/Enter can start a new hold-to-fire.
@@ -212,6 +224,7 @@ impl Ua571Web {
     /// when the splash ends (or is skipped).
     pub fn set_demo(&mut self, on: bool) {
         apply_demo_checkbox(&mut self.state, on);
+        self.dirty = true;
     }
 
     /// Enable or mute fire SFX. Enabling resumes the AudioContext after a gesture.
@@ -223,6 +236,7 @@ impl Ua571Web {
             self.ensure_audio();
             self.resume_audio();
         }
+        self.dirty = true;
     }
 
     /// Create (if needed) and await resume. Must run inside a user gesture.
@@ -393,11 +407,12 @@ fn apply_key(
     code: &str,
     repeat: bool,
     status_hint: &mut Option<&'static str>,
-) {
+) -> bool {
     if !gate.allow(state.screen, code, repeat) {
-        return;
+        return false;
     }
     handle_key(state, code, status_hint);
+    true
 }
 
 fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'static str>) {

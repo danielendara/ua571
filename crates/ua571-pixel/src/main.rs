@@ -88,7 +88,7 @@ fn main() -> Result<()> {
     )
     .map_err(|e| eyre!("window: {e}"))?;
 
-    window.set_target_fps(60);
+    window.limit_update_rate(None);
 
     let mut state = AppState::new(config);
     let mut audio = FireAudio::try_new();
@@ -99,17 +99,21 @@ fn main() -> Result<()> {
     let mut buffer = vec![0u32; win_w * win_h];
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(state.config.tick_ms);
+    let mut dirty = true;
 
     while window.is_open() && !state.should_quit {
         let (ww, wh) = window.get_size();
         if buffer.len() != ww * wh {
             buffer.resize(ww * wh, 0);
+            dirty = true;
         }
 
-        handle_input(&window, &mut state, audio.as_mut());
+        if handle_input(&window, &mut state, audio.as_mut()) {
+            dirty = true;
+        }
 
         if last_tick.elapsed() >= tick_rate {
-            state.tick();
+            dirty |= state.tick();
             last_tick = Instant::now();
         }
 
@@ -119,6 +123,13 @@ fn main() -> Result<()> {
                 a.play_fires(n);
             }
         }
+
+        if !dirty {
+            let until_tick = tick_rate.saturating_sub(last_tick.elapsed());
+            std::thread::sleep(until_tick.min(Duration::from_millis(16)));
+            continue;
+        }
+        dirty = false;
 
         render(&state, &mut fb);
         fb.present_scaled(&mut buffer, ww, wh, on, off);
@@ -130,79 +141,94 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAudio>) {
+fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAudio>) -> bool {
     if state.screen == Screen::Boot {
         if !window.get_keys_pressed(KeyRepeat::No).is_empty() {
             state.skip_boot();
+            return true;
         }
-        return;
+        return false;
     }
 
     let pressed = |k: Key| window.is_key_pressed(k, KeyRepeat::No);
 
     if pressed(Key::Q) {
         state.quit();
-        return;
+        return true;
     }
 
     if pressed(Key::D) {
         state.toggle_demo();
+        return true;
     }
     if pressed(Key::M) {
         state.toggle_sound();
         if let Some(a) = audio {
             a.set_muted(!state.config.sound);
         }
+        return true;
     }
     if pressed(Key::F) {
         state.stop_demo();
         state.set_screen(Screen::Fire);
+        return true;
     }
     if pressed(Key::O) || pressed(Key::Escape) {
         state.stop_demo();
         state.set_screen(Screen::Options);
+        return true;
     }
     if pressed(Key::A) {
         state.stop_demo();
         state.toggle_arm();
+        return true;
     }
     if pressed(Key::R) {
         state.stop_demo();
         state.reload();
+        return true;
     }
     if pressed(Key::Key1) {
         state.stop_demo();
         state.select_sentry(0);
+        return true;
     }
     if pressed(Key::Key2) {
         state.stop_demo();
         state.select_sentry(1);
+        return true;
     }
     if pressed(Key::Key3) {
         state.stop_demo();
         state.select_sentry(2);
+        return true;
     }
     if pressed(Key::Key4) {
         state.stop_demo();
         state.select_sentry(3);
+        return true;
     }
 
     if state.screen == Screen::Options {
         if pressed(Key::Left) || pressed(Key::H) {
             state.stop_demo();
             state.focus_prev_section();
+            return true;
         }
         if pressed(Key::Right) || pressed(Key::L) {
             state.stop_demo();
             state.focus_next_section();
+            return true;
         }
         if pressed(Key::Up) || pressed(Key::K) {
             state.stop_demo();
             state.select_up();
+            return true;
         }
         if pressed(Key::Down) || pressed(Key::J) {
             state.stop_demo();
             state.select_down();
+            return true;
         }
     }
 
@@ -218,7 +244,10 @@ fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAu
             Screen::Options => state.set_screen(Screen::Fire),
             Screen::Boot => {}
         }
+        return true;
     }
+
+    false
 }
 
 /// Hold-to-fire uses OS key-repeat on Fire only. Boot/Options stay `No` so a
