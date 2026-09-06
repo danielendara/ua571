@@ -100,6 +100,7 @@ fn main() -> Result<()> {
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(state.config.tick_ms);
     let mut dirty = true;
+    let mut confirm_hold = ConfirmHold::default();
 
     while window.is_open() && !state.should_quit {
         let (ww, wh) = window.get_size();
@@ -108,7 +109,7 @@ fn main() -> Result<()> {
             dirty = true;
         }
 
-        if handle_input(&window, &mut state, audio.as_mut()) {
+        if handle_input(&window, &mut state, audio.as_mut(), &mut confirm_hold) {
             dirty = true;
         }
 
@@ -141,7 +142,12 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAudio>) -> bool {
+fn handle_input(
+    window: &Window,
+    state: &mut AppState,
+    audio: Option<&mut FireAudio>,
+    confirm_hold: &mut ConfirmHold,
+) -> bool {
     if state.screen == Screen::Boot {
         if !window.get_keys_pressed(KeyRepeat::No).is_empty() {
             state.skip_boot();
@@ -232,10 +238,17 @@ fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAu
         }
     }
 
-    let confirm_repeat = space_enter_repeat(state.screen);
-    if window.is_key_pressed(Key::Enter, confirm_repeat)
-        || window.is_key_pressed(Key::Space, confirm_repeat)
-    {
+    // Edge-triggered: true only on the frame Enter/Space first goes down.
+    // (minifb tracks how long a key has been held independent of the
+    // `KeyRepeat` mode used to query it, so this is safe to check with
+    // `KeyRepeat::No` even while a hold-to-fire repeat is in progress.)
+    let confirm_fresh = window.is_key_pressed(Key::Enter, KeyRepeat::No)
+        || window.is_key_pressed(Key::Space, KeyRepeat::No);
+    if confirm_fresh {
+        // Record whether *this* press started on the Fire screen, before
+        // acting on it — a confirm on Options moves to Fire below, and that
+        // must not itself count as an origin-on-Fire press.
+        confirm_hold.origin_fire = state.screen == Screen::Fire;
         state.stop_demo();
         match state.screen {
             Screen::Fire => {
@@ -247,15 +260,37 @@ fn handle_input(window: &Window, state: &mut AppState, audio: Option<&mut FireAu
         return true;
     }
 
+    // OS key-repeat pulse. Only treat it as hold-to-fire when the physical
+    // hold began on the Fire screen — otherwise a Space/Enter held through
+    // the Options → Fire confirm above would keep dumping rounds from the
+    // very same press (#61).
+    if confirm_hold.allows_repeat_fire(state.screen)
+        && (window.is_key_pressed(Key::Enter, KeyRepeat::Yes)
+            || window.is_key_pressed(Key::Space, KeyRepeat::Yes))
+    {
+        state.stop_demo();
+        let _ = state.fire();
+        return true;
+    }
+
     false
 }
 
-/// Hold-to-fire uses OS key-repeat on Fire only. Boot/Options stay `No` so a
-/// Space held through POST does not confirm Options after `skip_boot`.
-fn space_enter_repeat(screen: Screen) -> KeyRepeat {
-    match screen {
-        Screen::Fire => KeyRepeat::Yes,
-        Screen::Options | Screen::Boot => KeyRepeat::No,
+/// Latches whether the Enter/Space hold currently in progress began while
+/// the Fire screen was active, so OS key-repeat only continues hold-to-fire
+/// for a press that started there — not one that began as an Options
+/// confirm and only landed on Fire afterward.
+#[derive(Debug, Default)]
+struct ConfirmHold {
+    origin_fire: bool,
+}
+
+impl ConfirmHold {
+    /// Whether an OS key-repeat pulse for Enter/Space should be treated as
+    /// hold-to-fire: only once the current physical hold both started on the
+    /// Fire screen and is still there.
+    fn allows_repeat_fire(&self, screen: Screen) -> bool {
+        self.origin_fire && screen == Screen::Fire
     }
 }
 
@@ -284,10 +319,25 @@ mod tests {
         assert!(err.to_string().contains(env!("CARGO_PKG_VERSION")));
     }
 
+    /// Regression for holding Space/Enter from Options into Fire: minifb
+    /// tracks how long a physical key has been held independent of which
+    /// `KeyRepeat` mode is used to query it, so the same hold that confirms
+    /// Options → Fire must not also be allowed to continue as hold-to-fire.
     #[test]
-    fn space_enter_repeat_only_on_fire() {
-        assert_eq!(space_enter_repeat(Screen::Fire), KeyRepeat::Yes);
-        assert_eq!(space_enter_repeat(Screen::Options), KeyRepeat::No);
-        assert_eq!(space_enter_repeat(Screen::Boot), KeyRepeat::No);
+    fn confirm_hold_only_repeat_fires_when_hold_originated_on_fire() {
+        // Fresh press happened while on Options (about to confirm to Fire).
+        let mut hold = ConfirmHold { origin_fire: false };
+        assert!(
+            !hold.allows_repeat_fire(Screen::Fire),
+            "a hold that confirmed Options -> Fire must not repeat-fire"
+        );
+
+        // Fresh press happened while already on Fire.
+        hold.origin_fire = true;
+        assert!(hold.allows_repeat_fire(Screen::Fire));
+
+        // Never repeat-fires off the Fire screen, even with a stale flag.
+        assert!(!hold.allows_repeat_fire(Screen::Options));
+        assert!(!hold.allows_repeat_fire(Screen::Boot));
     }
 }
