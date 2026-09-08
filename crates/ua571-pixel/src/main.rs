@@ -179,9 +179,14 @@ fn handle_input(
         state.set_screen(Screen::Fire);
         return true;
     }
-    if pressed(Key::O) || pressed(Key::Escape) {
+    if pressed(Key::O) {
         state.stop_demo();
         state.set_screen(Screen::Options);
+        return true;
+    }
+    if pressed(Key::Escape) {
+        state.stop_demo();
+        state.toggle_fire_panel();
         return true;
     }
     if pressed(Key::A) {
