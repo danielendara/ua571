@@ -33,6 +33,8 @@ pub struct Ua571Web {
     status_hint: Option<&'static str>,
     /// Redraw the canvas on the next [`frame`] call.
     dirty: bool,
+    /// Tab is in the background: skip ticks/SFX and suspend Web Audio.
+    hidden: bool,
 }
 
 #[wasm_bindgen]
@@ -111,6 +113,7 @@ impl Ua571Web {
             confirm_gate: ConfirmRepeatGate::default(),
             status_hint: None,
             dirty: true,
+            hidden: false,
         })
     }
 
@@ -127,7 +130,14 @@ impl Ua571Web {
     }
 
     /// Advance simulation (if tick elapsed) and redraw the canvas when needed.
+    ///
+    /// While the document is hidden, skip ticks and SFX so a background tab
+    /// does not drain battery or play surprise audio. Game state is left as-is.
     pub fn frame(&mut self) -> Result<(), JsValue> {
+        if !hidden_tab_runtime(self.hidden, self.state.config.sound).tick {
+            return Ok(());
+        }
+
         let mut dirty = self.dirty;
         self.dirty = false;
 
@@ -170,8 +180,10 @@ impl Ua571Web {
     /// `repeat` is `KeyboardEvent.repeat`. Space/Enter repeats hold-to-fire only
     /// when the originating (non-repeat) keydown was already on Fire.
     pub fn key_down(&mut self, code: &str, repeat: bool) {
-        self.ensure_audio();
-        self.resume_audio();
+        if !self.hidden {
+            self.ensure_audio();
+            self.resume_audio();
+        }
         if apply_key(
             &mut self.state,
             &mut self.confirm_gate,
@@ -227,6 +239,32 @@ impl Ua571Web {
         self.dirty = true;
     }
 
+    /// Pause ticks/SFX and suspend Web Audio while the tab is hidden.
+    ///
+    /// Does **not** change `config.sound`, screen, rounds, or other sim state.
+    /// Showing the tab again resyncs the clock so the hidden duration is not
+    /// applied as a catch-up tick.
+    pub fn set_hidden(&mut self, hidden: bool) {
+        if self.hidden == hidden {
+            return;
+        }
+        self.hidden = hidden;
+        if hidden {
+            self.suspend_audio();
+        } else {
+            self.last_tick = Instant::now();
+            if hidden_tab_runtime(false, self.state.config.sound).audio {
+                self.resume_audio();
+            }
+        }
+    }
+
+    /// Whether the document-hidden pause is active.
+    #[wasm_bindgen(getter)]
+    pub fn is_hidden(&self) -> bool {
+        self.hidden
+    }
+
     /// Enable or mute fire SFX. Enabling resumes the AudioContext after a gesture.
     pub fn set_sound(&mut self, on: bool) {
         if on != self.state.config.sound {
@@ -278,8 +316,14 @@ impl Ua571Web {
         }
     }
 
+    fn suspend_audio(&self) {
+        if let Some(ac) = self.audio.as_ref() {
+            let _ = ac.suspend();
+        }
+    }
+
     fn play_fires(&mut self, count: u32) {
-        if !self.state.config.sound || count == 0 {
+        if self.hidden || !self.state.config.sound || count == 0 {
             return;
         }
         let Some(ac) = self.audio.as_ref() else {
@@ -385,6 +429,27 @@ fn apply_demo_checkbox(state: &mut AppState, on: bool) {
     }
     if on != state.demo.is_active() {
         state.toggle_demo();
+    }
+}
+
+/// Background-tab policy: never tick or emit SFX; never flip the sound pref.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct HiddenTabRuntime {
+    tick: bool,
+    audio: bool,
+}
+
+fn hidden_tab_runtime(document_hidden: bool, sound_enabled: bool) -> HiddenTabRuntime {
+    if document_hidden {
+        HiddenTabRuntime {
+            tick: false,
+            audio: false,
+        }
+    } else {
+        HiddenTabRuntime {
+            tick: true,
+            audio: sound_enabled,
+        }
     }
 }
 
@@ -1010,6 +1075,26 @@ mod tests {
         assert_eq!(state.active_sentry().options, before);
         apply_key(&mut state, &mut gate, "ArrowDown", false);
         assert_ne!(state.active_sentry().options, before);
+    }
+
+    #[test]
+    fn hidden_tab_pauses_ticks_and_mutes_without_flipping_sound_pref() {
+        let muted = hidden_tab_runtime(true, true);
+        assert!(!muted.tick, "hidden tab must not simulate");
+        assert!(!muted.audio, "hidden tab must mute output");
+        let sound_off = hidden_tab_runtime(true, false);
+        assert!(!sound_off.tick);
+        assert!(!sound_off.audio);
+
+        let visible_on = hidden_tab_runtime(false, true);
+        assert!(visible_on.tick);
+        assert!(visible_on.audio, "visible + sound pref on resumes audio");
+        let visible_off = hidden_tab_runtime(false, false);
+        assert!(visible_off.tick);
+        assert!(
+            !visible_off.audio,
+            "visible resume must not enable sound the operator muted"
+        );
     }
 
     #[test]

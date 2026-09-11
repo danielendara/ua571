@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  applyDocumentVisibility,
   PREFS_STORAGE_KEY,
   applyPrefsToElements,
   handleGameKeyDown,
@@ -13,6 +14,7 @@ import {
   persistChromeFromForm,
   prefsFromSearch,
   readStoredPrefs,
+  shouldAdvanceFrame,
   syncChromeFromApp,
   writeLiveRegion,
   writeStoredPrefs,
@@ -117,6 +119,44 @@ test("syncChromeFromApp writes #status only when chrome text changes", () => {
   assert.equal(syncChromeFromApp(app, els), true);
   assert.equal(status.writeCount(), 2);
   assert.notEqual(status.textContent, first);
+});
+
+test("hidden pauses/mutes; visible resumes without mutating game state", () => {
+  const snapshot = { screen: "fire", rounds: 500, sound: true };
+  const app = {
+    hidden: false,
+    soundPref: true,
+    set_hidden(hidden) {
+      this.hidden = hidden;
+    },
+    set_sound() {
+      this.soundPref = !this.soundPref;
+    },
+  };
+  let running = true;
+  const loopCtl = {
+    pause() {
+      running = false;
+    },
+    resume() {
+      running = true;
+    },
+  };
+
+  const hidden = applyDocumentVisibility(true, app, loopCtl);
+  assert.equal(hidden.paused, true);
+  assert.equal(app.hidden, true);
+  assert.equal(running, false);
+  assert.equal(app.soundPref, true);
+  assert.deepEqual(snapshot, { screen: "fire", rounds: 500, sound: true });
+
+  const shown = applyDocumentVisibility(false, app, loopCtl);
+  assert.equal(shown.paused, false);
+  assert.equal(app.hidden, false);
+  assert.equal(running, true);
+  assert.equal(app.soundPref, true);
+  assert.equal(shouldAdvanceFrame(false), true);
+  assert.deepEqual(snapshot, { screen: "fire", rounds: 500, sound: true });
 });
 
 test("#status live region includes LINK OK / DOWN / OFFLINE", () => {
