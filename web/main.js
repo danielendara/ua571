@@ -8,6 +8,7 @@ let raf = 0;
 let app = null;
 let onKey = null;
 let onKeyUp = null;
+let onVisibility = null;
 
 function readOptions() {
   return {
@@ -29,6 +30,10 @@ function teardown() {
   if (onKeyUp) {
     window.removeEventListener("keyup", onKeyUp);
     onKeyUp = null;
+  }
+  if (onVisibility) {
+    document.removeEventListener("visibilitychange", onVisibility);
+    onVisibility = null;
   }
   // Drop WASM app so a new theme/scale re-instantiates cleanly.
   if (app && typeof app.free === "function") {
@@ -82,6 +87,26 @@ export function syncChromeFromApp(app, els) {
   if (els.sound) els.sound.checked = app.sound_enabled;
   if (els.demo) els.demo.checked = app.demo_active;
   return writeLiveRegion(els.status, formatChromeStatus(app));
+}
+
+/**
+ * Pause the rAF loop and mute WASM audio while the document is hidden.
+ * Does not reset sim state (rounds, screen, sound preference).
+ */
+export function applyDocumentVisibility(hidden, app, loopCtl) {
+  if (hidden) {
+    if (loopCtl && typeof loopCtl.pause === "function") loopCtl.pause();
+    if (app && typeof app.set_hidden === "function") app.set_hidden(true);
+    return { paused: true };
+  }
+  if (app && typeof app.set_hidden === "function") app.set_hidden(false);
+  if (loopCtl && typeof loopCtl.resume === "function") loopCtl.resume();
+  return { paused: false };
+}
+
+/** Background tabs must not advance the sim. */
+export function shouldAdvanceFrame(hidden) {
+  return !hidden;
 }
 
 export function handleGameKeyDown(app, e) {
@@ -138,8 +163,16 @@ async function boot() {
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
 
+    const pauseLoop = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    };
     const loop = () => {
       if (!app) return;
+      if (typeof document !== "undefined" && document.hidden) {
+        raf = 0;
+        return;
+      }
       syncChromeFromApp(app, {
         status,
         demo: document.getElementById("demo"),
@@ -147,7 +180,21 @@ async function boot() {
       });
       raf = requestAnimationFrame(loop);
     };
-    raf = requestAnimationFrame(loop);
+    const loopCtl = {
+      pause: pauseLoop,
+      resume: () => {
+        if (app && !raf) raf = requestAnimationFrame(loop);
+      },
+    };
+    onVisibility = () => {
+      applyDocumentVisibility(Boolean(document.hidden), app, loopCtl);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    if (document.hidden) {
+      onVisibility();
+    } else {
+      raf = requestAnimationFrame(loop);
+    }
 
     canvas.focus();
   } catch (err) {
