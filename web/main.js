@@ -138,6 +138,42 @@ export function isChromeTarget(el) {
   );
 }
 
+/** Return keyboard focus to the play canvas. */
+export function refocusPlaySurface(canvas) {
+  if (!canvas || typeof canvas.focus !== "function") return false;
+  canvas.focus();
+  return true;
+}
+
+/** Skip-link click: prevent hash-only jump and focus the canvas. */
+export function handleSkipToPlaySurface(event, canvas) {
+  if (event && typeof event.preventDefault === "function") {
+    event.preventDefault();
+  }
+  return refocusPlaySurface(canvas);
+}
+
+/**
+ * After chrome `change` (or a button click), put focus back on the canvas
+ * so keyboard play is not trapped in the header controls.
+ */
+export function bindPlaySurfaceRefocus(chromeRoot, canvas) {
+  if (!chromeRoot || !canvas) return () => {};
+  const onChange = () => {
+    refocusPlaySurface(canvas);
+  };
+  const onClick = (e) => {
+    const t = e && e.target;
+    if (t && t.closest && t.closest("button")) refocusPlaySurface(canvas);
+  };
+  chromeRoot.addEventListener("change", onChange);
+  chromeRoot.addEventListener("click", onClick);
+  return () => {
+    chromeRoot.removeEventListener("change", onChange);
+    chromeRoot.removeEventListener("click", onClick);
+  };
+}
+
 /** Write `next` only when the visible text changes (avoids live-region chatter). */
 export function writeLiveRegion(el, next) {
   if (!el || el.textContent === next) return false;
@@ -267,7 +303,7 @@ async function boot() {
       raf = requestAnimationFrame(loop);
     }
 
-    canvas.focus();
+    refocusPlaySurface(canvas);
   } catch (err) {
     console.error(err);
     status.textContent =
@@ -281,6 +317,15 @@ function persistPagePrefs() {
 }
 
 function startPage() {
+  const canvas = document.getElementById("ua571");
+  const skip = document.querySelector("a.skip-link");
+  if (skip) {
+    skip.addEventListener("click", (e) => {
+      handleSkipToPlaySurface(e, document.getElementById("ua571"));
+    });
+  }
+  bindPlaySurfaceRefocus(document.querySelector(".controls"), canvas);
+
   document.getElementById("restart").addEventListener("click", () => {
     boot();
   });
@@ -307,14 +352,14 @@ function startPage() {
           /* autoplay policy — next key still retries */
         }
       }
-      document.getElementById("ua571").focus();
+      refocusPlaySurface(document.getElementById("ua571"));
     }
   });
 
   document.getElementById("demo").addEventListener("change", (e) => {
     if (app) {
       app.set_demo(e.target.checked);
-      document.getElementById("ua571").focus();
+      refocusPlaySurface(document.getElementById("ua571"));
     }
   });
 
