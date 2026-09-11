@@ -334,6 +334,19 @@ fn demo_checkbox_on(state: &AppState) -> bool {
     }
 }
 
+/// Datalink / unit availability for the chrome live region (canvas already
+/// shows LINK DOWN / OFFLINE; AT-only users need it in `#status` too).
+fn chrome_link_label(state: &AppState) -> &'static str {
+    let s = state.active_sentry();
+    if !s.online {
+        "OFFLINE"
+    } else if !s.link_ok {
+        "LINK DOWN"
+    } else {
+        "LINK OK"
+    }
+}
+
 /// HTML chrome status. During POST, DEMO/MANUAL follows the Demo checkbox
 /// (scheduled `demo_on_start`) so the strip does not say MANUAL while the
 /// box is still checked.
@@ -341,11 +354,13 @@ fn chrome_status_line(state: &AppState, hint: Option<&str>) -> String {
     let s = state.active_sentry();
     let audio = if state.config.sound { "SND" } else { "MUTE" };
     let mut line = format!(
-        "S{} · {} rds · {} · {} · {} · {}",
+        "S{} · {} rds · {} · {} · {} · {} · {} · {}",
         s.id,
         s.fire.rounds,
         s.options.system_mode.label(),
+        s.options.iff_status.label(),
         if s.is_armed() { "ARMED" } else { "SAFE" },
+        chrome_link_label(state),
         if demo_checkbox_on(state) {
             "DEMO"
         } else {
@@ -653,6 +668,50 @@ mod tests {
         assert!(state.demo.is_active());
         handle_key(&mut state, "KeyD");
         assert!(!state.demo.is_active());
+    }
+
+    #[test]
+    fn chrome_status_includes_link_ok_down_and_offline() {
+        let mut state = web_state();
+        let line = chrome_status_line(&state);
+        assert!(
+            line.contains("LINK OK"),
+            "nominal datalink should read LINK OK: {line}"
+        );
+        assert!(
+            line.contains("SEARCH"),
+            "IFF should appear in chrome status: {line}"
+        );
+        assert!(
+            line.contains("SAFE") && line.contains("MUTE") && line.contains("MANUAL"),
+            "existing Demo/Sound chrome must remain: {line}"
+        );
+
+        state.active_sentry_mut().unwrap().link_ok = false;
+        let line = chrome_status_line(&state);
+        assert!(
+            line.contains("LINK DOWN") && !line.contains("LINK OK"),
+            "faulted datalink should read LINK DOWN: {line}"
+        );
+
+        state.active_sentry_mut().unwrap().online = false;
+        let line = chrome_status_line(&state);
+        assert!(
+            line.contains("OFFLINE") && !line.contains("LINK DOWN") && !line.contains("LINK OK"),
+            "offline unit should read OFFLINE: {line}"
+        );
+    }
+
+    #[test]
+    fn chrome_status_demo_hint_still_appends() {
+        let mut state = web_state();
+        let mut hint = None;
+        super::handle_key(&mut state, "KeyD", &mut hint);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("Demo on") && line.contains("LINK OK") && line.contains("DEMO"),
+            "Demo hint must still append after LINK: {line}"
+        );
     }
 
     #[test]
