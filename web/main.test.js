@@ -3,12 +3,23 @@
  * Drive the exported helpers with a WASM-shaped stub and a #status node.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
+  bindPlaySurfaceRefocus,
   handleGameKeyDown,
+  handleSkipToPlaySurface,
+  refocusPlaySurface,
   syncChromeFromApp,
   writeLiveRegion,
 } from "./main.js";
+
+const html = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "index.html"),
+  "utf8"
+);
 
 function liveRegion(initial = "") {
   let text = initial;
@@ -102,6 +113,73 @@ test("syncChromeFromApp writes #status only when chrome text changes", () => {
   assert.equal(syncChromeFromApp(app, els), true);
   assert.equal(status.writeCount(), 2);
   assert.notEqual(status.textContent, first);
+});
+
+test("skip-link in index.html targets the focusable canvas", () => {
+  assert.match(html, /class="skip-link"/);
+  assert.match(html, /href="#ua571"/);
+  assert.match(html, /id="ua571"/);
+  assert.match(html, /tabindex="0"/);
+  const skipAt = html.indexOf('class="skip-link"');
+  const canvasAt = html.indexOf('id="ua571"');
+  assert.ok(skipAt >= 0 && skipAt < canvasAt, "skip-link must precede the canvas");
+});
+
+test("skip-link focuses the canvas play surface", () => {
+  let focused = false;
+  let prevented = false;
+  const canvas = {
+    id: "ua571",
+    focus() {
+      focused = true;
+    },
+  };
+  assert.equal(
+    handleSkipToPlaySurface(
+      {
+        preventDefault() {
+          prevented = true;
+        },
+      },
+      canvas
+    ),
+    true
+  );
+  assert.equal(prevented, true);
+  assert.equal(focused, true);
+});
+
+test("chrome change/button click refocuses the canvas", () => {
+  let focused = 0;
+  const canvas = {
+    focus() {
+      focused += 1;
+    },
+  };
+  const listeners = {};
+  const chromeRoot = {
+    addEventListener(type, fn) {
+      listeners[type] = fn;
+    },
+    removeEventListener(type) {
+      delete listeners[type];
+    },
+  };
+
+  const unbind = bindPlaySurfaceRefocus(chromeRoot, canvas);
+  listeners.change();
+  assert.equal(focused, 1);
+  listeners.click({ target: { closest: (sel) => (sel === "button" ? {} : null) } });
+  assert.equal(focused, 2);
+  listeners.click({ target: { closest: () => null } });
+  assert.equal(focused, 2, "select/checkbox click must not steal focus early");
+  unbind();
+  assert.equal(typeof listeners.change, "undefined");
+});
+
+test("refocusPlaySurface no-ops without a canvas", () => {
+  assert.equal(refocusPlaySurface(null), false);
+  assert.equal(refocusPlaySurface({}), false);
 });
 
 test("Demo on/off appears in #status after key d", () => {

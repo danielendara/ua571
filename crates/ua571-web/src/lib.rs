@@ -878,6 +878,24 @@ mod tests {
     }
 
     #[test]
+    fn skip_link_targets_focusable_canvas() {
+        let html = include_str!("../../../web/index.html");
+        assert!(
+            html.contains(r#"class="skip-link""#) && html.contains("href=\"#ua571\""),
+            "skip-link must target #ua571"
+        );
+        let canvas = html.split("<canvas").nth(1).expect("canvas element");
+        assert!(
+            canvas.contains(r#"id="ua571""#) && canvas.contains(r#"tabindex="0""#),
+            "canvas must be a focusable skip target"
+        );
+        assert!(
+            html.find(r#"class="skip-link""#).unwrap() < html.find(r#"id="ua571""#).unwrap(),
+            "skip-link must appear before the canvas"
+        );
+    }
+
+    #[test]
     fn status_element_is_polite_named_live_region() {
         let html = include_str!("../../../web/index.html");
         let status = html
