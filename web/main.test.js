@@ -3,6 +3,7 @@
  * Drive the exported helpers with a WASM-shaped stub and a #status node.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   handleGameKeyDown,
@@ -139,4 +140,17 @@ test("Demo on/off appears in #status after key d", () => {
   assert.match(status.textContent, /MANUAL/);
   assert.doesNotMatch(status.textContent, /Demo on/);
   assert.equal(demo.checked, false);
+});
+
+test("narrow chrome CSS wraps controls at 480px without overflow", () => {
+  const css = readFileSync(new URL("./style.css", import.meta.url), "utf8");
+  assert.match(css, /@media \(max-width:\s*480px\)/);
+  const block = css.split(/@media \(max-width:\s*480px\)/)[1] || "";
+  assert.match(block, /overflow-x:\s*hidden/);
+  assert.match(block, /#ua571/);
+  assert.match(block, /width:\s*100%/);
+  assert.match(block, /grid-template-columns/);
+  assert.match(block, /\.controls/);
+  assert.match(block, /\.status/);
+  assert.doesNotMatch(css, /overflow-x:\s*scroll/);
 });
