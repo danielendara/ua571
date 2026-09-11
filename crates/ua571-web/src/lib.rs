@@ -376,6 +376,25 @@ fn is_confirm_code(code: &str) -> bool {
     matches!(code, "Enter" | "NumpadEnter" | "Space")
 }
 
+/// One-shot `#status` reasons when fire is blocked or the drum is CRITICAL.
+/// SAFE is omitted (already in the standing chrome).
+fn fire_deny_status_hint(state: &AppState) -> Option<&'static str> {
+    let s = state.active_sentry();
+    if !s.online {
+        Some("OFFLINE")
+    } else if !s.link_ok {
+        Some("LINK DOWN")
+    } else if !s.is_armed() {
+        None
+    } else if s.fire.rounds == 0 {
+        Some("EMPTY")
+    } else if s.fire.critical {
+        Some("CRITICAL")
+    } else {
+        None
+    }
+}
+
 /// Space/Enter OS-repeat may fire only if the originating keydown was on Fire.
 #[derive(Debug, Default)]
 struct ConfirmRepeatGate {
@@ -485,7 +504,13 @@ fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'stati
             state.stop_demo();
             match state.screen {
                 Screen::Fire => {
-                    let _ = state.fire();
+                    let before = fire_deny_status_hint(state);
+                    let fired = state.fire();
+                    if !fired {
+                        *status_hint = before;
+                    } else {
+                        *status_hint = fire_deny_status_hint(state);
+                    }
                 }
                 Screen::Options => state.set_screen(Screen::Fire),
                 Screen::Boot => {}
@@ -877,6 +902,74 @@ mod tests {
         assert_eq!(state.active_sentry().options, before);
         apply_key(&mut state, &mut gate, "ArrowDown", false);
         assert_ne!(state.active_sentry().options, before);
+    }
+
+    #[test]
+    fn fire_deny_link_down_announced_once() {
+        let mut state = web_state();
+        let mut hint = None;
+        super::handle_key(&mut state, "KeyA", &mut hint);
+        super::handle_key(&mut state, "KeyF", &mut hint);
+        state.active_sentry_mut().unwrap().link_ok = false;
+        super::handle_key(&mut state, "Space", &mut hint);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("LINK DOWN"),
+            "link-down deny should announce: {line}"
+        );
+        let first = hint;
+        super::handle_key(&mut state, "Space", &mut hint);
+        assert_eq!(hint, first, "repeat must not change the deny phrase");
+        let again = super::chrome_status_line(&state, hint);
+        assert_eq!(again, line);
+    }
+
+    #[test]
+    fn fire_deny_empty_drum_announced_once() {
+        let mut state = web_state();
+        let mut hint = None;
+        super::handle_key(&mut state, "KeyA", &mut hint);
+        super::handle_key(&mut state, "KeyF", &mut hint);
+        state.active_sentry_mut().unwrap().fire.reset(0);
+        super::handle_key(&mut state, "Space", &mut hint);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("EMPTY"),
+            "empty drum deny should announce: {line}"
+        );
+        assert!(
+            !line.contains("CRITICAL"),
+            "empty drum should not also say CRITICAL: {line}"
+        );
+        super::handle_key(&mut state, "Space", &mut hint);
+        let again = super::chrome_status_line(&state, hint);
+        assert_eq!(again, line);
+    }
+
+    #[test]
+    fn fire_deny_critical_announced_once() {
+        let mut state = web_state();
+        let mut hint = None;
+        super::handle_key(&mut state, "KeyA", &mut hint);
+        super::handle_key(&mut state, "KeyF", &mut hint);
+        state
+            .active_sentry_mut()
+            .unwrap()
+            .fire
+            .reset(ua571_core::CRITICAL_THRESHOLD - 1);
+        super::handle_key(&mut state, "Space", &mut hint);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("CRITICAL"),
+            "CRITICAL fire should announce: {line}"
+        );
+        super::handle_key(&mut state, "Space", &mut hint);
+        let again = super::chrome_status_line(&state, hint);
+        assert!(
+            again.contains("CRITICAL"),
+            "repeat keep announcing CRITICAL without a new phrase: {again}"
+        );
+        assert_eq!(hint, Some("CRITICAL"));
     }
 
     #[test]
