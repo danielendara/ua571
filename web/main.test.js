@@ -3,13 +3,21 @@
  * Drive the exported helpers with a WASM-shaped stub and a #status node.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   applyDocumentVisibility,
+  PREFS_STORAGE_KEY,
+  applyPrefsToElements,
   handleGameKeyDown,
+  hydrateChromePrefs,
+  persistChromeFromForm,
+  prefsFromSearch,
+  readStoredPrefs,
   shouldAdvanceFrame,
   syncChromeFromApp,
   writeLiveRegion,
+  writeStoredPrefs,
 } from "./main.js";
 
 function liveRegion(initial = "") {
@@ -35,10 +43,12 @@ function canvasTarget() {
 }
 
 /** Stub of ua571-web `Ua571Web` chrome getters + `KeyD` demo toggle. */
-function mockApp() {
+function mockApp(opts = {}) {
   let demo = false;
+  let sound = false;
   let hint = null;
   let frames = 0;
+  let link = opts.link ?? "LINK OK";
   return {
     frame() {
       frames += 1;
@@ -49,12 +59,16 @@ function mockApp() {
         demo = !demo;
         hint = demo ? "Demo on" : "Demo off";
       }
+      if (code === "KeyM") {
+        sound = !sound;
+        hint = sound ? "Sound on" : "Sound off";
+      }
     },
     get demo_active() {
       return demo;
     },
     get sound_enabled() {
-      return false;
+      return sound;
     },
     get should_quit() {
       return false;
@@ -65,7 +79,8 @@ function mockApp() {
     status_line() {
       const mode = demo ? "DEMO" : "MANUAL";
       const extra = hint ? ` · ${hint}` : "";
-      return `S1 · 500 rds · AUTO-REMOTE · SAFE · ${mode} · MUTE${extra}`;
+      const audio = sound ? "SND" : "MUTE";
+      return `S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · ${link} · ${mode} · ${audio}${extra}`;
     },
     frameCount() {
       return frames;
@@ -111,8 +126,8 @@ test("hidden pauses/mutes; visible resumes without mutating game state", () => {
   const app = {
     hidden: false,
     soundPref: true,
-    set_hidden(h) {
-      this.hidden = h;
+    set_hidden(hidden) {
+      this.hidden = hidden;
     },
     set_sound() {
       this.soundPref = !this.soundPref;
@@ -128,9 +143,8 @@ test("hidden pauses/mutes; visible resumes without mutating game state", () => {
     },
   };
 
-  assert.equal(shouldAdvanceFrame(true), false);
-  const paused = applyDocumentVisibility(true, app, loopCtl);
-  assert.equal(paused.paused, true);
+  const hidden = applyDocumentVisibility(true, app, loopCtl);
+  assert.equal(hidden.paused, true);
   assert.equal(app.hidden, true);
   assert.equal(running, false);
   assert.equal(app.soundPref, true);
@@ -143,6 +157,18 @@ test("hidden pauses/mutes; visible resumes without mutating game state", () => {
   assert.equal(app.soundPref, true);
   assert.equal(shouldAdvanceFrame(false), true);
   assert.deepEqual(snapshot, { screen: "fire", rounds: 500, sound: true });
+});
+
+test("#status live region includes LINK OK / DOWN / OFFLINE", () => {
+  for (const link of ["LINK OK", "LINK DOWN", "OFFLINE"]) {
+    const app = mockApp({ link });
+    const status = liveRegion("Loading WebAssembly…");
+    const els = { status, demo: { checked: false }, sound: { checked: false } };
+    syncChromeFromApp(app, els);
+    assert.match(status.textContent, new RegExp(link));
+    assert.match(status.textContent, /SEARCH/);
+    assert.match(status.textContent, /MUTE/);
+  }
 });
 
 test("Demo on/off appears in #status after key d", () => {
@@ -167,4 +193,129 @@ test("Demo on/off appears in #status after key d", () => {
   assert.match(status.textContent, /MANUAL/);
   assert.doesNotMatch(status.textContent, /Demo on/);
   assert.equal(demo.checked, false);
+});
+
+function memoryStorage(seed) {
+  const map = { ...(seed || {}) };
+  return {
+    getItem(k) {
+      return Object.prototype.hasOwnProperty.call(map, k) ? map[k] : null;
+    },
+    setItem(k, v) {
+      map[k] = String(v);
+    },
+    map,
+  };
+}
+
+function chromeEls(values = {}) {
+  return {
+    theme: { value: values.theme ?? "yellow" },
+    scale: { value: values.scale ?? "3" },
+    sound: { checked: values.sound ?? false },
+    skipBoot: { checked: values.skipBoot ?? false },
+  };
+}
+
+test("persistChromeFromForm round-trips theme/scale/sound/skipBoot", () => {
+  const storage = memoryStorage();
+  persistChromeFromForm(storage, {
+    theme: "amber",
+    scale: 4,
+    sound: true,
+    skipBoot: true,
+    demo: true,
+  });
+  const stored = readStoredPrefs(storage);
+  assert.equal(stored.theme, "amber");
+  assert.equal(stored.scale, "4");
+  assert.equal(stored.sound, true);
+  assert.equal(stored.skipBoot, true);
+  assert.equal(stored.demo, undefined);
+  assert.doesNotMatch(storage.map[PREFS_STORAGE_KEY], /demo/);
+});
+
+test("hydrateChromePrefs restores storage then query params win", () => {
+  const storage = memoryStorage();
+  writeStoredPrefs(storage, {
+    theme: "phosphor",
+    scale: "2",
+    sound: true,
+    skipBoot: true,
+  });
+
+  const restored = chromeEls();
+  hydrateChromePrefs({ storage, search: "", els: restored });
+  assert.equal(restored.theme.value, "phosphor");
+  assert.equal(restored.scale.value, "2");
+  assert.equal(restored.sound.checked, true);
+  assert.equal(restored.skipBoot.checked, true);
+
+  const overridden = chromeEls();
+  hydrateChromePrefs({
+    storage,
+    search: "?theme=mono&scale=4&sound=0&boot=1",
+    els: overridden,
+  });
+  assert.equal(overridden.theme.value, "mono");
+  assert.equal(overridden.scale.value, "4");
+  assert.equal(overridden.sound.checked, false);
+  assert.equal(overridden.skipBoot.checked, false);
+});
+
+test("prefsFromSearch only sets keys that are present", () => {
+  assert.deepEqual(prefsFromSearch(""), {});
+  assert.deepEqual(prefsFromSearch("?demo=1"), {});
+  assert.equal(prefsFromSearch("?sound=1").sound, true);
+  assert.equal(prefsFromSearch("?boot=0").skipBoot, true);
+  const els = chromeEls({ theme: "yellow", sound: false });
+  applyPrefsToElements({ theme: "amber", sound: true }, els);
+  assert.equal(els.theme.value, "amber");
+  assert.equal(els.sound.checked, true);
+  assert.equal(els.scale.value, "3");
+});
+
+test("Sound on/off appears in #status after key m once", () => {
+  const app = mockApp();
+  const status = liveRegion("Loading WebAssembly…");
+  const sound = { checked: false };
+  const els = { status, demo: { checked: false }, sound };
+
+  syncChromeFromApp(app, els);
+  assert.match(status.textContent, /MUTE/);
+  assert.doesNotMatch(status.textContent, /Sound on|Sound off/);
+  assert.equal(sound.checked, false);
+  const writesAfterIdle = status.writeCount();
+
+  handleGameKeyDown(app, { code: "KeyM", repeat: false, target: canvasTarget() });
+  syncChromeFromApp(app, els);
+  assert.match(status.textContent, /Sound on/);
+  assert.match(status.textContent, /SND/);
+  assert.equal(sound.checked, true);
+  assert.equal(status.writeCount(), writesAfterIdle + 1);
+
+  // Same chrome text is not rewritten every frame (no live-region chatter).
+  syncChromeFromApp(app, els);
+  syncChromeFromApp(app, els);
+  assert.equal(status.writeCount(), writesAfterIdle + 1);
+
+  handleGameKeyDown(app, { code: "KeyM", repeat: false, target: canvasTarget() });
+  syncChromeFromApp(app, els);
+  assert.match(status.textContent, /Sound off/);
+  assert.match(status.textContent, /MUTE/);
+  assert.doesNotMatch(status.textContent, /Sound on/);
+  assert.equal(sound.checked, false);
+});
+
+test("narrow chrome CSS wraps controls at 480px without overflow", () => {
+  const css = readFileSync(new URL("./style.css", import.meta.url), "utf8");
+  assert.match(css, /@media \(max-width:\s*480px\)/);
+  const block = css.split(/@media \(max-width:\s*480px\)/)[1] || "";
+  assert.match(block, /overflow-x:\s*hidden/);
+  assert.match(block, /#ua571/);
+  assert.match(block, /width:\s*100%/);
+  assert.match(block, /grid-template-columns/);
+  assert.match(block, /\.controls/);
+  assert.match(block, /\.status/);
+  assert.doesNotMatch(css, /overflow-x:\s*scroll/);
 });

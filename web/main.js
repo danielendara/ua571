@@ -59,6 +59,77 @@ function showVersion(v) {
   wrap.hidden = false;
 }
 
+/** localStorage key for last chrome prefs (not demo). */
+export const PREFS_STORAGE_KEY = "ua571.chrome";
+
+export function readStoredPrefs(storage) {
+  if (!storage || typeof storage.getItem !== "function") return {};
+  try {
+    const raw = storage.getItem(PREFS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const out = {};
+    if (typeof parsed.theme === "string" && parsed.theme) out.theme = parsed.theme;
+    if (parsed.scale != null && String(parsed.scale) !== "") {
+      out.scale = String(parsed.scale);
+    }
+    if (typeof parsed.sound === "boolean") out.sound = parsed.sound;
+    if (typeof parsed.skipBoot === "boolean") out.skipBoot = parsed.skipBoot;
+    return out;
+  } catch (_) {
+    return {};
+  }
+}
+
+export function writeStoredPrefs(storage, prefs) {
+  if (!storage || typeof storage.setItem !== "function") return;
+  const next = { ...readStoredPrefs(storage), ...prefs };
+  delete next.demo;
+  storage.setItem(PREFS_STORAGE_KEY, JSON.stringify(next));
+}
+
+/** Query params that are present override stored prefs for this visit. */
+export function prefsFromSearch(search) {
+  const p =
+    typeof search === "string"
+      ? new URLSearchParams(search)
+      : search || new URLSearchParams();
+  const out = {};
+  if (p.get("theme")) out.theme = p.get("theme");
+  if (p.get("scale")) out.scale = p.get("scale");
+  if (p.has("sound")) out.sound = p.get("sound") === "1";
+  if (p.has("boot")) out.skipBoot = p.get("boot") === "0";
+  return out;
+}
+
+export function applyPrefsToElements(prefs, els) {
+  if (!prefs || !els) return;
+  if (prefs.theme && els.theme) els.theme.value = prefs.theme;
+  if (prefs.scale != null && els.scale) els.scale.value = String(prefs.scale);
+  if (typeof prefs.sound === "boolean" && els.sound) {
+    els.sound.checked = prefs.sound;
+  }
+  if (typeof prefs.skipBoot === "boolean" && els.skipBoot) {
+    els.skipBoot.checked = prefs.skipBoot;
+  }
+}
+
+/** Stored prefs first, then `?` params when present. */
+export function hydrateChromePrefs({ storage, search, els }) {
+  applyPrefsToElements(readStoredPrefs(storage), els);
+  applyPrefsToElements(prefsFromSearch(search), els);
+}
+
+export function persistChromeFromForm(storage, opts) {
+  writeStoredPrefs(storage, {
+    theme: opts.theme,
+    scale: String(opts.scale),
+    sound: Boolean(opts.sound),
+    skipBoot: Boolean(opts.skipBoot),
+  });
+}
+
 export function isChromeTarget(el) {
   return Boolean(
     el &&
@@ -204,6 +275,11 @@ async function boot() {
   }
 }
 
+function persistPagePrefs() {
+  if (typeof localStorage === "undefined") return;
+  persistChromeFromForm(localStorage, readOptions());
+}
+
 function startPage() {
   document.getElementById("restart").addEventListener("click", () => {
     boot();
@@ -211,14 +287,17 @@ function startPage() {
 
   // Theme/scale must re-create the WASM app (canvas pixels are not CSS).
   document.getElementById("theme").addEventListener("change", (e) => {
+    persistPagePrefs();
     applyPageTheme(e.target.value);
     boot();
   });
   document.getElementById("scale").addEventListener("change", () => {
+    persistPagePrefs();
     boot();
   });
 
   document.getElementById("sound").addEventListener("change", async (e) => {
+    persistPagePrefs();
     if (app) {
       app.set_sound(e.target.checked);
       if (e.target.checked) {
@@ -240,16 +319,24 @@ function startPage() {
   });
 
   document.getElementById("skipBoot").addEventListener("change", () => {
+    persistPagePrefs();
     boot();
   });
 
-  // Optional deep-link query params
+  const els = {
+    theme: document.getElementById("theme"),
+    scale: document.getElementById("scale"),
+    sound: document.getElementById("sound"),
+    skipBoot: document.getElementById("skipBoot"),
+  };
+  hydrateChromePrefs({
+    storage: typeof localStorage !== "undefined" ? localStorage : null,
+    search: location.search,
+    els,
+  });
+  // Demo is session/deep-link only — not persisted.
   const p = new URLSearchParams(location.search);
-  if (p.get("theme")) document.getElementById("theme").value = p.get("theme");
-  if (p.get("scale")) document.getElementById("scale").value = p.get("scale");
   if (p.get("demo") === "1") document.getElementById("demo").checked = true;
-  if (p.get("sound") === "1") document.getElementById("sound").checked = true;
-  if (p.get("boot") === "0") document.getElementById("skipBoot").checked = true;
   applyPageTheme(document.getElementById("theme").value);
 
   boot();

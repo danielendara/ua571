@@ -114,7 +114,8 @@ sound = false
 | `←` `→` / `h` `l` | Previous / next options section |
 | `↑` `↓` / `k` `j` | Change selection in section |
 | `f` | Firing panel |
-| `o` / `Esc` | Options panel |
+| `o` | Options panel (stays on Options) |
+| `Esc` | Toggle Fire ↔ Options |
 | `Enter` / `Space` | Fire (firing panel; requires ARMED) or open fire from options |
 | `1`–`4` | Select sentry |
 | `a` | Toggle SAFE / ARMED on active sentry |
