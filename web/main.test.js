@@ -5,9 +5,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  PREFS_STORAGE_KEY,
+  applyPrefsToElements,
   handleGameKeyDown,
+  hydrateChromePrefs,
+  persistChromeFromForm,
+  prefsFromSearch,
+  readStoredPrefs,
   syncChromeFromApp,
   writeLiveRegion,
+  writeStoredPrefs,
 } from "./main.js";
 
 function liveRegion(initial = "") {
@@ -126,4 +133,84 @@ test("Demo on/off appears in #status after key d", () => {
   assert.match(status.textContent, /MANUAL/);
   assert.doesNotMatch(status.textContent, /Demo on/);
   assert.equal(demo.checked, false);
+});
+
+function memoryStorage(seed) {
+  const map = { ...(seed || {}) };
+  return {
+    getItem(k) {
+      return Object.prototype.hasOwnProperty.call(map, k) ? map[k] : null;
+    },
+    setItem(k, v) {
+      map[k] = String(v);
+    },
+    map,
+  };
+}
+
+function chromeEls(values = {}) {
+  return {
+    theme: { value: values.theme ?? "yellow" },
+    scale: { value: values.scale ?? "3" },
+    sound: { checked: values.sound ?? false },
+    skipBoot: { checked: values.skipBoot ?? false },
+  };
+}
+
+test("persistChromeFromForm round-trips theme/scale/sound/skipBoot", () => {
+  const storage = memoryStorage();
+  persistChromeFromForm(storage, {
+    theme: "amber",
+    scale: 4,
+    sound: true,
+    skipBoot: true,
+    demo: true,
+  });
+  const stored = readStoredPrefs(storage);
+  assert.equal(stored.theme, "amber");
+  assert.equal(stored.scale, "4");
+  assert.equal(stored.sound, true);
+  assert.equal(stored.skipBoot, true);
+  assert.equal(stored.demo, undefined);
+  assert.doesNotMatch(storage.map[PREFS_STORAGE_KEY], /demo/);
+});
+
+test("hydrateChromePrefs restores storage then query params win", () => {
+  const storage = memoryStorage();
+  writeStoredPrefs(storage, {
+    theme: "phosphor",
+    scale: "2",
+    sound: true,
+    skipBoot: true,
+  });
+
+  const restored = chromeEls();
+  hydrateChromePrefs({ storage, search: "", els: restored });
+  assert.equal(restored.theme.value, "phosphor");
+  assert.equal(restored.scale.value, "2");
+  assert.equal(restored.sound.checked, true);
+  assert.equal(restored.skipBoot.checked, true);
+
+  const overridden = chromeEls();
+  hydrateChromePrefs({
+    storage,
+    search: "?theme=mono&scale=4&sound=0&boot=1",
+    els: overridden,
+  });
+  assert.equal(overridden.theme.value, "mono");
+  assert.equal(overridden.scale.value, "4");
+  assert.equal(overridden.sound.checked, false);
+  assert.equal(overridden.skipBoot.checked, false);
+});
+
+test("prefsFromSearch only sets keys that are present", () => {
+  assert.deepEqual(prefsFromSearch(""), {});
+  assert.deepEqual(prefsFromSearch("?demo=1"), {});
+  assert.equal(prefsFromSearch("?sound=1").sound, true);
+  assert.equal(prefsFromSearch("?boot=0").skipBoot, true);
+  const els = chromeEls({ theme: "yellow", sound: false });
+  applyPrefsToElements({ theme: "amber", sound: true }, els);
+  assert.equal(els.theme.value, "amber");
+  assert.equal(els.sound.checked, true);
+  assert.equal(els.scale.value, "3");
 });
