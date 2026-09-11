@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 
 use ua571_core::sfx::{fire_burst_pcm, FIRE_CYCLIC_HZ};
-use ua571_core::{AppState, Config, Screen, Theme};
+use ua571_core::{apply_panel_key, AppState, Config, PanelKey, Screen, Theme};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
@@ -231,6 +231,7 @@ impl Ua571Web {
     pub fn set_sound(&mut self, on: bool) {
         if on != self.state.config.sound {
             self.state.toggle_sound();
+            self.status_hint = Some(if on { "Sound on" } else { "Sound off" });
         }
         if on {
             self.ensure_audio();
@@ -334,6 +335,19 @@ fn demo_checkbox_on(state: &AppState) -> bool {
     }
 }
 
+/// Datalink / unit availability for the chrome live region (canvas already
+/// shows LINK DOWN / OFFLINE; AT-only users need it in `#status` too).
+fn chrome_link_label(state: &AppState) -> &'static str {
+    let s = state.active_sentry();
+    if !s.online {
+        "OFFLINE"
+    } else if !s.link_ok {
+        "LINK DOWN"
+    } else {
+        "LINK OK"
+    }
+}
+
 /// HTML chrome status. During POST, DEMO/MANUAL follows the Demo checkbox
 /// (scheduled `demo_on_start`) so the strip does not say MANUAL while the
 /// box is still checked.
@@ -341,11 +355,13 @@ fn chrome_status_line(state: &AppState, hint: Option<&str>) -> String {
     let s = state.active_sentry();
     let audio = if state.config.sound { "SND" } else { "MUTE" };
     let mut line = format!(
-        "S{} · {} rds · {} · {} · {} · {}",
+        "S{} · {} rds · {} · {} · {} · {} · {} · {}",
         s.id,
         s.fire.rounds,
         s.options.system_mode.label(),
+        s.options.iff_status.label(),
         if s.is_armed() { "ARMED" } else { "SAFE" },
+        chrome_link_label(state),
         if demo_checkbox_on(state) {
             "DEMO"
         } else {
@@ -374,6 +390,25 @@ fn apply_demo_checkbox(state: &mut AppState, on: bool) {
 
 fn is_confirm_code(code: &str) -> bool {
     matches!(code, "Enter" | "NumpadEnter" | "Space")
+}
+
+/// One-shot `#status` reasons when fire is blocked or the drum is CRITICAL.
+/// SAFE is omitted (already in the standing chrome).
+fn fire_deny_status_hint(state: &AppState) -> Option<&'static str> {
+    let s = state.active_sentry();
+    if !s.online {
+        Some("OFFLINE")
+    } else if !s.link_ok {
+        Some("LINK DOWN")
+    } else if !s.is_armed() {
+        None
+    } else if s.fire.rounds == 0 {
+        Some("EMPTY")
+    } else if s.fire.critical {
+        Some("CRITICAL")
+    } else {
+        None
+    }
 }
 
 /// Space/Enter OS-repeat may fire only if the originating keydown was on Fire.
@@ -434,19 +469,20 @@ fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'stati
                 "Demo off"
             });
         }
-        "KeyM" => state.toggle_sound(),
+        "KeyM" => {
+            state.toggle_sound();
+            *status_hint = Some(if state.config.sound {
+                "Sound on"
+            } else {
+                "Sound off"
+            });
+        }
         "KeyF" => {
             state.stop_demo();
             state.set_screen(Screen::Fire);
         }
-        "KeyO" => {
-            state.stop_demo();
-            state.set_screen(Screen::Options);
-        }
-        "Escape" => {
-            state.stop_demo();
-            state.toggle_fire_panel();
-        }
+        "KeyO" => apply_panel_key(state, PanelKey::OpenOptions),
+        "Escape" => apply_panel_key(state, PanelKey::ToggleFirePanel),
         "KeyA" => {
             state.stop_demo();
             state.toggle_arm();
@@ -491,7 +527,13 @@ fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'stati
             state.stop_demo();
             match state.screen {
                 Screen::Fire => {
-                    let _ = state.fire();
+                    let before = fire_deny_status_hint(state);
+                    let fired = state.fire();
+                    if !fired {
+                        *status_hint = before;
+                    } else {
+                        *status_hint = fire_deny_status_hint(state);
+                    }
                 }
                 Screen::Options => state.set_screen(Screen::Fire),
                 Screen::Boot => {}
@@ -634,6 +676,14 @@ mod tests {
     }
 
     #[test]
+    fn uses_shared_panel_key_helper() {
+        let src = include_str!("lib.rs");
+        assert!(src.contains("apply_panel_key"));
+        assert!(src.contains("PanelKey::OpenOptions"));
+        assert!(src.contains("PanelKey::ToggleFirePanel"));
+    }
+
+    #[test]
     fn key_o_opens_options_from_fire_and_stays_on_options() {
         let mut state = web_state();
         handle_key(&mut state, "KeyO");
@@ -653,6 +703,50 @@ mod tests {
         assert!(state.demo.is_active());
         handle_key(&mut state, "KeyD");
         assert!(!state.demo.is_active());
+    }
+
+    #[test]
+    fn chrome_status_includes_link_ok_down_and_offline() {
+        let mut state = web_state();
+        let line = chrome_status_line(&state);
+        assert!(
+            line.contains("LINK OK"),
+            "nominal datalink should read LINK OK: {line}"
+        );
+        assert!(
+            line.contains("SEARCH"),
+            "IFF should appear in chrome status: {line}"
+        );
+        assert!(
+            line.contains("SAFE") && line.contains("MUTE") && line.contains("MANUAL"),
+            "existing Demo/Sound chrome must remain: {line}"
+        );
+
+        state.active_sentry_mut().unwrap().link_ok = false;
+        let line = chrome_status_line(&state);
+        assert!(
+            line.contains("LINK DOWN") && !line.contains("LINK OK"),
+            "faulted datalink should read LINK DOWN: {line}"
+        );
+
+        state.active_sentry_mut().unwrap().online = false;
+        let line = chrome_status_line(&state);
+        assert!(
+            line.contains("OFFLINE") && !line.contains("LINK DOWN") && !line.contains("LINK OK"),
+            "offline unit should read OFFLINE: {line}"
+        );
+    }
+
+    #[test]
+    fn chrome_status_demo_hint_still_appends() {
+        let mut state = web_state();
+        let mut hint = None;
+        super::handle_key(&mut state, "KeyD", &mut hint);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("Demo on") && line.contains("LINK OK") && line.contains("DEMO"),
+            "Demo hint must still append after LINK: {line}"
+        );
     }
 
     #[test]
@@ -680,6 +774,47 @@ mod tests {
         let line = super::chrome_status_line(&state, hint);
         assert!(
             !line.contains("Demo on") && !line.contains("Demo off"),
+            "hint should clear on the next action: {line}"
+        );
+    }
+
+    #[test]
+    fn sound_toggle_confirms_in_status_line_once() {
+        let mut state = web_state();
+        assert!(!state.config.sound);
+        let mut hint = None;
+        super::handle_key(&mut state, "KeyM", &mut hint);
+        assert!(state.config.sound);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("Sound on") && line.contains("SND"),
+            "toggle on should confirm: {line}"
+        );
+        assert!(
+            !line.contains("Sound off"),
+            "on confirm must not also say off: {line}"
+        );
+
+        super::handle_key(&mut state, "KeyM", &mut hint);
+        assert!(!state.config.sound);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("Sound off") && line.contains("MUTE"),
+            "toggle off should confirm: {line}"
+        );
+
+        // Steady chrome (no hint) still shows SND/MUTE without repeating the phrase.
+        let line = chrome_status_line(&state);
+        assert!(line.contains("MUTE"));
+        assert!(
+            !line.contains("Sound on") && !line.contains("Sound off"),
+            "Sound on/off is a one-shot hint, not every frame: {line}"
+        );
+
+        super::handle_key(&mut state, "KeyD", &mut hint);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            !line.contains("Sound on") && !line.contains("Sound off"),
             "hint should clear on the next action: {line}"
         );
     }
@@ -875,6 +1010,74 @@ mod tests {
         assert_eq!(state.active_sentry().options, before);
         apply_key(&mut state, &mut gate, "ArrowDown", false);
         assert_ne!(state.active_sentry().options, before);
+    }
+
+    #[test]
+    fn fire_deny_link_down_announced_once() {
+        let mut state = web_state();
+        let mut hint = None;
+        super::handle_key(&mut state, "KeyA", &mut hint);
+        super::handle_key(&mut state, "KeyF", &mut hint);
+        state.active_sentry_mut().unwrap().link_ok = false;
+        super::handle_key(&mut state, "Space", &mut hint);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("LINK DOWN"),
+            "link-down deny should announce: {line}"
+        );
+        let first = hint;
+        super::handle_key(&mut state, "Space", &mut hint);
+        assert_eq!(hint, first, "repeat must not change the deny phrase");
+        let again = super::chrome_status_line(&state, hint);
+        assert_eq!(again, line);
+    }
+
+    #[test]
+    fn fire_deny_empty_drum_announced_once() {
+        let mut state = web_state();
+        let mut hint = None;
+        super::handle_key(&mut state, "KeyA", &mut hint);
+        super::handle_key(&mut state, "KeyF", &mut hint);
+        state.active_sentry_mut().unwrap().fire.reset(0);
+        super::handle_key(&mut state, "Space", &mut hint);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("EMPTY"),
+            "empty drum deny should announce: {line}"
+        );
+        assert!(
+            !line.contains("CRITICAL"),
+            "empty drum should not also say CRITICAL: {line}"
+        );
+        super::handle_key(&mut state, "Space", &mut hint);
+        let again = super::chrome_status_line(&state, hint);
+        assert_eq!(again, line);
+    }
+
+    #[test]
+    fn fire_deny_critical_announced_once() {
+        let mut state = web_state();
+        let mut hint = None;
+        super::handle_key(&mut state, "KeyA", &mut hint);
+        super::handle_key(&mut state, "KeyF", &mut hint);
+        state
+            .active_sentry_mut()
+            .unwrap()
+            .fire
+            .reset(ua571_core::CRITICAL_THRESHOLD - 1);
+        super::handle_key(&mut state, "Space", &mut hint);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("CRITICAL"),
+            "CRITICAL fire should announce: {line}"
+        );
+        super::handle_key(&mut state, "Space", &mut hint);
+        let again = super::chrome_status_line(&state, hint);
+        assert!(
+            again.contains("CRITICAL"),
+            "repeat keep announcing CRITICAL without a new phrase: {again}"
+        );
+        assert_eq!(hint, Some("CRITICAL"));
     }
 
     #[test]

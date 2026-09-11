@@ -12,7 +12,7 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use ua571_audio::FireAudio;
-use ua571_core::{AppState, Config, Screen};
+use ua571_core::{apply_panel_key, AppState, Config, PanelKey, Screen};
 
 use crate::theme::ConsoleTheme;
 use crate::views;
@@ -151,9 +151,11 @@ impl App {
                 self.state.stop_demo();
                 self.state.set_screen(Screen::Fire);
             }
-            KeyCode::Char('o') | KeyCode::Char('O') | KeyCode::Esc => {
-                self.state.stop_demo();
-                self.state.set_screen(Screen::Options);
+            KeyCode::Char('o') | KeyCode::Char('O') => {
+                apply_panel_key(&mut self.state, PanelKey::OpenOptions);
+            }
+            KeyCode::Esc => {
+                apply_panel_key(&mut self.state, PanelKey::ToggleFirePanel);
             }
             KeyCode::Char('a') | KeyCode::Char('A') => {
                 self.state.stop_demo();
@@ -404,6 +406,31 @@ mod tests {
         app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Release));
         app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Press));
         assert_eq!(app.state.fire_telemetry().rounds, rounds - 1);
+    }
+
+    #[test]
+    fn uses_shared_panel_key_helper() {
+        let src = include_str!("app.rs");
+        assert!(src.contains("apply_panel_key"));
+        assert!(src.contains("PanelKey::OpenOptions"));
+        assert!(src.contains("PanelKey::ToggleFirePanel"));
+    }
+
+    #[test]
+    fn escape_toggles_fire_panel_o_stays_on_options() {
+        let mut app = options_app();
+        app.handle_key(key(KeyCode::Esc, KeyEventKind::Press));
+        assert_eq!(app.state.screen, Screen::Fire);
+        app.handle_key(key(KeyCode::Esc, KeyEventKind::Press));
+        assert_eq!(app.state.screen, Screen::Options);
+        app.handle_key(key(KeyCode::Char('o'), KeyEventKind::Press));
+        assert_eq!(app.state.screen, Screen::Options);
+        app.handle_key(key(KeyCode::Char('f'), KeyEventKind::Press));
+        assert_eq!(app.state.screen, Screen::Fire);
+        app.handle_key(key(KeyCode::Char('O'), KeyEventKind::Press));
+        assert_eq!(app.state.screen, Screen::Options);
+        app.handle_key(key(KeyCode::Char('o'), KeyEventKind::Press));
+        assert_eq!(app.state.screen, Screen::Options);
     }
 
     #[test]
