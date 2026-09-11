@@ -34,10 +34,11 @@ function canvasTarget() {
 }
 
 /** Stub of ua571-web `Ua571Web` chrome getters + `KeyD` demo toggle. */
-function mockApp() {
+function mockApp(opts = {}) {
   let demo = false;
   let hint = null;
   let frames = 0;
+  let link = opts.link ?? "LINK OK";
   return {
     frame() {
       frames += 1;
@@ -64,7 +65,7 @@ function mockApp() {
     status_line() {
       const mode = demo ? "DEMO" : "MANUAL";
       const extra = hint ? ` · ${hint}` : "";
-      return `S1 · 500 rds · AUTO-REMOTE · SAFE · ${mode} · MUTE${extra}`;
+      return `S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · ${link} · ${mode} · MUTE${extra}`;
     },
     frameCount() {
       return frames;
@@ -103,6 +104,18 @@ test("syncChromeFromApp writes #status only when chrome text changes", () => {
   assert.equal(syncChromeFromApp(app, els), true);
   assert.equal(status.writeCount(), 2);
   assert.notEqual(status.textContent, first);
+});
+
+test("#status live region includes LINK OK / DOWN / OFFLINE", () => {
+  for (const link of ["LINK OK", "LINK DOWN", "OFFLINE"]) {
+    const app = mockApp({ link });
+    const status = liveRegion("Loading WebAssembly…");
+    const els = { status, demo: { checked: false }, sound: { checked: false } };
+    syncChromeFromApp(app, els);
+    assert.match(status.textContent, new RegExp(link));
+    assert.match(status.textContent, /SEARCH/);
+    assert.match(status.textContent, /MUTE/);
+  }
 });
 
 test("Demo on/off appears in #status after key d", () => {
