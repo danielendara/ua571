@@ -151,9 +151,13 @@ impl App {
                 self.state.stop_demo();
                 self.state.set_screen(Screen::Fire);
             }
-            KeyCode::Char('o') | KeyCode::Char('O') | KeyCode::Esc => {
+            KeyCode::Char('o') | KeyCode::Char('O') => {
                 self.state.stop_demo();
                 self.state.set_screen(Screen::Options);
+            }
+            KeyCode::Esc => {
+                self.state.stop_demo();
+                self.state.toggle_fire_panel();
             }
             KeyCode::Char('a') | KeyCode::Char('A') => {
                 self.state.stop_demo();
@@ -417,5 +421,48 @@ mod tests {
         assert_eq!(app.state.fire_telemetry().rounds, 498);
         app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Press));
         assert_eq!(app.state.fire_telemetry().rounds, 497);
+    }
+
+    #[test]
+    fn escape_toggles_fire_and_options() {
+        let mut app = options_app();
+        assert_eq!(app.state.screen, Screen::Options);
+        app.handle_key(key(KeyCode::Esc, KeyEventKind::Press));
+        assert_eq!(app.state.screen, Screen::Fire);
+        app.handle_key(key(KeyCode::Esc, KeyEventKind::Press));
+        assert_eq!(app.state.screen, Screen::Options);
+    }
+
+    #[test]
+    fn o_forces_options_from_fire_and_stays() {
+        let mut app = options_app();
+        app.handle_key(key(KeyCode::Char('f'), KeyEventKind::Press));
+        assert_eq!(app.state.screen, Screen::Fire);
+        app.handle_key(key(KeyCode::Char('o'), KeyEventKind::Press));
+        assert_eq!(app.state.screen, Screen::Options);
+        app.handle_key(key(KeyCode::Char('O'), KeyEventKind::Press));
+        assert_eq!(app.state.screen, Screen::Options);
+    }
+
+    #[test]
+    fn readme_keys_esc_toggles_o_opens_options() {
+        let readme = include_str!("../../../README.md");
+        let table = readme
+            .split("## Keys")
+            .nth(1)
+            .and_then(|rest| rest.split("## ").next())
+            .unwrap_or("");
+        assert!(
+            table.contains("`Esc`") && table.to_ascii_lowercase().contains("toggle"),
+            "README keys table should document Esc as fire/options toggle:\n{table}"
+        );
+        assert!(
+            table.contains("`o`") && table.to_ascii_lowercase().contains("options"),
+            "README keys table should document o as Options:\n{table}"
+        );
+        assert!(
+            !table.contains("`o` / `Esc`"),
+            "Esc must not be grouped with o as Options-only:\n{table}"
+        );
     }
 }
