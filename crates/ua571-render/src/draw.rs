@@ -350,7 +350,7 @@ fn status_strip_lines(state: &AppState) -> [String; 2] {
         link,
         demo
     );
-    let keys = "[1-4] f/o a arm  r reload  d demo  m sound  q quit".to_string();
+    let keys = "[1-4] Esc toggle  o options  a arm  r reload  d demo  m sound  q quit".to_string();
     [status, keys]
 }
 
@@ -447,6 +447,28 @@ mod tests {
         assert!(
             Framebuffer::text_width(&keys, SECTION_SCALE) <= max,
             "keys too wide: {keys:?}"
+        );
+    }
+
+    #[test]
+    fn status_help_mentions_esc_toggle_and_o_options() {
+        let state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        let [_status, keys] = status_strip_lines(&state);
+        let lower = keys.to_ascii_lowercase();
+        assert!(
+            keys.contains("Esc") && lower.contains("toggle"),
+            "help should say Esc toggles fire panel: {keys:?}"
+        );
+        assert!(
+            lower.contains("o options"),
+            "help should say O opens Options: {keys:?}"
+        );
+        assert!(
+            Framebuffer::text_width(&keys, SECTION_SCALE) <= WIDTH as i32 - 4,
+            "updated help must still fit: {keys:?}"
         );
     }
 

@@ -3,6 +3,7 @@
  * Drive the exported helpers with a WASM-shaped stub and a #status node.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   handleGameKeyDown,
@@ -33,11 +34,12 @@ function canvasTarget() {
 }
 
 /** Stub of ua571-web `Ua571Web` chrome getters + `KeyD` demo toggle. */
-function mockApp() {
+function mockApp(opts = {}) {
   let demo = false;
   let sound = false;
   let hint = null;
   let frames = 0;
+  let link = opts.link ?? "LINK OK";
   return {
     frame() {
       frames += 1;
@@ -69,7 +71,7 @@ function mockApp() {
       const mode = demo ? "DEMO" : "MANUAL";
       const extra = hint ? ` · ${hint}` : "";
       const audio = sound ? "SND" : "MUTE";
-      return `S1 · 500 rds · AUTO-REMOTE · SAFE · ${mode} · ${audio}${extra}`;
+      return `S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · ${link} · ${mode} · ${audio}${extra}`;
     },
     frameCount() {
       return frames;
@@ -108,6 +110,18 @@ test("syncChromeFromApp writes #status only when chrome text changes", () => {
   assert.equal(syncChromeFromApp(app, els), true);
   assert.equal(status.writeCount(), 2);
   assert.notEqual(status.textContent, first);
+});
+
+test("#status live region includes LINK OK / DOWN / OFFLINE", () => {
+  for (const link of ["LINK OK", "LINK DOWN", "OFFLINE"]) {
+    const app = mockApp({ link });
+    const status = liveRegion("Loading WebAssembly…");
+    const els = { status, demo: { checked: false }, sound: { checked: false } };
+    syncChromeFromApp(app, els);
+    assert.match(status.textContent, new RegExp(link));
+    assert.match(status.textContent, /SEARCH/);
+    assert.match(status.textContent, /MUTE/);
+  }
 });
 
 test("Demo on/off appears in #status after key d", () => {
@@ -164,4 +178,17 @@ test("Sound on/off appears in #status after key m once", () => {
   assert.match(status.textContent, /MUTE/);
   assert.doesNotMatch(status.textContent, /Sound on/);
   assert.equal(sound.checked, false);
+});
+
+test("narrow chrome CSS wraps controls at 480px without overflow", () => {
+  const css = readFileSync(new URL("./style.css", import.meta.url), "utf8");
+  assert.match(css, /@media \(max-width:\s*480px\)/);
+  const block = css.split(/@media \(max-width:\s*480px\)/)[1] || "";
+  assert.match(block, /overflow-x:\s*hidden/);
+  assert.match(block, /#ua571/);
+  assert.match(block, /width:\s*100%/);
+  assert.match(block, /grid-template-columns/);
+  assert.match(block, /\.controls/);
+  assert.match(block, /\.status/);
+  assert.doesNotMatch(css, /overflow-x:\s*scroll/);
 });
