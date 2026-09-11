@@ -10,7 +10,7 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
 use ua571_audio::FireAudio;
-use ua571_core::{load_native_config, AppState, NativeCli, Screen};
+use ua571_core::{apply_panel_key, load_native_config, AppState, NativeCli, PanelKey, Screen};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 
 #[derive(Debug, Parser)]
@@ -180,13 +180,11 @@ fn handle_input(
         return true;
     }
     if pressed(Key::O) {
-        state.stop_demo();
-        state.set_screen(Screen::Options);
+        apply_panel_key(state, PanelKey::OpenOptions);
         return true;
     }
     if pressed(Key::Escape) {
-        state.stop_demo();
-        state.toggle_fire_panel();
+        apply_panel_key(state, PanelKey::ToggleFirePanel);
         return true;
     }
     if pressed(Key::A) {
@@ -322,6 +320,22 @@ mod tests {
         let err = Cli::try_parse_from(["ua571-pixel", "--version"]).unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
         assert!(err.to_string().contains(env!("CARGO_PKG_VERSION")));
+    }
+
+    #[test]
+    fn uses_shared_panel_key_helper() {
+        let src = include_str!("main.rs");
+        assert!(src.contains("apply_panel_key"));
+        assert!(src.contains("PanelKey::OpenOptions"));
+        assert!(src.contains("PanelKey::ToggleFirePanel"));
+        assert!(
+            src.contains("apply_panel_key(state, PanelKey::OpenOptions)"),
+            "O must go through apply_panel_key"
+        );
+        assert!(
+            src.contains("apply_panel_key(state, PanelKey::ToggleFirePanel)"),
+            "Esc must go through apply_panel_key"
+        );
     }
 
     /// Regression for holding Space/Enter from Options into Fire: minifb

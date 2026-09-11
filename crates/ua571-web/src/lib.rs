@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 
 use ua571_core::sfx::{fire_burst_pcm, FIRE_CYCLIC_HZ};
-use ua571_core::{AppState, Config, Screen, Theme};
+use ua571_core::{apply_panel_key, AppState, Config, PanelKey, Screen, Theme};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
@@ -439,14 +439,8 @@ fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'stati
             state.stop_demo();
             state.set_screen(Screen::Fire);
         }
-        "KeyO" => {
-            state.stop_demo();
-            state.set_screen(Screen::Options);
-        }
-        "Escape" => {
-            state.stop_demo();
-            state.toggle_fire_panel();
-        }
+        "KeyO" => apply_panel_key(state, PanelKey::OpenOptions),
+        "Escape" => apply_panel_key(state, PanelKey::ToggleFirePanel),
         "KeyA" => {
             state.stop_demo();
             state.toggle_arm();
@@ -631,6 +625,14 @@ mod tests {
         assert_eq!(state.screen, Screen::Fire);
         handle_key(&mut state, "Escape");
         assert_eq!(state.screen, Screen::Options);
+    }
+
+    #[test]
+    fn uses_shared_panel_key_helper() {
+        let src = include_str!("lib.rs");
+        assert!(src.contains("apply_panel_key"));
+        assert!(src.contains("PanelKey::OpenOptions"));
+        assert!(src.contains("PanelKey::ToggleFirePanel"));
     }
 
     #[test]
