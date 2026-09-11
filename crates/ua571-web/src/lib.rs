@@ -231,6 +231,7 @@ impl Ua571Web {
     pub fn set_sound(&mut self, on: bool) {
         if on != self.state.config.sound {
             self.state.toggle_sound();
+            self.status_hint = Some(if on { "Sound on" } else { "Sound off" });
         }
         if on {
             self.ensure_audio();
@@ -468,7 +469,14 @@ fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'stati
                 "Demo off"
             });
         }
-        "KeyM" => state.toggle_sound(),
+        "KeyM" => {
+            state.toggle_sound();
+            *status_hint = Some(if state.config.sound {
+                "Sound on"
+            } else {
+                "Sound off"
+            });
+        }
         "KeyF" => {
             state.stop_demo();
             state.set_screen(Screen::Fire);
@@ -766,6 +774,47 @@ mod tests {
         let line = super::chrome_status_line(&state, hint);
         assert!(
             !line.contains("Demo on") && !line.contains("Demo off"),
+            "hint should clear on the next action: {line}"
+        );
+    }
+
+    #[test]
+    fn sound_toggle_confirms_in_status_line_once() {
+        let mut state = web_state();
+        assert!(!state.config.sound);
+        let mut hint = None;
+        super::handle_key(&mut state, "KeyM", &mut hint);
+        assert!(state.config.sound);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("Sound on") && line.contains("SND"),
+            "toggle on should confirm: {line}"
+        );
+        assert!(
+            !line.contains("Sound off"),
+            "on confirm must not also say off: {line}"
+        );
+
+        super::handle_key(&mut state, "KeyM", &mut hint);
+        assert!(!state.config.sound);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("Sound off") && line.contains("MUTE"),
+            "toggle off should confirm: {line}"
+        );
+
+        // Steady chrome (no hint) still shows SND/MUTE without repeating the phrase.
+        let line = chrome_status_line(&state);
+        assert!(line.contains("MUTE"));
+        assert!(
+            !line.contains("Sound on") && !line.contains("Sound off"),
+            "Sound on/off is a one-shot hint, not every frame: {line}"
+        );
+
+        super::handle_key(&mut state, "KeyD", &mut hint);
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            !line.contains("Sound on") && !line.contains("Sound off"),
             "hint should clear on the next action: {line}"
         );
     }

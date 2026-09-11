@@ -36,6 +36,7 @@ function canvasTarget() {
 /** Stub of ua571-web `Ua571Web` chrome getters + `KeyD` demo toggle. */
 function mockApp(opts = {}) {
   let demo = false;
+  let sound = false;
   let hint = null;
   let frames = 0;
   let link = opts.link ?? "LINK OK";
@@ -49,12 +50,16 @@ function mockApp(opts = {}) {
         demo = !demo;
         hint = demo ? "Demo on" : "Demo off";
       }
+      if (code === "KeyM") {
+        sound = !sound;
+        hint = sound ? "Sound on" : "Sound off";
+      }
     },
     get demo_active() {
       return demo;
     },
     get sound_enabled() {
-      return false;
+      return sound;
     },
     get should_quit() {
       return false;
@@ -65,7 +70,8 @@ function mockApp(opts = {}) {
     status_line() {
       const mode = demo ? "DEMO" : "MANUAL";
       const extra = hint ? ` · ${hint}` : "";
-      return `S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · ${link} · ${mode} · MUTE${extra}`;
+      const audio = sound ? "SND" : "MUTE";
+      return `S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · ${link} · ${mode} · ${audio}${extra}`;
     },
     frameCount() {
       return frames;
@@ -140,6 +146,38 @@ test("Demo on/off appears in #status after key d", () => {
   assert.match(status.textContent, /MANUAL/);
   assert.doesNotMatch(status.textContent, /Demo on/);
   assert.equal(demo.checked, false);
+});
+
+test("Sound on/off appears in #status after key m once", () => {
+  const app = mockApp();
+  const status = liveRegion("Loading WebAssembly…");
+  const sound = { checked: false };
+  const els = { status, demo: { checked: false }, sound };
+
+  syncChromeFromApp(app, els);
+  assert.match(status.textContent, /MUTE/);
+  assert.doesNotMatch(status.textContent, /Sound on|Sound off/);
+  assert.equal(sound.checked, false);
+  const writesAfterIdle = status.writeCount();
+
+  handleGameKeyDown(app, { code: "KeyM", repeat: false, target: canvasTarget() });
+  syncChromeFromApp(app, els);
+  assert.match(status.textContent, /Sound on/);
+  assert.match(status.textContent, /SND/);
+  assert.equal(sound.checked, true);
+  assert.equal(status.writeCount(), writesAfterIdle + 1);
+
+  // Same chrome text is not rewritten every frame (no live-region chatter).
+  syncChromeFromApp(app, els);
+  syncChromeFromApp(app, els);
+  assert.equal(status.writeCount(), writesAfterIdle + 1);
+
+  handleGameKeyDown(app, { code: "KeyM", repeat: false, target: canvasTarget() });
+  syncChromeFromApp(app, els);
+  assert.match(status.textContent, /Sound off/);
+  assert.match(status.textContent, /MUTE/);
+  assert.doesNotMatch(status.textContent, /Sound on/);
+  assert.equal(sound.checked, false);
 });
 
 test("narrow chrome CSS wraps controls at 480px without overflow", () => {
