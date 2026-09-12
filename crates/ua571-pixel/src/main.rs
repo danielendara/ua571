@@ -10,8 +10,27 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
 use ua571_audio::FireAudio;
-use ua571_core::{apply_panel_key, load_native_config, AppState, NativeCli, PanelKey, Screen};
+use ua571_core::{
+    apply_panel_key, fire_with_status, load_native_config, AppState, FireDenyReason, NativeCli,
+    PanelKey, Screen,
+};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
+
+/// Base window title (no fire-status suffix).
+const BASE_TITLE_PREFIX: &str = "UA 571-C Remote Sentry Weapon System";
+
+/// Compose the window title: base title plus a one-shot fire-status suffix,
+/// the pixel analog of web's `#status` live region (`chrome_status_line`'s
+/// ` · HINT`). Pixel has no on-canvas log/status text of its own, so the
+/// title bar — the one text surface every windowed frontend already has —
+/// is what carries CRITICAL / EMPTY / LINK DOWN / OFFLINE here (#86).
+fn window_title(hint: Option<&str>) -> String {
+    let base = format!("{BASE_TITLE_PREFIX}  v{}", ua571_core::VERSION);
+    match hint {
+        Some(h) => format!("{base} — {h}"),
+        None => base,
+    }
+}
 
 #[derive(Debug, Parser)]
 #[command(
@@ -73,10 +92,7 @@ fn main() -> Result<()> {
     let win_h = HEIGHT * scale;
 
     let mut window = Window::new(
-        &format!(
-            "UA 571-C Remote Sentry Weapon System  v{}",
-            ua571_core::VERSION
-        ),
+        &window_title(None),
         win_w,
         win_h,
         WindowOptions {
@@ -101,6 +117,10 @@ fn main() -> Result<()> {
     let tick_rate = Duration::from_millis(state.config.tick_ms);
     let mut dirty = true;
     let mut confirm_hold = ConfirmHold::default();
+    // One-shot fire-status suffix for the window title (CRITICAL / EMPTY /
+    // LINK DOWN / OFFLINE) — pixel's parity with web's `#status` hint (#86).
+    let mut status_hint: Option<&'static str> = None;
+    let mut shown_hint: Option<&'static str> = None;
 
     while window.is_open() && !state.should_quit {
         let (ww, wh) = window.get_size();
@@ -109,8 +129,19 @@ fn main() -> Result<()> {
             dirty = true;
         }
 
-        if handle_input(&window, &mut state, audio.as_mut(), &mut confirm_hold) {
+        if handle_input(
+            &window,
+            &mut state,
+            audio.as_mut(),
+            &mut confirm_hold,
+            &mut status_hint,
+        ) {
             dirty = true;
+        }
+
+        if status_hint != shown_hint {
+            window.set_title(&window_title(status_hint));
+            shown_hint = status_hint;
         }
 
         if last_tick.elapsed() >= tick_rate {
@@ -147,6 +178,7 @@ fn handle_input(
     state: &mut AppState,
     audio: Option<&mut FireAudio>,
     confirm_hold: &mut ConfirmHold,
+    status_hint: &mut Option<&'static str>,
 ) -> bool {
     if state.screen == Screen::Boot {
         if !window.get_keys_pressed(KeyRepeat::No).is_empty() {
@@ -157,6 +189,13 @@ fn handle_input(
     }
 
     let pressed = |k: Key| window.is_key_pressed(k, KeyRepeat::No);
+
+    // Any fresh (non-repeat) key clears a previous fire-status hint; only
+    // the Fire confirm below may set a new one. A held Enter/Space
+    // repeat-fire pulse (further down) recomputes it on every pulse instead.
+    if !window.get_keys_pressed(KeyRepeat::No).is_empty() {
+        *status_hint = None;
+    }
 
     if pressed(Key::Q) {
         state.quit();
@@ -255,7 +294,8 @@ fn handle_input(
         state.stop_demo();
         match state.screen {
             Screen::Fire => {
-                let _ = state.fire();
+                let (_fired, status) = fire_with_status(state);
+                *status_hint = status.map(FireDenyReason::message);
             }
             Screen::Options => state.set_screen(Screen::Fire),
             Screen::Boot => {}
@@ -272,7 +312,8 @@ fn handle_input(
             || window.is_key_pressed(Key::Space, KeyRepeat::Yes))
     {
         state.stop_demo();
-        let _ = state.fire();
+        let (_fired, status) = fire_with_status(state);
+        *status_hint = status.map(FireDenyReason::message);
         return true;
     }
 
@@ -320,6 +361,49 @@ mod tests {
         let err = Cli::try_parse_from(["ua571-pixel", "--version"]).unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
         assert!(err.to_string().contains(env!("CARGO_PKG_VERSION")));
+    }
+
+    #[test]
+    fn window_title_has_no_hint_by_default() {
+        let title = window_title(None);
+        assert!(title.starts_with(BASE_TITLE_PREFIX));
+        assert!(!title.contains('—'));
+    }
+
+    #[test]
+    fn window_title_appends_fire_status_hint() {
+        for hint in ["OFFLINE", "LINK DOWN", "EMPTY", "CRITICAL"] {
+            let title = window_title(Some(hint));
+            assert!(
+                title.starts_with(BASE_TITLE_PREFIX),
+                "hinted title should keep the base title: {title:?}"
+            );
+            assert!(
+                title.ends_with(hint),
+                "hinted title should end with the reason: {title:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn uses_shared_fire_deny_helper() {
+        // Pixel must not re-derive its own OFFLINE/LINK DOWN/EMPTY/CRITICAL
+        // classification — both fire call sites (fresh confirm + OS
+        // key-repeat hold) go through the same `ua571-core` helper web uses,
+        // so no frontend carries a third copy of the deny-copy strings (#86).
+        let src = include_str!("main.rs");
+        // >= 2, not ==, because this assertion's own source line also
+        // contains the literal string it is searching for.
+        assert!(
+            src.matches("fire_with_status(state)").count() >= 2,
+            "both fire call sites should use the shared core helper"
+        );
+        // Built at runtime so this assertion's own source doesn't match itself.
+        let bare_fire_call = format!("let _ = state.{}()", "fire");
+        assert!(
+            !src.contains(&bare_fire_call),
+            "fire() should not be called bare anymore — use fire_with_status"
+        );
     }
 
     #[test]
