@@ -457,25 +457,6 @@ fn is_confirm_code(code: &str) -> bool {
     matches!(code, "Enter" | "NumpadEnter" | "Space")
 }
 
-/// One-shot `#status` reasons when fire is blocked or the drum is CRITICAL.
-/// SAFE is omitted (already in the standing chrome).
-fn fire_deny_status_hint(state: &AppState) -> Option<&'static str> {
-    let s = state.active_sentry();
-    if !s.online {
-        Some("OFFLINE")
-    } else if !s.link_ok {
-        Some("LINK DOWN")
-    } else if !s.is_armed() {
-        None
-    } else if s.fire.rounds == 0 {
-        Some("EMPTY")
-    } else if s.fire.critical {
-        Some("CRITICAL")
-    } else {
-        None
-    }
-}
-
 /// Space/Enter OS-repeat may fire only if the originating keydown was on Fire.
 #[derive(Debug, Default)]
 struct ConfirmRepeatGate {
@@ -592,13 +573,8 @@ fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'stati
             state.stop_demo();
             match state.screen {
                 Screen::Fire => {
-                    let before = fire_deny_status_hint(state);
-                    let fired = state.fire();
-                    if !fired {
-                        *status_hint = before;
-                    } else {
-                        *status_hint = fire_deny_status_hint(state);
-                    }
+                    let (_fired, status) = ua571_core::fire_with_status(state);
+                    *status_hint = status.map(ua571_core::FireDenyReason::message);
                 }
                 Screen::Options => state.set_screen(Screen::Fire),
                 Screen::Boot => {}
