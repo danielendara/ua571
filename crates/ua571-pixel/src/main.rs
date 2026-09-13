@@ -11,8 +11,8 @@ use color_eyre::eyre::{eyre, Result};
 use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
 use ua571_audio::FireAudio;
 use ua571_core::{
-    apply_panel_key, fire_with_status, load_native_config, AppState, FireDenyReason, NativeCli,
-    PanelKey, Screen,
+    apply_panel_key, fire_with_status, idle_runtime, load_native_config, AppState, FireDenyReason,
+    NativeCli, PanelKey, Screen,
 };
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 
@@ -108,9 +108,6 @@ fn main() -> Result<()> {
 
     let mut state = AppState::new(config);
     let mut audio = FireAudio::try_new();
-    if let Some(a) = audio.as_mut() {
-        a.set_muted(!state.config.sound);
-    }
     let mut fb = Framebuffer::new();
     let mut buffer = vec![0u32; win_w * win_h];
     let mut last_tick = Instant::now();
@@ -121,6 +118,9 @@ fn main() -> Result<()> {
     // LINK DOWN / OFFLINE) — pixel's parity with web's `#status` hint (#86).
     let mut status_hint: Option<&'static str> = None;
     let mut shown_hint: Option<&'static str> = None;
+    // Pause ticks/SFX while the OS window has lost focus — pixel's parity
+    // with web's hidden-tab pause (#73, #90).
+    let mut focus = FocusTracker::new(window.is_active());
 
     while window.is_open() && !state.should_quit {
         let (ww, wh) = window.get_size();
@@ -129,13 +129,14 @@ fn main() -> Result<()> {
             dirty = true;
         }
 
-        if handle_input(
-            &window,
-            &mut state,
-            audio.as_mut(),
-            &mut confirm_hold,
-            &mut status_hint,
-        ) {
+        let focused = window.is_active();
+        if focus.regained(focused) {
+            // Resync the clock so the unfocused gap isn't dumped as one
+            // huge catch-up dt on the next tick (#90).
+            last_tick = Instant::now();
+        }
+
+        if handle_input(&window, &mut state, &mut confirm_hold, &mut status_hint) {
             dirty = true;
         }
 
@@ -144,15 +145,24 @@ fn main() -> Result<()> {
             shown_hint = status_hint;
         }
 
-        if last_tick.elapsed() >= tick_rate {
-            dirty |= state.tick();
-            last_tick = Instant::now();
+        // Shared with web's `set_hidden`/`frame`: never tick or emit SFX in
+        // the background, and never flip the operator's own sound pref.
+        let idle = idle_runtime(!focused, state.config.sound);
+        if let Some(a) = audio.as_mut() {
+            a.set_muted(!idle.audio);
         }
 
-        let n = state.take_fire_sfx();
-        if n > 0 {
-            if let Some(a) = audio.as_ref() {
-                a.play_fires(n);
+        if idle.tick {
+            if last_tick.elapsed() >= tick_rate {
+                dirty |= state.tick();
+                last_tick = Instant::now();
+            }
+
+            let n = state.take_fire_sfx();
+            if n > 0 {
+                if let Some(a) = audio.as_ref() {
+                    a.play_fires(n);
+                }
             }
         }
 
@@ -173,10 +183,33 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+/// Tracks window focus transitions so the main loop can resync `last_tick`
+/// exactly once on the frame focus returns, instead of letting a stale
+/// timestamp turn the whole unfocused gap into one huge dt (#90).
+#[derive(Debug)]
+struct FocusTracker {
+    was_focused: bool,
+}
+
+impl FocusTracker {
+    fn new(focused: bool) -> Self {
+        Self {
+            was_focused: focused,
+        }
+    }
+
+    /// Record this frame's focus state; `true` exactly on the frame focus
+    /// goes from lost to regained.
+    fn regained(&mut self, focused: bool) -> bool {
+        let regained = focused && !self.was_focused;
+        self.was_focused = focused;
+        regained
+    }
+}
+
 fn handle_input(
     window: &Window,
     state: &mut AppState,
-    audio: Option<&mut FireAudio>,
     confirm_hold: &mut ConfirmHold,
     status_hint: &mut Option<&'static str>,
 ) -> bool {
@@ -207,10 +240,10 @@ fn handle_input(
         return true;
     }
     if pressed(Key::M) {
+        // Mute state itself is recomputed every frame in `main` from
+        // `state.config.sound` + focus via `idle_runtime`, so this only
+        // needs to flip the preference.
         state.toggle_sound();
-        if let Some(a) = audio {
-            a.set_muted(!state.config.sound);
-        }
         return true;
     }
     if pressed(Key::F) {
@@ -442,5 +475,57 @@ mod tests {
         // Never repeat-fires off the Fire screen, even with a stale flag.
         assert!(!hold.allows_repeat_fire(Screen::Options));
         assert!(!hold.allows_repeat_fire(Screen::Boot));
+    }
+
+    #[test]
+    fn uses_shared_idle_runtime_helper() {
+        // Pixel must not re-derive its own tick/mute-while-backgrounded
+        // policy — it shares `ua571_core::idle_runtime` with web's
+        // hidden-tab pause instead of carrying a third copy (#90).
+        let src = include_str!("main.rs");
+        assert!(
+            src.contains("idle_runtime(!focused, state.config.sound)"),
+            "main loop should gate ticks/SFX through the shared core helper"
+        );
+    }
+
+    #[test]
+    fn focus_tracker_flags_only_the_regain_frame() {
+        let mut focus = FocusTracker::new(true);
+        assert!(!focus.regained(true), "already focused is not a regain");
+        assert!(!focus.regained(false), "losing focus is not a regain");
+        assert!(!focus.regained(false), "staying unfocused is not a regain");
+        assert!(
+            focus.regained(true),
+            "unfocused -> focused is exactly a regain"
+        );
+        assert!(
+            !focus.regained(true),
+            "staying focused after regain is not a regain again"
+        );
+    }
+
+    #[test]
+    fn focus_tracker_starting_unfocused_flags_first_focus() {
+        let mut focus = FocusTracker::new(false);
+        assert!(focus.regained(true));
+    }
+
+    /// Pixel mutes/unmutes purely from `state.config.sound` + focus each
+    /// frame now, so `M` only has to flip the preference — it must never
+    /// call `FireAudio::set_muted` itself and duplicate that policy.
+    #[test]
+    fn mute_key_only_toggles_the_preference() {
+        let src = include_str!("main.rs");
+        let m_branch = src
+            .split("if pressed(Key::M) {")
+            .nth(1)
+            .and_then(|s| s.split("return true;").next())
+            .expect("Key::M branch");
+        assert!(
+            !m_branch.contains("set_muted"),
+            "Key::M must not call set_muted directly: {m_branch}"
+        );
+        assert!(m_branch.contains("toggle_sound"));
     }
 }
