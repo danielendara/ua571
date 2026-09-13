@@ -2,8 +2,44 @@
 
 #![forbid(unsafe_code)]
 
+/// Parses a stored/query-string value into the exact Rust variant it names
+/// (e.g. `"AutoRemote"`), for the localStorage prefs round-trip — falls back
+/// to the type's default on anything else, so a missing/invalid/stale key
+/// never fails boot. The reverse direction (`{:?}` Debug output) already
+/// gives the matching variant name for free, since these are plain fieldless
+/// enums, so only this direction needs writing out.
+fn parse_system_mode(s: &str) -> SystemMode {
+    match s {
+        "AutoRemote" => SystemMode::AutoRemote,
+        "ManOverride" => SystemMode::ManOverride,
+        "SemiAuto" => SystemMode::SemiAuto,
+        _ => SystemMode::default(),
+    }
+}
+
+fn parse_weapon_status(s: &str) -> WeaponStatus {
+    match s {
+        "Safe" => WeaponStatus::Safe,
+        "Armed" => WeaponStatus::Armed,
+        _ => WeaponStatus::default(),
+    }
+}
+
+fn parse_iff_status(s: &str) -> IffStatus {
+    match s {
+        "Search" => IffStatus::Search,
+        "Test" => IffStatus::Test,
+        "Engaged" => IffStatus::Engaged,
+        "Interrogate" => IffStatus::Interrogate,
+        _ => IffStatus::default(),
+    }
+}
+
 use ua571_core::sfx::{fire_burst_pcm, FIRE_CYCLIC_HZ};
-use ua571_core::{apply_panel_key, idle_runtime, AppState, Config, PanelKey, Screen, Theme};
+use ua571_core::{
+    apply_panel_key, idle_runtime, AppState, Config, IffStatus, PanelKey, Screen, SystemMode,
+    Theme, WeaponStatus,
+};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
@@ -46,7 +82,13 @@ impl Ua571Web {
     /// * `demo` — start demo after boot
     /// * `skip_boot` — skip POST splash
     /// * `sound` — enable fire SFX (still muted by default in `Config`)
+    /// * `system_mode` / `weapon_status` / `iff_status` — exact `SystemMode`/
+    ///   `WeaponStatus`/`IffStatus` variant name (e.g. `"ManOverride"`);
+    ///   anything else (including empty/missing) falls back to that type's
+    ///   default rather than failing boot. Applied to the active sentry
+    ///   (index 0, same as a fresh `AppState`) before the first frame.
     #[wasm_bindgen(constructor)]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         canvas_id: &str,
         theme: &str,
@@ -54,6 +96,9 @@ impl Ua571Web {
         demo: bool,
         skip_boot: bool,
         sound: bool,
+        system_mode: &str,
+        weapon_status: &str,
+        iff_status: &str,
     ) -> Result<Ua571Web, JsValue> {
         console_error_panic_hook::set_once();
 
@@ -97,8 +142,15 @@ impl Ua571Web {
         // Decode PCM now; AudioContext is created on a user gesture (Sound / key).
         let (burst_sr, fire_samples) = fire_burst_pcm();
 
+        let mut state = AppState::new(config);
+        if let Some(sentry) = state.active_sentry_mut() {
+            sentry.options.system_mode = parse_system_mode(system_mode);
+            sentry.options.weapon_status = parse_weapon_status(weapon_status);
+            sentry.options.iff_status = parse_iff_status(iff_status);
+        }
+
         Ok(Self {
-            state: AppState::new(config),
+            state,
             fb: Framebuffer::new(),
             rgba,
             on_rgba,
@@ -219,6 +271,28 @@ impl Ua571Web {
     #[wasm_bindgen(getter)]
     pub fn sound_enabled(&self) -> bool {
         self.state.config.sound
+    }
+
+    /// Active sentry's current System Mode, as the exact variant name
+    /// (`"AutoRemote"` etc.) for the localStorage prefs round-trip — not the
+    /// display label (`.label()` gives `"AUTO-REMOTE"`).
+    #[wasm_bindgen(getter)]
+    pub fn system_mode(&self) -> String {
+        format!("{:?}", self.state.active_sentry().options.system_mode)
+    }
+
+    /// Active sentry's current Weapon Status, as the exact variant name
+    /// (`"Safe"` / `"Armed"`).
+    #[wasm_bindgen(getter)]
+    pub fn weapon_status(&self) -> String {
+        format!("{:?}", self.state.active_sentry().options.weapon_status)
+    }
+
+    /// Active sentry's current IFF Status, as the exact variant name
+    /// (`"Search"` / `"Test"` / `"Engaged"` / `"Interrogate"`).
+    #[wasm_bindgen(getter)]
+    pub fn iff_status(&self) -> String {
+        format!("{:?}", self.state.active_sentry().options.iff_status)
     }
 
     /// Whether the Demo checkbox should be checked (stays in sync with `d`).
@@ -578,6 +652,51 @@ mod tests {
 
     fn chrome_status_line(state: &AppState) -> String {
         super::chrome_status_line(state, None)
+    }
+
+    #[test]
+    fn parses_system_mode_names_and_falls_back_to_default_on_anything_else() {
+        assert_eq!(parse_system_mode("AutoRemote"), SystemMode::AutoRemote);
+        assert_eq!(parse_system_mode("ManOverride"), SystemMode::ManOverride);
+        assert_eq!(parse_system_mode("SemiAuto"), SystemMode::SemiAuto);
+        assert_eq!(parse_system_mode(""), SystemMode::default());
+        assert_eq!(parse_system_mode("bogus"), SystemMode::default());
+        assert_eq!(parse_system_mode("automode"), SystemMode::default());
+    }
+
+    #[test]
+    fn parses_weapon_status_names_and_falls_back_to_default_on_anything_else() {
+        assert_eq!(parse_weapon_status("Safe"), WeaponStatus::Safe);
+        assert_eq!(parse_weapon_status("Armed"), WeaponStatus::Armed);
+        assert_eq!(parse_weapon_status(""), WeaponStatus::default());
+        assert_eq!(parse_weapon_status("armed"), WeaponStatus::default());
+    }
+
+    #[test]
+    fn parses_iff_status_names_and_falls_back_to_default_on_anything_else() {
+        assert_eq!(parse_iff_status("Search"), IffStatus::Search);
+        assert_eq!(parse_iff_status("Test"), IffStatus::Test);
+        assert_eq!(parse_iff_status("Engaged"), IffStatus::Engaged);
+        assert_eq!(parse_iff_status("Interrogate"), IffStatus::Interrogate);
+        assert_eq!(parse_iff_status(""), IffStatus::default());
+        assert_eq!(parse_iff_status("engaged"), IffStatus::default());
+    }
+
+    /// `{:?}` (Debug) on the active sentry's options must round-trip through
+    /// the three `parse_*` functions above — this is the exact contract the
+    /// web prefs localStorage round-trip depends on (write via `{:?}`, read
+    /// back via `parse_*`).
+    #[test]
+    fn option_debug_names_round_trip_through_parse() {
+        for mode in SystemMode::ALL {
+            assert_eq!(parse_system_mode(&format!("{mode:?}")), mode);
+        }
+        for status in WeaponStatus::ALL {
+            assert_eq!(parse_weapon_status(&format!("{status:?}")), status);
+        }
+        for iff in IffStatus::ALL {
+            assert_eq!(parse_iff_status(&format!("{iff:?}")), iff);
+        }
     }
 
     #[test]

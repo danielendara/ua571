@@ -9,14 +9,28 @@ let app = null;
 let onKey = null;
 let onKeyUp = null;
 let onVisibility = null;
+/** Last values written to localStorage, so persistOptionsIfChanged only
+ * writes on an actual change (reset on every (re)boot). */
+let lastPersistedOptions = { systemMode: null, weaponStatus: null, iffStatus: null };
 
 function readOptions() {
+  // System mode / weapon status / IFF have no HTML chrome element (they're
+  // in-game, changed via key presses on the Options screen) — prefer the
+  // *live* running app's current values when rebooting (e.g. a theme
+  // change) so an in-progress selection survives, falling back to stored
+  // prefs only on a genuinely fresh boot (no `app` yet).
+  const stored = readStoredPrefs(
+    typeof localStorage !== "undefined" ? localStorage : null
+  );
   return {
     theme: document.getElementById("theme").value,
     scale: Number(document.getElementById("scale").value) || 3,
     demo: document.getElementById("demo").checked,
     skipBoot: document.getElementById("skipBoot").checked,
     sound: document.getElementById("sound").checked,
+    systemMode: (app && app.system_mode) || stored.systemMode || "",
+    weaponStatus: (app && app.weapon_status) || stored.weaponStatus || "",
+    iffStatus: (app && app.iff_status) || stored.iffStatus || "",
   };
 }
 
@@ -76,6 +90,19 @@ export function readStoredPrefs(storage) {
     }
     if (typeof parsed.sound === "boolean") out.sound = parsed.sound;
     if (typeof parsed.skipBoot === "boolean") out.skipBoot = parsed.skipBoot;
+    // Not validated against the known variant names here — the WASM
+    // constructor's parse_* helpers already fall back to that type's
+    // default on anything unrecognized, so a stale/invalid stored value
+    // can never fail boot.
+    if (typeof parsed.systemMode === "string" && parsed.systemMode) {
+      out.systemMode = parsed.systemMode;
+    }
+    if (typeof parsed.weaponStatus === "string" && parsed.weaponStatus) {
+      out.weaponStatus = parsed.weaponStatus;
+    }
+    if (typeof parsed.iffStatus === "string" && parsed.iffStatus) {
+      out.iffStatus = parsed.iffStatus;
+    }
     return out;
   } catch (_) {
     return {};
@@ -197,6 +224,32 @@ export function syncChromeFromApp(app, els) {
 }
 
 /**
+ * System mode / weapon status / IFF have no chrome `change` event (they're
+ * changed via key presses, not a checkbox/select) — write through
+ * immediately by comparing against `last` each frame and persisting only on
+ * an actual change, same "changing a control writes through immediately"
+ * contract theme/scale/sound/skipBoot get from their own `change` listeners.
+ * Returns the (possibly updated) `last` object for the caller to keep.
+ */
+export function persistOptionsIfChanged(app, storage, last) {
+  if (!app) return last;
+  const next = {
+    systemMode: app.system_mode,
+    weaponStatus: app.weapon_status,
+    iffStatus: app.iff_status,
+  };
+  if (
+    next.systemMode === last.systemMode &&
+    next.weaponStatus === last.weaponStatus &&
+    next.iffStatus === last.iffStatus
+  ) {
+    return last;
+  }
+  writeStoredPrefs(storage, next);
+  return next;
+}
+
+/**
  * Pause the rAF loop and mute WASM audio while the document is hidden.
  * Does not reset sim state (rounds, screen, sound preference).
  */
@@ -258,8 +311,12 @@ async function boot() {
       opts.scale,
       opts.demo,
       opts.skipBoot,
-      opts.sound
+      opts.sound,
+      opts.systemMode,
+      opts.weaponStatus,
+      opts.iffStatus
     );
+    lastPersistedOptions = { systemMode: null, weaponStatus: null, iffStatus: null };
 
     onKey = (e) => {
       handleGameKeyDown(app, e);
@@ -285,6 +342,13 @@ async function boot() {
         demo: document.getElementById("demo"),
         sound: document.getElementById("sound"),
       });
+      if (typeof localStorage !== "undefined") {
+        lastPersistedOptions = persistOptionsIfChanged(
+          app,
+          localStorage,
+          lastPersistedOptions
+        );
+      }
       raf = requestAnimationFrame(loop);
     };
     const loopCtl = {
