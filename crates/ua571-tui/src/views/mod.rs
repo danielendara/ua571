@@ -164,14 +164,80 @@ fn draw_log(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rec
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
-fn draw_help(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rect) {
-    let text = match state.screen {
+/// Help-row text per screen. Fire and Options both mention `esc toggle`
+/// (Esc already toggles Fire ↔ Options via the shared `apply_panel_key` —
+/// see `ua571-core::keys` — this only adds discoverability, no binding
+/// change), matching web's footer legend (#94) and pixel's HUD line
+/// (`ua571-render::draw`) in spirit, not verbatim wording/casing — TUI's
+/// existing labels are already lowercase and terser than either. Boot skips
+/// POST via any key rather than routing through `apply_panel_key`'s toggle,
+/// so its line is unchanged: mentioning "toggle" there would be inaccurate.
+fn help_text(screen: Screen) -> &'static str {
+    match screen {
         Screen::Fire => {
-            "Enter/Space fire  o options  a arm  r reload  1-4 sentry  d demo  m sound  t theme  q quit"
+            "Enter/Space fire  o options  esc toggle  a arm  r reload  1-4 sentry  d demo  m sound  t theme  q quit"
         }
-        _ => {
+        Screen::Options => {
+            "←→ section  ↑↓ select  f fire  esc toggle  a arm  1-4 sentry  d demo  m sound  t theme  q quit"
+        }
+        Screen::Boot => {
             "←→ section  ↑↓ select  f fire  a arm  1-4 sentry  d demo  m sound  t theme  q quit"
         }
-    };
+    }
+}
+
+fn draw_help(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rect) {
+    let text = help_text(state.screen);
     frame.render_widget(Paragraph::new(Span::styled(text, theme.dim_style())), area);
+}
+
+#[cfg(test)]
+mod help_text_tests {
+    use super::*;
+
+    /// Esc already toggles Fire ↔ Options (`ua571-core::keys::apply_panel_key`)
+    /// — this only checks the help row *mentions* it, not the binding itself.
+    #[test]
+    fn fire_and_options_help_mention_esc_toggle() {
+        for screen in [Screen::Fire, Screen::Options] {
+            let text = help_text(screen).to_ascii_lowercase();
+            assert!(
+                text.contains("esc"),
+                "{screen:?} help should mention Esc: {text:?}"
+            );
+            assert!(
+                text.contains("toggle"),
+                "{screen:?} help should say Esc toggles: {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn boot_help_is_unchanged_and_does_not_claim_a_toggle() {
+        // Boot skips POST on any key rather than routing through
+        // apply_panel_key's Fire/Options toggle, so it shouldn't claim one.
+        assert!(!help_text(Screen::Boot)
+            .to_ascii_lowercase()
+            .contains("toggle"));
+    }
+
+    /// No established rendering-width test harness exists in this crate yet
+    /// (no `TestBackend` usage anywhere), so this is a plain character-count
+    /// proxy for "fits without wrapping/clipping" rather than a real render
+    /// assertion. 120 columns is a conservative, widely-supported terminal
+    /// width — comfortably above the longest line here (Fire, ~102 chars)
+    /// and above the pre-existing Fire line this replaces (90 chars), so
+    /// this also guards against the row silently growing past a reasonable
+    /// console width in the future.
+    #[test]
+    fn help_text_fits_a_120_column_terminal() {
+        for screen in [Screen::Fire, Screen::Options, Screen::Boot] {
+            let text = help_text(screen);
+            assert!(
+                text.chars().count() <= 120,
+                "{screen:?} help text is {} chars, expected <= 120: {text:?}",
+                text.chars().count(),
+            );
+        }
+    }
 }
