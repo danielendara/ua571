@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 
 use ua571_core::sfx::{fire_burst_pcm, FIRE_CYCLIC_HZ};
-use ua571_core::{apply_panel_key, AppState, Config, PanelKey, Screen, Theme};
+use ua571_core::{apply_panel_key, idle_runtime, AppState, Config, PanelKey, Screen, Theme};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
@@ -134,7 +134,7 @@ impl Ua571Web {
     /// While the document is hidden, skip ticks and SFX so a background tab
     /// does not drain battery or play surprise audio. Game state is left as-is.
     pub fn frame(&mut self) -> Result<(), JsValue> {
-        if !hidden_tab_runtime(self.hidden, self.state.config.sound).tick {
+        if !idle_runtime(self.hidden, self.state.config.sound).tick {
             return Ok(());
         }
 
@@ -253,7 +253,7 @@ impl Ua571Web {
             self.suspend_audio();
         } else {
             self.last_tick = Instant::now();
-            if hidden_tab_runtime(false, self.state.config.sound).audio {
+            if idle_runtime(false, self.state.config.sound).audio {
                 self.resume_audio();
             }
         }
@@ -429,27 +429,6 @@ fn apply_demo_checkbox(state: &mut AppState, on: bool) {
     }
     if on != state.demo.is_active() {
         state.toggle_demo();
-    }
-}
-
-/// Background-tab policy: never tick or emit SFX; never flip the sound pref.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct HiddenTabRuntime {
-    tick: bool,
-    audio: bool,
-}
-
-fn hidden_tab_runtime(document_hidden: bool, sound_enabled: bool) -> HiddenTabRuntime {
-    if document_hidden {
-        HiddenTabRuntime {
-            tick: false,
-            audio: false,
-        }
-    } else {
-        HiddenTabRuntime {
-            tick: true,
-            audio: sound_enabled,
-        }
     }
 }
 
@@ -1055,21 +1034,39 @@ mod tests {
 
     #[test]
     fn hidden_tab_pauses_ticks_and_mutes_without_flipping_sound_pref() {
-        let muted = hidden_tab_runtime(true, true);
+        // Web's `set_hidden`/`frame` now delegate to the shared
+        // `ua571_core::idle_runtime` (also used by pixel, #90); this keeps
+        // the regression test in place to guard web's own integration.
+        let muted = idle_runtime(true, true);
         assert!(!muted.tick, "hidden tab must not simulate");
         assert!(!muted.audio, "hidden tab must mute output");
-        let sound_off = hidden_tab_runtime(true, false);
+        let sound_off = idle_runtime(true, false);
         assert!(!sound_off.tick);
         assert!(!sound_off.audio);
 
-        let visible_on = hidden_tab_runtime(false, true);
+        let visible_on = idle_runtime(false, true);
         assert!(visible_on.tick);
         assert!(visible_on.audio, "visible + sound pref on resumes audio");
-        let visible_off = hidden_tab_runtime(false, false);
+        let visible_off = idle_runtime(false, false);
         assert!(visible_off.tick);
         assert!(
             !visible_off.audio,
             "visible resume must not enable sound the operator muted"
+        );
+    }
+
+    #[test]
+    fn uses_shared_idle_runtime_helper() {
+        let src = include_str!("lib.rs");
+        assert!(
+            src.contains("idle_runtime(self.hidden"),
+            "frame() should gate ticks/SFX through the shared core helper (#90)"
+        );
+        // Built at runtime so this assertion's own source doesn't match itself.
+        let local_copy = format!("struct {}", "HiddenTabRuntime");
+        assert!(
+            !src.contains(&local_copy),
+            "web must not keep its own copy of the hidden/idle policy struct"
         );
     }
 

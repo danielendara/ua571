@@ -11,6 +11,7 @@ pub mod config;
 pub mod demo;
 pub mod fire;
 pub mod fire_deny;
+pub mod idle;
 pub mod keys;
 pub mod log;
 pub mod options;
@@ -26,6 +27,7 @@ pub use fire::{
     FireTelemetry, CRITICAL_THRESHOLD, DEFAULT_ROUNDS, DEFAULT_TIME_CENTISECS, RM_MAX, TEMP_MAX,
 };
 pub use fire_deny::{fire_deny_reason, fire_with_status, FireDenyReason};
+pub use idle::{idle_runtime, IdleRuntime};
 pub use keys::{apply_panel_key, PanelKey};
 pub use log::{EventLog, LogEvent, LogKind};
 pub use options::{
