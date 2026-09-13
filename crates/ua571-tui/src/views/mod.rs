@@ -11,7 +11,17 @@ use ua571_core::{AppState, Screen};
 
 use crate::theme::ConsoleTheme;
 
-pub fn draw(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme) {
+/// Render the console. `fire_status_hint` is a one-shot fire-deny/critical
+/// suffix (CRITICAL / EMPTY / LINK DOWN / OFFLINE) for the sentry bar — the
+/// TUI's analog of web's `#status` hint and pixel's window-title hint
+/// (#82/#86/#88). `None` for no recent fire attempt, or an ordinary
+/// successful non-critical fire.
+pub fn draw(
+    frame: &mut Frame,
+    state: &AppState,
+    theme: &ConsoleTheme,
+    fire_status_hint: Option<&str>,
+) {
     let area = frame.area();
     frame.render_widget(Block::default().style(theme.base()), area);
 
@@ -35,7 +45,7 @@ pub fn draw(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme) {
         .split(area);
 
     draw_header(frame, state, theme, chunks[0]);
-    draw_sentry_bar(frame, state, theme, chunks[1]);
+    draw_sentry_bar(frame, state, theme, chunks[1], fire_status_hint);
 
     match state.screen {
         Screen::Options => options::draw(frame, state, theme, chunks[2]),
@@ -85,7 +95,13 @@ fn draw_header(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: 
     frame.render_widget(Paragraph::new(title).block(block), area);
 }
 
-fn draw_sentry_bar(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rect) {
+fn draw_sentry_bar(
+    frame: &mut Frame,
+    state: &AppState,
+    theme: &ConsoleTheme,
+    area: Rect,
+    fire_status_hint: Option<&str>,
+) {
     let mut spans = Vec::new();
     for (i, s) in state.bank.iter().enumerate() {
         let label = format!(
@@ -115,6 +131,15 @@ fn draw_sentry_bar(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, ar
         ),
         theme.base(),
     ));
+
+    // One-shot fire-status suffix (CRITICAL / EMPTY / LINK DOWN / OFFLINE),
+    // matching web's ` · HINT` chrome suffix and pixel's title suffix.
+    if let Some(hint) = fire_status_hint {
+        spans.push(Span::styled(
+            format!(" │ FIRE: {hint}"),
+            theme.alert_style(),
+        ));
+    }
 
     frame.render_widget(Paragraph::new(Line::from(spans)).style(theme.base()), area);
 }
