@@ -16,6 +16,7 @@ import {
   handleSkipToPlaySurface,
   hydrateChromePrefs,
   persistChromeFromForm,
+  persistOptionsIfChanged,
   prefsFromSearch,
   readStoredPrefs,
   refocusPlaySurface,
@@ -310,6 +311,59 @@ test("persistChromeFromForm round-trips theme/scale/sound/skipBoot", () => {
   assert.equal(stored.skipBoot, true);
   assert.equal(stored.demo, undefined);
   assert.doesNotMatch(storage.map[PREFS_STORAGE_KEY], /demo/);
+});
+
+test("readStoredPrefs/writeStoredPrefs round-trip systemMode/weaponStatus/iffStatus", () => {
+  const storage = memoryStorage();
+  writeStoredPrefs(storage, {
+    systemMode: "ManOverride",
+    weaponStatus: "Armed",
+    iffStatus: "Engaged",
+  });
+  const stored = readStoredPrefs(storage);
+  assert.equal(stored.systemMode, "ManOverride");
+  assert.equal(stored.weaponStatus, "Armed");
+  assert.equal(stored.iffStatus, "Engaged");
+});
+
+test("readStoredPrefs ignores a non-string/empty option value", () => {
+  const storage = memoryStorage({
+    [PREFS_STORAGE_KEY]: JSON.stringify({ systemMode: "", weaponStatus: 5 }),
+  });
+  const stored = readStoredPrefs(storage);
+  assert.equal(stored.systemMode, undefined);
+  assert.equal(stored.weaponStatus, undefined);
+});
+
+test("persistOptionsIfChanged writes only when a value actually changes", () => {
+  const storage = memoryStorage();
+  let last = { systemMode: null, weaponStatus: null, iffStatus: null };
+  const app = { system_mode: "AutoRemote", weapon_status: "Safe", iff_status: "Search" };
+
+  last = persistOptionsIfChanged(app, storage, last);
+  assert.deepEqual(readStoredPrefs(storage), {
+    systemMode: "AutoRemote",
+    weaponStatus: "Safe",
+    iffStatus: "Search",
+  });
+
+  // No change — re-running must not re-serialize (nothing to assert on the
+  // write itself here, but `last` must stay referentially the same object
+  // the caller already has, matching the "only on actual change" contract).
+  const unchanged = persistOptionsIfChanged(app, storage, last);
+  assert.equal(unchanged, last);
+
+  app.weapon_status = "Armed";
+  last = persistOptionsIfChanged(app, storage, last);
+  assert.equal(readStoredPrefs(storage).weaponStatus, "Armed");
+  assert.equal(readStoredPrefs(storage).systemMode, "AutoRemote");
+});
+
+test("persistOptionsIfChanged is a no-op without an app", () => {
+  const storage = memoryStorage();
+  const last = { systemMode: null, weaponStatus: null, iffStatus: null };
+  assert.equal(persistOptionsIfChanged(null, storage, last), last);
+  assert.equal(storage.map[PREFS_STORAGE_KEY], undefined);
 });
 
 test("hydrateChromePrefs restores storage then query params win", () => {
