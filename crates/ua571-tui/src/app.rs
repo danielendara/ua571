@@ -12,7 +12,9 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use ua571_audio::FireAudio;
-use ua571_core::{apply_panel_key, AppState, Config, PanelKey, Screen};
+use ua571_core::{
+    apply_panel_key, fire_with_status, AppState, Config, FireDenyReason, PanelKey, Screen,
+};
 
 use crate::theme::ConsoleTheme;
 use crate::views;
@@ -24,6 +26,11 @@ pub struct App {
     /// Space/Enter that skipped POST (or confirmed Options) must not fire
     /// until key-up. Unix crossterm delivers typematic as extra `Press` events.
     confirm_hold: ConfirmHold,
+    /// One-shot fire-status suffix for the sentry bar (CRITICAL / EMPTY /
+    /// LINK DOWN / OFFLINE) — TUI's parity with web's `#status` hint and
+    /// pixel's window-title hint (#82/#86/#88). `None` covers both "no
+    /// recent fire attempt" and an ordinary successful, non-critical fire.
+    fire_status_hint: Option<&'static str>,
 }
 
 impl App {
@@ -38,6 +45,7 @@ impl App {
             theme,
             audio,
             confirm_hold: ConfirmHold::default(),
+            fire_status_hint: None,
         }
     }
 
@@ -48,7 +56,7 @@ impl App {
         let mut last_tick = Instant::now();
 
         loop {
-            terminal.draw(|f| views::draw(f, &self.state, &self.theme))?;
+            terminal.draw(|f| views::draw(f, &self.state, &self.theme, self.fire_status_hint))?;
 
             let timeout = tick_rate.saturating_sub(last_tick.elapsed());
             if event::poll(timeout)? {
@@ -127,6 +135,12 @@ impl App {
             }
             return;
         }
+
+        // Any key that reaches here is either a fresh action or a
+        // hold-to-fire repeat pulse; both clear a stale fire-status hint
+        // before dispatch. The Fire arm below is the only one that sets a
+        // new hint, so a denied fire's reason is what survives.
+        self.fire_status_hint = None;
 
         // Demo: most keys stop auto-play so the operator can take over,
         // except pure navigation that we still allow.
@@ -209,7 +223,8 @@ impl App {
                 self.state.stop_demo();
                 match self.state.screen {
                     Screen::Fire => {
-                        let _ = self.state.fire();
+                        let (_fired, status) = fire_with_status(&mut self.state);
+                        self.fire_status_hint = status.map(FireDenyReason::message);
                     }
                     Screen::Options => {
                         // Confirm → fire panel (original CONFIRM behavior).
@@ -314,6 +329,7 @@ mod tests {
             state: AppState::new(config),
             audio: None,
             confirm_hold: ConfirmHold::default(),
+            fire_status_hint: None,
         }
     }
 
@@ -444,5 +460,113 @@ mod tests {
         assert_eq!(app.state.fire_telemetry().rounds, 498);
         app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Press));
         assert_eq!(app.state.fire_telemetry().rounds, 497);
+    }
+
+    // --- Fire-deny status announcement (#88) ---
+
+    #[test]
+    fn denied_fire_announces_offline() {
+        let mut app = options_app();
+        app.handle_key(key(KeyCode::Char('a'), KeyEventKind::Press));
+        app.state.active_sentry_mut().unwrap().online = false;
+        app.handle_key(key(KeyCode::Char('f'), KeyEventKind::Press));
+        assert_eq!(
+            app.fire_status_hint, None,
+            "navigating to Fire is not a fire attempt"
+        );
+
+        app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Press));
+        assert_eq!(app.fire_status_hint, Some("OFFLINE"));
+    }
+
+    #[test]
+    fn denied_fire_announces_link_down() {
+        let mut app = options_app();
+        app.handle_key(key(KeyCode::Char('a'), KeyEventKind::Press));
+        app.state.active_sentry_mut().unwrap().link_ok = false;
+        app.handle_key(key(KeyCode::Char('f'), KeyEventKind::Press));
+
+        app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Press));
+        assert_eq!(app.fire_status_hint, Some("LINK DOWN"));
+    }
+
+    #[test]
+    fn denied_fire_announces_empty_drum() {
+        let mut app = options_app();
+        app.handle_key(key(KeyCode::Char('a'), KeyEventKind::Press));
+        app.state.active_sentry_mut().unwrap().fire.rounds = 0;
+        app.handle_key(key(KeyCode::Char('f'), KeyEventKind::Press));
+
+        app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Press));
+        assert_eq!(app.fire_status_hint, Some("EMPTY"));
+    }
+
+    #[test]
+    fn denied_fire_does_not_spend_ammo() {
+        let mut app = options_app();
+        app.handle_key(key(KeyCode::Char('a'), KeyEventKind::Press));
+        app.state.active_sentry_mut().unwrap().link_ok = false;
+        app.handle_key(key(KeyCode::Char('f'), KeyEventKind::Press));
+        let rounds_before = app.state.fire_telemetry().rounds;
+
+        app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Press));
+
+        assert_eq!(app.state.fire_telemetry().rounds, rounds_before);
+    }
+
+    #[test]
+    fn successful_non_critical_fire_leaves_status_hint_unset() {
+        let mut app = options_app();
+        app.handle_key(key(KeyCode::Char('a'), KeyEventKind::Press));
+        app.handle_key(key(KeyCode::Char('f'), KeyEventKind::Press));
+
+        app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Press));
+
+        assert!(app.state.active_sentry().online);
+        assert_eq!(app.fire_status_hint, None);
+    }
+
+    #[test]
+    fn fire_status_hint_clears_on_the_next_unrelated_key() {
+        let mut app = options_app();
+        app.handle_key(key(KeyCode::Char('a'), KeyEventKind::Press));
+        app.state.active_sentry_mut().unwrap().link_ok = false;
+        app.handle_key(key(KeyCode::Char('f'), KeyEventKind::Press));
+        app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Press));
+        assert_eq!(app.fire_status_hint, Some("LINK DOWN"));
+
+        // Any subsequent, unrelated key clears the one-shot hint.
+        app.handle_key(key(KeyCode::Char('m'), KeyEventKind::Press));
+        assert_eq!(app.fire_status_hint, None);
+    }
+
+    #[test]
+    fn held_repeat_fire_recomputes_the_status_hint_each_pulse() {
+        let mut app = options_app();
+        app.handle_key(key(KeyCode::Char('a'), KeyEventKind::Press));
+        app.handle_key(key(KeyCode::Char('f'), KeyEventKind::Press));
+        app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Press));
+        assert_eq!(app.fire_status_hint, None);
+
+        app.state.active_sentry_mut().unwrap().fire.rounds = 0;
+        app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Repeat));
+        assert_eq!(app.fire_status_hint, Some("EMPTY"));
+    }
+
+    #[test]
+    fn uses_shared_fire_deny_helper() {
+        // Source-scan guard mirroring pixel's (#87): the Fire key handler
+        // must go through the shared core classifier, so status copy can't
+        // drift from web/pixel and ammo math can't be re-derived here.
+        let src = include_str!("app.rs");
+        assert!(
+            src.contains("fire_with_status(&mut self.state)"),
+            "Fire key handling should use the shared core helper"
+        );
+        let bare_fire_call = format!("let _ = self.state.{}()", "fire");
+        assert!(
+            !src.contains(&bare_fire_call),
+            "fire() should not be called bare anymore — use fire_with_status"
+        );
     }
 }
