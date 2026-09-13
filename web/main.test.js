@@ -192,6 +192,14 @@ test("skip-link in index.html targets the focusable canvas", () => {
   assert.ok(skipAt >= 0 && skipAt < canvasAt, "skip-link must precede the canvas");
 });
 
+test("footer key legend mentions Esc toggle, matching pixel's help text (#94)", () => {
+  const keysMatch = html.match(/<p class="keys">([\s\S]*?)<\/p>/);
+  assert.ok(keysMatch, "expected a .keys legend in index.html");
+  const legend = keysMatch[1];
+  assert.match(legend, /<kbd>Esc<\/kbd>/);
+  assert.match(legend.toLowerCase(), /esc<\/kbd>\s*toggle/);
+});
+
 test("skip-link focuses the canvas play surface", () => {
   let focused = false;
   let prevented = false;
