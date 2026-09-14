@@ -85,10 +85,7 @@ fn main() -> Result<()> {
         mute: cli.mute,
         config: cli.config.clone(),
     })?;
-    let mut colors = (
-        config.theme.on_rgb_u32(),
-        config.theme.off_rgb_u32(),
-    );
+    let mut colors = (config.theme.on_rgb_u32(), config.theme.off_rgb_u32());
 
     let scale = cli.scale.clamp(1, 6) as usize;
     let win_w = WIDTH * scale;
