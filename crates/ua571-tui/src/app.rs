@@ -160,6 +160,9 @@ impl App {
             KeyCode::Char('t') | KeyCode::Char('T') => {
                 self.theme = self.theme.next();
                 self.state.config.theme = self.theme.kind;
+                self.state
+                    .log
+                    .push_info(format!("THEME {}", self.theme.kind.as_str().to_uppercase()));
             }
             KeyCode::Char('f') | KeyCode::Char('F') => {
                 self.state.stop_demo();
@@ -551,6 +554,14 @@ mod tests {
         app.state.active_sentry_mut().unwrap().fire.rounds = 0;
         app.handle_key(key(KeyCode::Char(' '), KeyEventKind::Repeat));
         assert_eq!(app.fire_status_hint, Some("EMPTY"));
+    }
+
+    #[test]
+    fn theme_key_logs_new_theme() {
+        let mut app = options_app();
+        app.handle_key(key(KeyCode::Char('t'), KeyEventKind::Press));
+        let last = app.state.log.recent(1)[0].kind.to_string();
+        assert_eq!(last, "THEME PHOSPHOR");
     }
 
     #[test]
