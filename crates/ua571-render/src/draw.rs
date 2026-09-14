@@ -350,7 +350,8 @@ fn status_strip_lines(state: &AppState) -> [String; 2] {
         link,
         demo
     );
-    let keys = "[1-4] Esc toggle  o options  a arm  r reload  d demo  m sound  q quit".to_string();
+    let keys = "[1-4] Esc toggle  o options  a arm  r reload  d demo  m sound  t theme  q quit"
+        .to_string();
     [status, keys]
 }
 
@@ -465,6 +466,10 @@ mod tests {
         assert!(
             lower.contains("o options"),
             "help should say O opens Options: {keys:?}"
+        );
+        assert!(
+            lower.contains("t theme"),
+            "help should say T cycles theme: {keys:?}"
         );
         assert!(
             Framebuffer::text_width(&keys, SECTION_SCALE) <= WIDTH as i32 - 4,

@@ -12,7 +12,7 @@ use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
 use ua571_audio::FireAudio;
 use ua571_core::{
     apply_panel_key, fire_with_status, idle_runtime, load_native_config, AppState, FireDenyReason,
-    NativeCli, PanelKey, Screen,
+    NativeCli, PanelKey, Screen, Theme,
 };
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 
@@ -85,7 +85,10 @@ fn main() -> Result<()> {
         mute: cli.mute,
         config: cli.config.clone(),
     })?;
-    let (on, off) = (config.theme.on_rgb_u32(), config.theme.off_rgb_u32());
+    let mut colors = (
+        config.theme.on_rgb_u32(),
+        config.theme.off_rgb_u32(),
+    );
 
     let scale = cli.scale.clamp(1, 6) as usize;
     let win_w = WIDTH * scale;
@@ -136,7 +139,13 @@ fn main() -> Result<()> {
             last_tick = Instant::now();
         }
 
-        if handle_input(&window, &mut state, &mut confirm_hold, &mut status_hint) {
+        if handle_input(
+            &window,
+            &mut state,
+            &mut confirm_hold,
+            &mut status_hint,
+            &mut colors,
+        ) {
             dirty = true;
         }
 
@@ -174,7 +183,7 @@ fn main() -> Result<()> {
         dirty = false;
 
         render(&state, &mut fb);
-        fb.present_scaled(&mut buffer, ww, wh, on, off);
+        fb.present_scaled(&mut buffer, ww, wh, colors.0, colors.1);
         window
             .update_with_buffer(&buffer, ww, wh)
             .map_err(|e| eyre!("present: {e}"))?;
@@ -207,11 +216,19 @@ impl FocusTracker {
     }
 }
 
+/// Advance `state.config.theme`, return its minifb palette and status hint.
+fn cycle_theme(state: &mut AppState) -> (&'static str, u32, u32) {
+    state.config.theme = state.config.theme.next();
+    let theme = state.config.theme;
+    (theme.status_hint(), theme.on_rgb_u32(), theme.off_rgb_u32())
+}
+
 fn handle_input(
     window: &Window,
     state: &mut AppState,
     confirm_hold: &mut ConfirmHold,
     status_hint: &mut Option<&'static str>,
+    colors: &mut (u32, u32),
 ) -> bool {
     if state.screen == Screen::Boot {
         if !window.get_keys_pressed(KeyRepeat::No).is_empty() {
@@ -244,6 +261,12 @@ fn handle_input(
         // `state.config.sound` + focus via `idle_runtime`, so this only
         // needs to flip the preference.
         state.toggle_sound();
+        return true;
+    }
+    if pressed(Key::T) {
+        let (hint, on, off) = cycle_theme(state);
+        *colors = (on, off);
+        *status_hint = Some(hint);
         return true;
     }
     if pressed(Key::F) {
@@ -374,6 +397,7 @@ impl ConfirmHold {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ua571_core::Config;
 
     #[test]
     fn theme_flag_is_optional() {
@@ -514,6 +538,35 @@ mod tests {
     /// Pixel mutes/unmutes purely from `state.config.sound` + focus each
     /// frame now, so `M` only has to flip the preference — it must never
     /// call `FireAudio::set_muted` itself and duplicate that policy.
+    #[test]
+    fn theme_key_cycles_config_and_palette() {
+        let mut state = AppState::new(Config::default());
+        assert_eq!(state.config.theme, Theme::Yellow);
+        let (hint, on, off) = cycle_theme(&mut state);
+        assert_eq!(state.config.theme, Theme::Phosphor);
+        assert_eq!(hint, "THEME PHOSPHOR");
+        assert_eq!(on, Theme::Phosphor.on_rgb_u32());
+        assert_eq!(off, Theme::Phosphor.off_rgb_u32());
+    }
+
+    #[test]
+    fn theme_key_wired_in_input_handler() {
+        let src = include_str!("main.rs");
+        let t_branch = src
+            .split("if pressed(Key::T) {")
+            .nth(1)
+            .and_then(|s| s.split("return true;").next())
+            .expect("Key::T branch");
+        assert!(
+            t_branch.contains("cycle_theme(state)"),
+            "Key::T must cycle theme: {t_branch}"
+        );
+        assert!(
+            !t_branch.contains("toggle_sound"),
+            "Key::T must not affect sound: {t_branch}"
+        );
+    }
+
     #[test]
     fn mute_key_only_toggles_the_preference() {
         let src = include_str!("main.rs");

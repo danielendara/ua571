@@ -51,6 +51,16 @@ impl Theme {
         Self::ALL[(i + 1) % Self::ALL.len()]
     }
 
+    /// One-shot title/status hint after cycling theme (TUI log / pixel title bar).
+    pub fn status_hint(self) -> &'static str {
+        match self {
+            Theme::Yellow => "THEME YELLOW",
+            Theme::Phosphor => "THEME PHOSPHOR",
+            Theme::Amber => "THEME AMBER",
+            Theme::Mono => "THEME MONO",
+        }
+    }
+
     /// Phosphor-on RGB+A for canvas / Web Audio frontends.
     pub fn on_rgba(self) -> [u8; 4] {
         match self {
@@ -296,6 +306,12 @@ mod tests {
         );
         assert_eq!(t.next(), Theme::Yellow);
         assert_eq!(Theme::Amber.as_str(), "amber");
+    }
+
+    #[test]
+    fn theme_status_hint_uppercases_name() {
+        assert_eq!(Theme::Yellow.status_hint(), "THEME YELLOW");
+        assert_eq!(Theme::Phosphor.status_hint(), "THEME PHOSPHOR");
     }
 
     #[test]
