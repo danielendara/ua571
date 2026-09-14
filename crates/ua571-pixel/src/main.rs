@@ -12,7 +12,7 @@ use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
 use ua571_audio::FireAudio;
 use ua571_core::{
     apply_panel_key, fire_with_status, idle_runtime, load_native_config, AppState, FireDenyReason,
-    NativeCli, PanelKey, Screen, Theme,
+    NativeCli, PanelKey, Screen,
 };
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 
@@ -394,7 +394,7 @@ impl ConfirmHold {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ua571_core::Config;
+    use ua571_core::{Config, Theme};
 
     #[test]
     fn theme_flag_is_optional() {
