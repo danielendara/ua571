@@ -12,8 +12,13 @@ import {
   PREFS_STORAGE_KEY,
   applyPrefsToElements,
   bindPlaySurfaceRefocus,
+  cycleThemeSelect,
   handleGameKeyDown,
   handleSkipToPlaySurface,
+  handleThemeKeyDown,
+  nextThemeValue,
+  themeStatusHint,
+  themeValuesFromSelect,
   hydrateChromePrefs,
   persistChromeFromForm,
   persistOptionsIfChanged,
@@ -200,6 +205,93 @@ test("footer key legend mentions Esc toggle, matching pixel's help text (#94)", 
   assert.match(legend.toLowerCase(), /esc<\/kbd>\s*toggle/);
 });
 
+test("footer key legend mentions T theme (#107)", () => {
+  const keysMatch = html.match(/<p class="keys">([\s\S]*?)<\/p>/);
+  assert.ok(keysMatch, "expected a .keys legend in index.html");
+  const legend = keysMatch[1];
+  assert.match(legend, /<kbd>T<\/kbd>/);
+  assert.match(legend.toLowerCase(), /t<\/kbd>\s*theme/);
+});
+
+test("theme helpers cycle select options in Theme::ALL order", () => {
+  const select = mockThemeSelect("yellow");
+  assert.deepEqual(themeValuesFromSelect(select), [
+    "yellow",
+    "phosphor",
+    "amber",
+    "mono",
+  ]);
+  assert.equal(nextThemeValue("yellow", themeValuesFromSelect(select)), "phosphor");
+  assert.equal(cycleThemeSelect(select), "phosphor");
+  assert.equal(select.value, "phosphor");
+  assert.equal(cycleThemeSelect(select), "amber");
+  assert.equal(cycleThemeSelect(select), "mono");
+  assert.equal(cycleThemeSelect(select), "yellow");
+  assert.equal(themeStatusHint("amber"), "THEME AMBER");
+  assert.equal(themeStatusHint("mono"), "THEME MONO");
+});
+
+test("KeyT cycles theme, persists, and shows THEME hint in #status (#107)", () => {
+  const select = mockThemeSelect("yellow");
+  const storage = memoryStorage();
+  const status = liveRegion("OPTIONS · MANUAL");
+  const readOpts = () => ({
+    theme: select.value,
+    scale: 3,
+    sound: false,
+    skipBoot: false,
+  });
+
+  const first = handleThemeKeyDown(
+    { code: "KeyT", repeat: false, target: canvasTarget() },
+    { select, storage, status, readOpts }
+  );
+  assert.deepEqual(first, { theme: "phosphor", hint: "THEME PHOSPHOR" });
+  assert.equal(select.value, "phosphor");
+  assert.equal(status.textContent, "THEME PHOSPHOR");
+  assert.equal(readStoredPrefs(storage).theme, "phosphor");
+
+  const second = handleThemeKeyDown(
+    { code: "KeyT", repeat: false, target: canvasTarget() },
+    { select, storage, status, readOpts }
+  );
+  assert.deepEqual(second, { theme: "amber", hint: "THEME AMBER" });
+  assert.equal(status.textContent, "THEME AMBER");
+
+  assert.equal(
+    handleThemeKeyDown(
+      { code: "KeyT", repeat: true, target: canvasTarget() },
+      { select, storage, status, readOpts }
+    ),
+    false
+  );
+  assert.equal(select.value, "amber");
+
+  assert.equal(
+    handleThemeKeyDown(
+      { code: "KeyT", repeat: false, target: { closest: () => ({}) } },
+      { select, storage, status, readOpts }
+    ),
+    false
+  );
+  assert.equal(select.value, "amber");
+
+  assert.equal(
+    handleThemeKeyDown(
+      { code: "KeyD", repeat: false, target: canvasTarget() },
+      { select, storage, status, readOpts }
+    ),
+    false
+  );
+
+  // Clear the one-shot theme hint so later tests see normal chrome status.
+  handleGameKeyDown(mockApp(), {
+    code: "KeyD",
+    repeat: false,
+    target: canvasTarget(),
+  });
+});
+
 test("skip-link focuses the canvas play surface", () => {
   let focused = false;
   let prevented = false;
@@ -300,6 +392,20 @@ function chromeEls(values = {}) {
     scale: { value: values.scale ?? "3" },
     sound: { checked: values.sound ?? false },
     skipBoot: { checked: values.skipBoot ?? false },
+  };
+}
+
+function mockThemeSelect(current = "yellow") {
+  const values = ["yellow", "phosphor", "amber", "mono"];
+  let value = current;
+  return {
+    options: values.map((v) => ({ value: v })),
+    get value() {
+      return value;
+    },
+    set value(v) {
+      value = v;
+    },
   };
 }
 

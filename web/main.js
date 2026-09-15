@@ -12,6 +12,8 @@ let onVisibility = null;
 /** Last values written to localStorage, so persistOptionsIfChanged only
  * writes on an actual change (reset on every (re)boot). */
 let lastPersistedOptions = { systemMode: null, weaponStatus: null, iffStatus: null };
+/** One-shot status after T cycles theme (cleared on the next game key). */
+let pendingThemeHint = null;
 
 function readOptions() {
   // System mode / weapon status / IFF have no HTML chrome element (they're
@@ -61,6 +63,7 @@ function teardown() {
 }
 
 function applyPageTheme(theme) {
+  if (typeof document === "undefined" || !document.body) return;
   document.body.dataset.theme = theme || "yellow";
 }
 
@@ -165,6 +168,62 @@ export function isChromeTarget(el) {
   );
 }
 
+/** Theme order matches `Theme::ALL` / the #theme `<option>` list. */
+export function themeValuesFromSelect(select) {
+  if (!select || !select.options) return [];
+  return Array.from(select.options, (o) => o.value);
+}
+
+export function nextThemeValue(current, values) {
+  if (!values || !values.length) return current;
+  const i = values.indexOf(current);
+  const next = i >= 0 ? (i + 1) % values.length : 0;
+  return values[next];
+}
+
+export function themeStatusHint(theme) {
+  switch (String(theme || "").toLowerCase()) {
+    case "yellow":
+      return "THEME YELLOW";
+    case "phosphor":
+      return "THEME PHOSPHOR";
+    case "amber":
+      return "THEME AMBER";
+    case "mono":
+      return "THEME MONO";
+    default:
+      return `THEME ${String(theme || "").toUpperCase()}`;
+  }
+}
+
+/** Advance `#theme` to the next option; returns the new value. */
+export function cycleThemeSelect(select) {
+  const values = themeValuesFromSelect(select);
+  const next = nextThemeValue(select.value, values);
+  select.value = next;
+  return next;
+}
+
+/**
+ * T key: cycle theme, persist chrome prefs, repaint page chrome, show hint.
+ * Returns `{ theme, hint }` when handled, else `false`.
+ */
+export function handleThemeKeyDown(e, { select, storage, status, readOpts }) {
+  if (!e || e.code !== "KeyT" || e.repeat) return false;
+  if (isChromeTarget(e.target)) return false;
+  if (!select) return false;
+
+  const theme = cycleThemeSelect(select);
+  if (storage && readOpts) {
+    persistChromeFromForm(storage, readOpts());
+  }
+  applyPageTheme(theme);
+  const hint = themeStatusHint(theme);
+  pendingThemeHint = hint;
+  writeLiveRegion(status, hint);
+  return { theme, hint };
+}
+
 /** Return keyboard focus to the play canvas. */
 export function refocusPlaySurface(canvas) {
   if (!canvas || typeof canvas.focus !== "function") return false;
@@ -220,7 +279,8 @@ export function syncChromeFromApp(app, els) {
   if (typeof app.frame === "function") app.frame();
   if (els.sound) els.sound.checked = app.sound_enabled;
   if (els.demo) els.demo.checked = app.demo_active;
-  return writeLiveRegion(els.status, formatChromeStatus(app));
+  const next = pendingThemeHint || formatChromeStatus(app);
+  return writeLiveRegion(els.status, next);
 }
 
 /**
@@ -272,6 +332,7 @@ export function shouldAdvanceFrame(hidden) {
 export function handleGameKeyDown(app, e) {
   // Let the HTML chrome (checkboxes, selects, links) keep native keys.
   if (isChromeTarget(e.target)) return false;
+  pendingThemeHint = null;
   switch (e.code) {
     case "ArrowUp":
     case "ArrowDown":
@@ -319,6 +380,18 @@ async function boot() {
     lastPersistedOptions = { systemMode: null, weaponStatus: null, iffStatus: null };
 
     onKey = (e) => {
+      if (
+        handleThemeKeyDown(e, {
+          select: document.getElementById("theme"),
+          storage:
+            typeof localStorage !== "undefined" ? localStorage : null,
+          status,
+          readOpts: readOptions,
+        })
+      ) {
+        boot();
+        return;
+      }
       handleGameKeyDown(app, e);
     };
     onKeyUp = (e) => {
