@@ -376,11 +376,11 @@ impl AppState {
         if self.demo.is_active() {
             // Avoid double-borrow of `self` and `self.demo`.
             let mut demo = std::mem::take(&mut self.demo);
-            let (running, demo_dirty) = demo.tick(self);
+            // On its final step `demo.tick` already deactivates the player and
+            // logs "SEQUENCE COMPLETE", reporting that step as dirty so the
+            // last change repaints. Nothing more to do on completion here.
+            let (_running, demo_dirty) = demo.tick(self);
             self.demo = demo;
-            if !running {
-                // demo finished this tick
-            }
             dirty |= demo_dirty;
         }
 
@@ -685,5 +685,25 @@ mod tests {
             ..Config::default()
         });
         assert!(app.tick());
+    }
+
+    #[test]
+    fn tick_runs_demo_to_completion() {
+        let mut app = AppState::new(Config {
+            show_boot: false,
+            demo_on_start: true,
+            ..Config::default()
+        });
+        assert!(app.demo.is_active());
+        let mut guard = 0;
+        while app.demo.is_active() {
+            app.tick();
+            guard += 1;
+            assert!(guard < 10_000, "demo did not finish through state::tick");
+        }
+        assert!(app
+            .log
+            .iter()
+            .any(|e| e.kind.to_string().contains("SEQUENCE COMPLETE")));
     }
 }
