@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- TUI + pixel: saved console session (`~/.config/ua571/session.toml`) remembering theme, sound, and weapon / IFF / system mode — parity with the web frontend's `localStorage` prefs. Written atomically on clean exit, separate from the hand-written `config.toml`. Precedence: CLI flag → saved session → config file → defaults. `--no-save-session` opts out (#109)
+
 - CI: Ubuntu `cargo llvm-cov --workspace` with a 65% line floor (measured ~69%) and coverage artifact upload
 - Fire is blocked when the active sentry's microwave datalink is down (`link_ok`); log shows `CANNOT FIRE — LINK DOWN` (demo datalink fault on SENTRY-3 is now enforced, not display-only)
 - Node tests for web `#status` live-region writes (only on text change; Demo on/off after `d`); Linux `cargo test` runs them

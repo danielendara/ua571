@@ -11,7 +11,7 @@ use color_eyre::eyre::{eyre, Result};
 use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
 use ua571_audio::FireAudio;
 use ua571_core::{
-    apply_panel_key, fire_with_status, idle_runtime, load_native_config, AppState, FireDenyReason,
+    apply_panel_key, fire_with_status, idle_runtime, load_native_startup, AppState, FireDenyReason,
     NativeCli, PanelKey, Screen,
 };
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
@@ -71,12 +71,17 @@ struct Cli {
 
     #[arg(short, long)]
     config: Option<PathBuf>,
+
+    /// Don't read or write the saved session this run (demo / kiosk use)
+    #[arg(long)]
+    no_save_session: bool,
 }
 
 fn main() -> Result<()> {
     color_eyre::install()?;
     let cli = Cli::parse();
-    let config = load_native_config(&NativeCli {
+    // CLI → saved session → config file → defaults (#109).
+    let startup = load_native_startup(&NativeCli {
         theme: cli.theme.clone(),
         rounds: cli.rounds,
         tick_ms: cli.tick_ms,
@@ -84,7 +89,9 @@ fn main() -> Result<()> {
         demo: cli.demo,
         mute: cli.mute,
         config: cli.config.clone(),
+        no_save_session: cli.no_save_session,
     })?;
+    let config = startup.config.clone();
     let mut colors = (config.theme.on_rgb_u32(), config.theme.off_rgb_u32());
 
     let scale = cli.scale.clamp(1, 6) as usize;
@@ -107,6 +114,7 @@ fn main() -> Result<()> {
     window.set_target_fps(0);
 
     let mut state = AppState::new(config);
+    startup.apply(&mut state);
     let mut audio = FireAudio::try_new();
     let mut fb = Framebuffer::new();
     let mut buffer = vec![0u32; win_w * win_h];
@@ -185,6 +193,9 @@ fn main() -> Result<()> {
             .update_with_buffer(&buffer, ww, wh)
             .map_err(|e| eyre!("present: {e}"))?;
     }
+
+    // The console remembers how you left it — same set the web frontend keeps (#109).
+    startup.save_on_exit(&state);
 
     Ok(())
 }

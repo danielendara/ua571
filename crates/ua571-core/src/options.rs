@@ -131,6 +131,24 @@ macro_rules! option_enum {
                 Self::ALL.get(i).copied()
             }
 
+            /// Stable wire name — the variant name, matching what `ua571-web`
+            /// writes to localStorage (`format!("{:?}", value)`). Used for saved
+            /// session prefs so one value means one thing in every frontend.
+            pub fn wire_name(self) -> &'static str {
+                match self {
+                    $($name::$variant => stringify!($variant)),+
+                }
+            }
+
+            /// Inverse of `wire_name`. Unknown or differently-cased input falls
+            /// back to the default, exactly as the web frontend does.
+            pub fn parse_wire_name(s: &str) -> Self {
+                match s {
+                    $(x if x == stringify!($variant) => $name::$variant,)+
+                    _ => Self::default(),
+                }
+            }
+
             pub fn next(self) -> Self {
                 let i = (self.index() + 1) % Self::ALL.len();
                 Self::ALL[i]

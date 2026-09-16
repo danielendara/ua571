@@ -49,6 +49,18 @@ impl App {
         }
     }
 
+    /// Boot with a restored session applied (#109): Options-panel positions plus
+    /// the one-line notice that says a session was restored or ignored.
+    pub fn new_with_session(startup: &ua571_core::NativeStartup) -> Self {
+        let mut app = Self::new(startup.config.clone());
+        startup.apply(&mut app.state);
+        app
+    }
+
+    pub fn state(&self) -> &AppState {
+        &self.state
+    }
+
     pub fn run(&mut self) -> Result<()> {
         let mut terminal = setup_terminal()?;
         let _restore = TerminalRestore;

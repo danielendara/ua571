@@ -90,6 +90,7 @@ ua571 / ua571-pixel [OPTIONS]
       --mute                start with fire SFX off (same as the default)
       --version             print crate version and exit
   -c, --config <PATH>       load TOML config
+      --no-save-session     don't read or write the saved session this run
   -s, --scale <N>           (pixel only) integer scale 1–6  [default: 2]
 ```
 
@@ -106,6 +107,22 @@ demo_on_start = false
 log_capacity = 64
 sound = false
 ```
+
+### Saved session
+
+TUI and pixel remember how you left the console — theme, sound, and the
+weapon / IFF / system-mode switch positions — the same set the web frontend
+keeps in `localStorage`. It is written on a clean exit to
+`~/.config/ua571/session.toml` (platform equivalent via `dirs`), atomically
+(temp file + rename), and is **separate from `config.toml`**: saved state never
+rewrites the config you hand-wrote.
+
+Precedence: **CLI flag → saved session → config file → built-in defaults.**
+
+An unreadable or partially invalid session file is ignored field by field with
+a log line — the console always boots. `--no-save-session` turns reading and
+writing off for that run (demo / kiosk use). Simulation state (rounds, damage,
+demo progress) is never saved.
 
 ## Keys
 

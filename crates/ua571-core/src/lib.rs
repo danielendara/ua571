@@ -16,6 +16,8 @@ pub mod keys;
 pub mod log;
 pub mod options;
 pub mod sentry;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod session;
 pub mod sfx;
 pub mod state;
 
@@ -35,6 +37,11 @@ pub use options::{
     TestRoutine, WeaponStatus,
 };
 pub use sentry::{Sentry, SentryBank, SENTRY_COUNT};
+#[cfg(not(target_arch = "wasm32"))]
+pub use session::{
+    default_session_path, load_native_startup, load_session, save_session, NativeStartup,
+    SessionPrefs,
+};
 pub use sfx::{synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS, FIRE_SFX_SAMPLE_RATE};
 pub use state::{AppState, Screen};
 

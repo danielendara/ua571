@@ -142,6 +142,8 @@ pub struct NativeCli {
     pub demo: bool,
     pub mute: bool,
     pub config: Option<std::path::PathBuf>,
+    /// `--no-save-session`: neither read nor write the saved session this run.
+    pub no_save_session: bool,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -207,9 +209,21 @@ pub fn load_toml_config(path: &std::path::Path) -> Result<Config, ConfigLoadErro
 }
 
 /// Load TOML (explicit path, else `~/.config/ua571/config.toml`), then apply CLI overrides.
+///
+/// See `load_native_startup` for the full precedence chain including the saved
+/// session (#109).
 #[cfg(not(target_arch = "wasm32"))]
 pub fn load_native_config(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
-    let mut config = if let Some(path) = &cli.config {
+    let mut config = load_config_file(cli)?;
+    apply_cli_overrides(&mut config, cli)?;
+    Ok(config.validate())
+}
+
+/// The config-file rung of the precedence chain: an explicit `--config` path,
+/// else `~/.config/ua571/config.toml`, else built-in defaults.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn load_config_file(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
+    Ok(if let Some(path) = &cli.config {
         load_toml_config(path)?
     } else if let Some(path) = default_config_path() {
         if path.exists() {
@@ -219,8 +233,12 @@ pub fn load_native_config(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
         }
     } else {
         Config::default()
-    };
+    })
+}
 
+/// The CLI rung: only flags that were actually passed override anything (#17).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn apply_cli_overrides(config: &mut Config, cli: &NativeCli) -> Result<(), ConfigLoadError> {
     if let Some(theme) = &cli.theme {
         config.theme =
             Theme::parse(theme).ok_or_else(|| ConfigLoadError::UnknownTheme(theme.clone()))?;
@@ -240,8 +258,7 @@ pub fn load_native_config(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
     if cli.mute {
         config.sound = false;
     }
-
-    Ok(config.validate())
+    Ok(())
 }
 
 #[cfg(test)]

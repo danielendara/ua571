@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use color_eyre::eyre::Result;
-use ua571_core::{load_native_config, NativeCli};
+use ua571_core::{load_native_startup, NativeCli};
 
 use app::App;
 
@@ -50,12 +50,17 @@ struct Cli {
     /// Path to TOML config file
     #[arg(short, long)]
     config: Option<PathBuf>,
+
+    /// Don't read or write the saved session this run (demo / kiosk use)
+    #[arg(long)]
+    no_save_session: bool,
 }
 
 fn main() -> Result<()> {
     color_eyre::install()?;
     let cli = Cli::parse();
-    let config = load_native_config(&NativeCli {
+    // CLI → saved session → config file → defaults (#109).
+    let startup = load_native_startup(&NativeCli {
         theme: cli.theme,
         rounds: cli.rounds,
         tick_ms: cli.tick_ms,
@@ -63,9 +68,13 @@ fn main() -> Result<()> {
         demo: cli.demo,
         mute: cli.mute,
         config: cli.config,
+        no_save_session: cli.no_save_session,
     })?;
-    let mut app = App::new(config);
-    app.run()
+    let mut app = App::new_with_session(&startup);
+    let result = app.run();
+    // The console remembers how you left it — same set the web frontend keeps.
+    startup.save_on_exit(app.state());
+    result
 }
 
 #[cfg(test)]
