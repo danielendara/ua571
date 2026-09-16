@@ -23,6 +23,8 @@ import {
   persistChromeFromForm,
   persistOptionsIfChanged,
   prefsFromSearch,
+  searchFromPrefs,
+  syncShareUrl,
   readStoredPrefs,
   refocusPlaySurface,
   shouldAdvanceFrame,
@@ -392,7 +394,31 @@ function chromeEls(values = {}) {
     scale: { value: values.scale ?? "3" },
     sound: { checked: values.sound ?? false },
     skipBoot: { checked: values.skipBoot ?? false },
+    demo: { checked: values.demo ?? false },
   };
+}
+
+function mockLocation(search = "", pathname = "/", hash = "") {
+  return { pathname, search, hash };
+}
+
+function mockHistory(loc) {
+  const hist = {
+    state: null,
+    urls: [],
+    replaceState(state, _title, url) {
+      hist.state = state;
+      hist.urls.push(String(url));
+      const raw = String(url);
+      const hashAt = raw.indexOf("#");
+      loc.hash = hashAt >= 0 ? raw.slice(hashAt) : "";
+      const noHash = hashAt >= 0 ? raw.slice(0, hashAt) : raw;
+      const qAt = noHash.indexOf("?");
+      loc.pathname = qAt >= 0 ? noHash.slice(0, qAt) : noHash;
+      loc.search = qAt >= 0 ? noHash.slice(qAt) : "";
+    },
+  };
+  return hist;
 }
 
 function mockThemeSelect(current = "yellow") {
@@ -510,14 +536,168 @@ test("hydrateChromePrefs restores storage then query params win", () => {
 
 test("prefsFromSearch only sets keys that are present", () => {
   assert.deepEqual(prefsFromSearch(""), {});
-  assert.deepEqual(prefsFromSearch("?demo=1"), {});
+  assert.deepEqual(prefsFromSearch("?demo=1"), { demo: true });
   assert.equal(prefsFromSearch("?sound=1").sound, true);
+  assert.equal(prefsFromSearch("?sound=0").sound, false);
   assert.equal(prefsFromSearch("?boot=0").skipBoot, true);
   const els = chromeEls({ theme: "yellow", sound: false });
-  applyPrefsToElements({ theme: "amber", sound: true }, els);
+  applyPrefsToElements({ theme: "amber", sound: true, demo: true }, els);
   assert.equal(els.theme.value, "amber");
   assert.equal(els.sound.checked, true);
+  assert.equal(els.demo.checked, true);
   assert.equal(els.scale.value, "3");
+});
+
+test("searchFromPrefs omits defaults and round-trips prefsFromSearch (#110)", () => {
+  assert.equal(searchFromPrefs({}), "");
+  assert.equal(
+    searchFromPrefs({
+      theme: "yellow",
+      scale: 3,
+      sound: false,
+      skipBoot: false,
+      demo: false,
+    }),
+    ""
+  );
+  assert.equal(searchFromPrefs({ theme: "amber" }), "?theme=amber");
+  assert.equal(searchFromPrefs({ scale: 4 }), "?scale=4");
+  assert.equal(searchFromPrefs({ sound: true }), "?sound=1");
+  assert.equal(searchFromPrefs({ sound: false }), "");
+  assert.equal(searchFromPrefs({ skipBoot: true }), "?boot=0");
+  assert.equal(searchFromPrefs({ demo: true }), "?demo=1");
+  assert.equal(
+    searchFromPrefs({
+      theme: "mono",
+      scale: "4",
+      sound: true,
+      skipBoot: true,
+      demo: true,
+    }),
+    "?theme=mono&scale=4&sound=1&boot=0&demo=1"
+  );
+
+  const share = "?theme=amber&scale=4&sound=1&boot=0&demo=1";
+  assert.deepEqual(prefsFromSearch(share), {
+    theme: "amber",
+    scale: "4",
+    sound: true,
+    skipBoot: true,
+    demo: true,
+  });
+  assert.equal(searchFromPrefs(prefsFromSearch(share)), share);
+  // Inbound `sound=0` means off; outbound omits the muted default.
+  assert.equal(prefsFromSearch("?sound=0").sound, false);
+  assert.equal(searchFromPrefs(prefsFromSearch("?sound=0")), "");
+});
+
+test("KeyT writeback puts theme in the URL and still persists LS (#110)", () => {
+  const select = mockThemeSelect("yellow");
+  const storage = memoryStorage();
+  const status = liveRegion("OPTIONS · MANUAL");
+  const loc = mockLocation("");
+  const hist = mockHistory(loc);
+  const readOpts = () => ({
+    theme: select.value,
+    scale: 3,
+    sound: false,
+    skipBoot: false,
+    demo: false,
+  });
+
+  handleThemeKeyDown(
+    { code: "KeyT", repeat: false, target: canvasTarget() },
+    { select, storage, status, readOpts, location: loc, history: hist }
+  );
+  assert.equal(select.value, "phosphor");
+  assert.equal(readStoredPrefs(storage).theme, "phosphor");
+  assert.match(loc.search, /theme=phosphor/);
+  assert.equal(hist.urls.length, 1);
+
+  handleGameKeyDown(mockApp(), {
+    code: "KeyD",
+    repeat: false,
+    target: canvasTarget(),
+  });
+});
+
+test("syncShareUrl writes sound/demo/boot snapshot without rAF or LS demo (#110)", () => {
+  const storage = memoryStorage();
+  persistChromeFromForm(storage, {
+    theme: "yellow",
+    scale: 3,
+    sound: true,
+    skipBoot: false,
+    demo: true,
+  });
+  assert.equal(readStoredPrefs(storage).demo, undefined);
+  assert.doesNotMatch(storage.map[PREFS_STORAGE_KEY], /demo/);
+  assert.equal(readStoredPrefs(storage).sound, true);
+
+  const loc = mockLocation("");
+  const hist = mockHistory(loc);
+  const opts = {
+    theme: "yellow",
+    scale: 3,
+    sound: true,
+    skipBoot: false,
+    demo: true,
+  };
+  assert.equal(syncShareUrl(opts, loc, hist), "?sound=1&demo=1");
+  assert.equal(loc.search, "?sound=1&demo=1");
+
+  opts.sound = false;
+  opts.demo = false;
+  assert.equal(syncShareUrl(opts, loc, hist), "");
+  assert.equal(loc.search, "");
+  assert.equal(readStoredPrefs(storage).demo, undefined);
+
+  opts.skipBoot = true;
+  assert.equal(syncShareUrl(opts, loc, hist), "?boot=0");
+  assert.match(loc.search, /boot=0/);
+  assert.doesNotMatch(loc.search, /sound=/);
+
+  // Unchanged URL must not replaceState again.
+  const calls = hist.urls.length;
+  assert.equal(syncShareUrl(opts, loc, hist), "?boot=0");
+  assert.equal(hist.urls.length, calls);
+});
+
+test("URL chrome still wins over LS; later writeback is the new snapshot (#110)", () => {
+  const storage = memoryStorage();
+  writeStoredPrefs(storage, {
+    theme: "phosphor",
+    scale: "2",
+    sound: true,
+    skipBoot: true,
+  });
+  const els = chromeEls();
+  hydrateChromePrefs({
+    storage,
+    search: "?theme=mono&scale=4",
+    els,
+  });
+  assert.equal(els.theme.value, "mono");
+  assert.equal(els.scale.value, "4");
+  assert.equal(els.sound.checked, true);
+  assert.equal(els.skipBoot.checked, true);
+
+  const loc = mockLocation("?theme=mono&scale=4");
+  const hist = mockHistory(loc);
+  const next = {
+    theme: els.theme.value,
+    scale: els.scale.value,
+    sound: false,
+    skipBoot: els.skipBoot.checked,
+    demo: false,
+  };
+  persistChromeFromForm(storage, next);
+  syncShareUrl(next, loc, hist);
+  assert.equal(loc.search, "?theme=mono&scale=4&boot=0");
+  assert.doesNotMatch(loc.search, /sound=/);
+  assert.equal(readStoredPrefs(storage).theme, "mono");
+  assert.equal(readStoredPrefs(storage).sound, false);
+  assert.equal(readStoredPrefs(storage).demo, undefined);
 });
 
 test("Sound on/off appears in #status after key m once", () => {
