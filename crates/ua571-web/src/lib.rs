@@ -5,34 +5,22 @@
 /// Parses a stored/query-string value into the exact Rust variant it names
 /// (e.g. `"AutoRemote"`), for the localStorage prefs round-trip — falls back
 /// to the type's default on anything else, so a missing/invalid/stale key
-/// never fails boot. The reverse direction (`{:?}` Debug output) already
-/// gives the matching variant name for free, since these are plain fieldless
-/// enums, so only this direction needs writing out.
+/// never fails boot.
+///
+/// The names now live in core (`wire_name` / `parse_wire_name`) because the
+/// native frontends persist the same values to their session file (#109) —
+/// one spelling, three frontends. `{:?}` still produces the same string; a
+/// core test pins that.
 fn parse_system_mode(s: &str) -> SystemMode {
-    match s {
-        "AutoRemote" => SystemMode::AutoRemote,
-        "ManOverride" => SystemMode::ManOverride,
-        "SemiAuto" => SystemMode::SemiAuto,
-        _ => SystemMode::default(),
-    }
+    SystemMode::parse_wire_name(s)
 }
 
 fn parse_weapon_status(s: &str) -> WeaponStatus {
-    match s {
-        "Safe" => WeaponStatus::Safe,
-        "Armed" => WeaponStatus::Armed,
-        _ => WeaponStatus::default(),
-    }
+    WeaponStatus::parse_wire_name(s)
 }
 
 fn parse_iff_status(s: &str) -> IffStatus {
-    match s {
-        "Search" => IffStatus::Search,
-        "Test" => IffStatus::Test,
-        "Engaged" => IffStatus::Engaged,
-        "Interrogate" => IffStatus::Interrogate,
-        _ => IffStatus::default(),
-    }
+    IffStatus::parse_wire_name(s)
 }
 
 use ua571_core::sfx::{fire_burst_pcm, FIRE_CYCLIC_HZ};
