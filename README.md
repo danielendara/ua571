@@ -9,7 +9,7 @@ Unofficial fan project. **Not affiliated with** 20th Century Studios, Disney, Fo
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
 **Live demo:** [https://ua571.danielendara.com](https://ua571.danielendara.com)  
-*(static WASM build on AWS; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md))*
+*(static WASM build on AWS; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Chrome prefs stay in the address bar as `?theme=&scale=&sound=1&boot=0&demo=1`; defaults omitted, demo is URL-only.)*
 
 Three frontends share one simulation core:
 

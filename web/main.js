@@ -119,6 +119,15 @@ export function writeStoredPrefs(storage, prefs) {
   storage.setItem(PREFS_STORAGE_KEY, JSON.stringify(next));
 }
 
+/** Built-in chrome defaults — omitted from the share URL. */
+export const DEFAULT_CHROME_PREFS = {
+  theme: "yellow",
+  scale: "3",
+  sound: false,
+  skipBoot: false,
+  demo: false,
+};
+
 /** Query params that are present override stored prefs for this visit. */
 export function prefsFromSearch(search) {
   const p =
@@ -128,9 +137,55 @@ export function prefsFromSearch(search) {
   const out = {};
   if (p.get("theme")) out.theme = p.get("theme");
   if (p.get("scale")) out.scale = p.get("scale");
+  // Present `sound` wins: `1` on, anything else (including `0`) off.
+  // Omitted `sound` leaves LS / HTML default (muted).
   if (p.has("sound")) out.sound = p.get("sound") === "1";
   if (p.has("boot")) out.skipBoot = p.get("boot") === "0";
+  if (p.get("demo") === "1") out.demo = true;
   return out;
+}
+
+/**
+ * Inverse of `prefsFromSearch`: only non-default chrome keys.
+ * Default muted sound is omitted (not `sound=0`); inbound `sound=0` still
+ * means off. Demo is URL-only (`demo=1` when on).
+ */
+export function searchFromPrefs(prefs) {
+  const p = new URLSearchParams();
+  const theme = prefs && prefs.theme;
+  if (theme && theme !== DEFAULT_CHROME_PREFS.theme) p.set("theme", theme);
+  const scale =
+    prefs && prefs.scale != null && String(prefs.scale) !== ""
+      ? String(prefs.scale)
+      : "";
+  if (scale && scale !== DEFAULT_CHROME_PREFS.scale) p.set("scale", scale);
+  if (prefs && prefs.sound) p.set("sound", "1");
+  if (prefs && prefs.skipBoot) p.set("boot", "0");
+  if (prefs && prefs.demo) p.set("demo", "1");
+  const q = p.toString();
+  return q ? `?${q}` : "";
+}
+
+/** `history.replaceState` the share query; no-ops without a history object. */
+export function syncShareUrl(prefs, location, history) {
+  const loc =
+    location || (typeof window !== "undefined" ? window.location : null);
+  const hist =
+    history || (typeof window !== "undefined" ? window.history : null);
+  if (!loc || !hist || typeof hist.replaceState !== "function") return "";
+  const search = searchFromPrefs(prefs);
+  const path = loc.pathname || "/";
+  const hash = loc.hash || "";
+  const next = `${path}${search}${hash}`;
+  const current = `${path}${loc.search || ""}${hash}`;
+  if (next !== current) {
+    try {
+      hist.replaceState(hist.state ?? null, "", next);
+    } catch (_) {
+      /* file:// or sandboxed — keep chrome usable */
+    }
+  }
+  return search;
 }
 
 export function applyPrefsToElements(prefs, els) {
@@ -142,6 +197,9 @@ export function applyPrefsToElements(prefs, els) {
   }
   if (typeof prefs.skipBoot === "boolean" && els.skipBoot) {
     els.skipBoot.checked = prefs.skipBoot;
+  }
+  if (typeof prefs.demo === "boolean" && els.demo) {
+    els.demo.checked = prefs.demo;
   }
 }
 
@@ -208,15 +266,20 @@ export function cycleThemeSelect(select) {
  * T key: cycle theme, persist chrome prefs, repaint page chrome, show hint.
  * Returns `{ theme, hint }` when handled, else `false`.
  */
-export function handleThemeKeyDown(e, { select, storage, status, readOpts }) {
+export function handleThemeKeyDown(
+  e,
+  { select, storage, status, readOpts, location, history }
+) {
   if (!e || e.code !== "KeyT" || e.repeat) return false;
   if (isChromeTarget(e.target)) return false;
   if (!select) return false;
 
   const theme = cycleThemeSelect(select);
+  const opts = readOpts ? readOpts() : { theme };
   if (storage && readOpts) {
-    persistChromeFromForm(storage, readOpts());
+    persistChromeFromForm(storage, opts);
   }
+  syncShareUrl(opts, location, history);
   applyPageTheme(theme);
   const hint = themeStatusHint(theme);
   pendingThemeHint = hint;
@@ -449,8 +512,15 @@ async function boot() {
 }
 
 function persistPagePrefs() {
-  if (typeof localStorage === "undefined") return;
-  persistChromeFromForm(localStorage, readOptions());
+  const opts = readOptions();
+  if (typeof localStorage !== "undefined") {
+    persistChromeFromForm(localStorage, opts);
+  }
+  syncShareUrl(opts);
+}
+
+function sharePagePrefs() {
+  syncShareUrl(readOptions());
 }
 
 function startPage() {
@@ -494,6 +564,7 @@ function startPage() {
   });
 
   document.getElementById("demo").addEventListener("change", (e) => {
+    sharePagePrefs();
     if (app) {
       app.set_demo(e.target.checked);
       refocusPlaySurface(document.getElementById("ua571"));
@@ -510,15 +581,13 @@ function startPage() {
     scale: document.getElementById("scale"),
     sound: document.getElementById("sound"),
     skipBoot: document.getElementById("skipBoot"),
+    demo: document.getElementById("demo"),
   };
   hydrateChromePrefs({
     storage: typeof localStorage !== "undefined" ? localStorage : null,
     search: location.search,
     els,
   });
-  // Demo is session/deep-link only — not persisted.
-  const p = new URLSearchParams(location.search);
-  if (p.get("demo") === "1") document.getElementById("demo").checked = true;
   applyPageTheme(document.getElementById("theme").value);
 
   boot();
