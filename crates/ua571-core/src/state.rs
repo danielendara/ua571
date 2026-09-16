@@ -108,9 +108,13 @@ impl AppState {
         if self.screen == screen {
             return;
         }
-        // Leaving boot only via tick/skip.
+        // Leaving boot starts the demo when configured, mirroring skip_boot()
+        // and the boot countdown in tick().
         if self.screen == Screen::Boot && screen != Screen::Boot {
             self.boot_ticks_remaining = 0;
+            if self.config.demo_on_start {
+                self.start_demo();
+            }
         }
         self.screen = screen;
         if screen != Screen::Boot {
@@ -529,6 +533,34 @@ mod tests {
         });
         app.skip_boot();
         assert!(app.demo.is_active());
+    }
+
+    #[test]
+    fn set_screen_from_boot_starts_demo_when_configured() {
+        let mut app = AppState::new(Config {
+            show_boot: true,
+            demo_on_start: true,
+            ..Config::default()
+        });
+        assert_eq!(app.screen, Screen::Boot);
+        assert!(!app.demo.is_active());
+        app.set_screen(Screen::Options);
+        assert_eq!(app.screen, Screen::Options);
+        assert_eq!(app.boot_ticks_remaining, 0);
+        assert!(app.demo.is_active());
+    }
+
+    #[test]
+    fn set_screen_from_boot_without_demo_configured_stays_manual() {
+        let mut app = AppState::new(Config {
+            show_boot: true,
+            demo_on_start: false,
+            ..Config::default()
+        });
+        app.set_screen(Screen::Fire);
+        assert_eq!(app.screen, Screen::Fire);
+        assert_eq!(app.boot_ticks_remaining, 0);
+        assert!(!app.demo.is_active());
     }
 
     #[test]
