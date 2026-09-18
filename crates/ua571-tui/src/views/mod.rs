@@ -230,6 +230,27 @@ mod help_text_tests {
     /// this also guards against the row silently growing past a reasonable
     /// console width in the future.
     #[test]
+    fn tui_help_and_web_footer_share_command_tokens() {
+        const TOKENS: &[&str] = &[
+            "fire", "options", "esc", "arm", "reload", "sentry", "demo", "sound", "theme",
+        ];
+        let tui = format!("{} {}", help_text(Screen::Fire), help_text(Screen::Options))
+            .to_ascii_lowercase();
+        let html = include_str!("../../../../web/index.html");
+        let keys_start = html
+            .find("<p class=\"keys\">")
+            .expect("web footer keys block");
+        let keys_end = html[keys_start..]
+            .find("</p>")
+            .expect("web footer keys close");
+        let web = html[keys_start..keys_start + keys_end].to_ascii_lowercase();
+        for token in TOKENS {
+            assert!(tui.contains(token), "TUI help missing {token:?}: {tui:?}");
+            assert!(web.contains(token), "web footer missing {token:?}: {web:?}");
+        }
+    }
+
+    #[test]
     fn help_text_fits_a_120_column_terminal() {
         for screen in [Screen::Fire, Screen::Options, Screen::Boot] {
             let text = help_text(screen);
