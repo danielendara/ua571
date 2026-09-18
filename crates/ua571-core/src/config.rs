@@ -51,6 +51,12 @@ impl Theme {
         Self::ALL[(i + 1) % Self::ALL.len()]
     }
 
+    /// Advance to the next theme and return its status hint.
+    pub fn cycle_with_hint(&mut self) -> &'static str {
+        *self = self.next();
+        self.status_hint()
+    }
+
     /// One-shot title/status hint after cycling theme (TUI log / pixel title bar).
     pub fn status_hint(self) -> &'static str {
         match self {
@@ -329,6 +335,15 @@ mod tests {
     fn theme_status_hint_uppercases_name() {
         assert_eq!(Theme::Yellow.status_hint(), "THEME YELLOW");
         assert_eq!(Theme::Phosphor.status_hint(), "THEME PHOSPHOR");
+    }
+
+    #[test]
+    fn cycle_with_hint_advances_and_returns_matching_hint() {
+        let mut theme = Theme::Mono;
+        assert_eq!(theme.cycle_with_hint(), "THEME YELLOW");
+        assert_eq!(theme, Theme::Yellow);
+        assert_eq!(theme.cycle_with_hint(), "THEME PHOSPHOR");
+        assert_eq!(theme, Theme::Phosphor);
     }
 
     #[test]

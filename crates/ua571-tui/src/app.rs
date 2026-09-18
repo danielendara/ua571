@@ -170,11 +170,9 @@ impl App {
                 }
             }
             KeyCode::Char('t') | KeyCode::Char('T') => {
-                self.theme = self.theme.next();
-                self.state.config.theme = self.theme.kind;
-                self.state
-                    .log
-                    .push_info(format!("THEME {}", self.theme.kind.as_str().to_uppercase()));
+                let hint = self.state.config.theme.cycle_with_hint();
+                self.theme = ConsoleTheme::from_kind(self.state.config.theme);
+                self.state.log.push_info(hint);
             }
             KeyCode::Char('f') | KeyCode::Char('F') => {
                 self.state.stop_demo();
