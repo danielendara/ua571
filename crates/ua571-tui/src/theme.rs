@@ -101,10 +101,6 @@ impl ConsoleTheme {
             .bg(self.bg)
             .add_modifier(Modifier::BOLD)
     }
-
-    pub fn next(self) -> Self {
-        Self::from_kind(self.kind.next())
-    }
 }
 
 #[cfg(test)]
@@ -121,8 +117,8 @@ mod tests {
     }
 
     #[test]
-    fn next_walks_theme_list() {
-        let t = ConsoleTheme::from_kind(Theme::Yellow).next();
+    fn from_kind_follows_theme_cycle() {
+        let t = ConsoleTheme::from_kind(Theme::Yellow.next());
         assert_eq!(t.kind, Theme::Phosphor);
     }
 }

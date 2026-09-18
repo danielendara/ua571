@@ -226,9 +226,9 @@ impl FocusTracker {
 
 /// Advance `state.config.theme`, return its minifb palette and status hint.
 fn cycle_theme(state: &mut AppState) -> (&'static str, u32, u32) {
-    state.config.theme = state.config.theme.next();
+    let hint = state.config.theme.cycle_with_hint();
     let theme = state.config.theme;
-    (theme.status_hint(), theme.on_rgb_u32(), theme.off_rgb_u32())
+    (hint, theme.on_rgb_u32(), theme.off_rgb_u32())
 }
 
 fn handle_input(
