@@ -9,6 +9,14 @@ let app = null;
 let onKey = null;
 let onKeyUp = null;
 let onVisibility = null;
+/** Bumped on every boot. A completion whose id no longer matches must not publish. */
+let bootGeneration = 0;
+/**
+ * Node tests substitute the WASM import. Production leaves this null.
+ * The loader resolves to the `Ua571Web` instance that boot created.
+ * @type {null | ((opts: object) => Promise<object>)}
+ */
+let bootInstanceLoader = null;
 /** Last values written to localStorage, so persistOptionsIfChanged only
  * writes on an actual change (reset on every (re)boot). */
 let lastPersistedOptions = { systemMode: null, weaponStatus: null, iffStatus: null };
@@ -392,6 +400,21 @@ export function shouldAdvanceFrame(hidden) {
   return !hidden;
 }
 
+/** @internal Tests inject a stand-in for `import("./pkg/ua571_web.js")`. Pass null to restore. */
+export function setBootInstanceLoaderForTests(loader) {
+  bootInstanceLoader = loader;
+}
+
+function freeWasmInstance(instance) {
+  if (instance && typeof instance.free === "function") {
+    try {
+      instance.free();
+    } catch (_) {
+      /* ignore */
+    }
+  }
+}
+
 export function handleGameKeyDown(app, e) {
   // Let the HTML chrome (checkboxes, selects, links) keep native keys.
   if (isChromeTarget(e.target)) return false;
@@ -413,33 +436,50 @@ export function handleGameKeyDown(app, e) {
   return true;
 }
 
-async function boot() {
+export async function boot() {
+  const generation = ++bootGeneration;
   const status = document.getElementById("status");
   const canvas = document.getElementById("ua571");
   const opts = readOptions();
+  const stale = () => generation !== bootGeneration;
 
   applyPageTheme(opts.theme);
   teardown();
   status.textContent = "Loading WebAssembly…";
 
   try {
-    // Cache-bust JS (and relative wasm URL via import.meta.url) after each deploy.
-    const { BUILD_ID } = await import(`./build-id.js?v=${Date.now()}`);
-    const wasm = await import(`./pkg/ua571_web.js?v=${BUILD_ID}`);
-    await wasm.default();
-    showVersion(wasm.pkg_version());
+    let created = null;
+    if (bootInstanceLoader) {
+      created = await bootInstanceLoader(opts);
+    } else {
+      // Cache-bust JS (and relative wasm URL via import.meta.url) after each deploy.
+      const { BUILD_ID } = await import(`./build-id.js?v=${Date.now()}`);
+      if (stale()) return;
+      const wasm = await import(`./pkg/ua571_web.js?v=${BUILD_ID}`);
+      if (stale()) return;
+      await wasm.default();
+      if (stale()) return;
+      showVersion(wasm.pkg_version());
+      created = new wasm.Ua571Web(
+        "ua571",
+        opts.theme,
+        opts.scale,
+        opts.demo,
+        opts.skipBoot,
+        opts.sound,
+        opts.systemMode,
+        opts.weaponStatus,
+        opts.iffStatus
+      );
+    }
+    // A newer boot may have started during an await. Free only the instance
+    // this call created — teardown of the latest boot owns the live listeners.
+    if (stale()) {
+      freeWasmInstance(created);
+      return;
+    }
 
-    app = new wasm.Ua571Web(
-      "ua571",
-      opts.theme,
-      opts.scale,
-      opts.demo,
-      opts.skipBoot,
-      opts.sound,
-      opts.systemMode,
-      opts.weaponStatus,
-      opts.iffStatus
-    );
+    app = created;
     lastPersistedOptions = { systemMode: null, weaponStatus: null, iffStatus: null };
 
     onKey = (e) => {
@@ -505,6 +545,7 @@ async function boot() {
 
     refocusPlaySurface(canvas);
   } catch (err) {
+    if (stale()) return;
     console.error(err);
     status.textContent =
       "Failed to load WASM. Run: ./scripts/build-web.sh  then serve the web/ folder.";

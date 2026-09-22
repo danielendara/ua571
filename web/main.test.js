@@ -31,6 +31,8 @@ import {
   syncChromeFromApp,
   writeLiveRegion,
   writeStoredPrefs,
+  boot,
+  setBootInstanceLoaderForTests,
 } from "./main.js";
 
 const html = readFileSync(
@@ -730,6 +732,260 @@ test("Sound on/off appears in #status after key m once", () => {
   assert.match(status.textContent, /MUTE/);
   assert.doesNotMatch(status.textContent, /Sound on/);
   assert.equal(sound.checked, false);
+});
+
+function installBootDom() {
+  const listeners = { keydown: [], keyup: [], visibilitychange: [] };
+  const els = {};
+  function makeEl(id, extra = {}) {
+    const node = {
+      id,
+      value: extra.value ?? "",
+      checked: Boolean(extra.checked),
+      textContent: extra.textContent ?? "",
+      dataset: {},
+      focusCount: 0,
+      focus() {
+        this.focusCount += 1;
+      },
+      addEventListener() {},
+      removeEventListener() {},
+    };
+    els[id] = node;
+    return node;
+  }
+  makeEl("status", { textContent: "Loading WebAssembly…" });
+  makeEl("ua571");
+  makeEl("theme", { value: "yellow" });
+  makeEl("scale", { value: "3" });
+  makeEl("demo");
+  makeEl("skipBoot");
+  makeEl("sound");
+
+  const prev = {
+    document: globalThis.document,
+    window: globalThis.window,
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+    cancelAnimationFrame: globalThis.cancelAnimationFrame,
+  };
+  const rafs = [];
+  let nextRaf = 1;
+  globalThis.document = {
+    body: { dataset: {} },
+    hidden: false,
+    getElementById(id) {
+      return els[id] || null;
+    },
+    addEventListener(type, fn) {
+      (listeners[type] ||= []).push(fn);
+    },
+    removeEventListener(type, fn) {
+      const list = listeners[type] || [];
+      const i = list.indexOf(fn);
+      if (i >= 0) list.splice(i, 1);
+    },
+  };
+  globalThis.window = {
+    addEventListener(type, fn) {
+      (listeners[type] ||= []).push(fn);
+    },
+    removeEventListener(type, fn) {
+      const list = listeners[type] || [];
+      const i = list.indexOf(fn);
+      if (i >= 0) list.splice(i, 1);
+    },
+  };
+  globalThis.requestAnimationFrame = (cb) => {
+    const id = nextRaf++;
+    rafs.push({ id, cb });
+    return id;
+  };
+  globalThis.cancelAnimationFrame = (id) => {
+    const i = rafs.findIndex((r) => r.id === id);
+    if (i >= 0) rafs.splice(i, 1);
+  };
+  return {
+    els,
+    listeners,
+    rafs,
+    restore() {
+      if (prev.document === undefined) delete globalThis.document;
+      else globalThis.document = prev.document;
+      if (prev.window === undefined) delete globalThis.window;
+      else globalThis.window = prev.window;
+      if (prev.requestAnimationFrame === undefined) delete globalThis.requestAnimationFrame;
+      else globalThis.requestAnimationFrame = prev.requestAnimationFrame;
+      if (prev.cancelAnimationFrame === undefined) delete globalThis.cancelAnimationFrame;
+      else globalThis.cancelAnimationFrame = prev.cancelAnimationFrame;
+    },
+  };
+}
+
+function wasmStandIn(id) {
+  const inst = {
+    id,
+    freed: false,
+    keys: [],
+    frames: 0,
+    free() {
+      this.freed = true;
+    },
+    key_down(code) {
+      this.keys.push(code);
+    },
+    key_up() {},
+    frame() {
+      this.frames += 1;
+    },
+    screen_name() {
+      return "fire";
+    },
+    status_line() {
+      return "READY";
+    },
+    get sound_enabled() {
+      return false;
+    },
+    get demo_active() {
+      return false;
+    },
+    get should_quit() {
+      return false;
+    },
+    get system_mode() {
+      return "";
+    },
+    get weapon_status() {
+      return "";
+    },
+    get iff_status() {
+      return "";
+    },
+  };
+  return inst;
+}
+
+test("overlapping boots free the older instance and leave one key listener pair", async () => {
+  const dom = installBootDom();
+  const gates = [];
+  const instances = [];
+  setBootInstanceLoaderForTests(
+    () =>
+      new Promise((resolve) => {
+        const inst = wasmStandIn(instances.length + 1);
+        instances.push(inst);
+        gates.push(() => resolve(inst));
+      })
+  );
+  try {
+    const first = boot();
+    const second = boot();
+    gates[0]();
+    await first;
+    assert.equal(instances[0].freed, true);
+    assert.equal(dom.listeners.keydown.length, 0);
+    gates[1]();
+    await second;
+    assert.equal(instances[1].freed, false);
+    assert.equal(dom.listeners.keydown.length, 1);
+    assert.equal(dom.listeners.keyup.length, 1);
+
+    dom.listeners.keydown[0]({
+      code: "KeyF",
+      repeat: false,
+      target: { closest: () => null },
+    });
+    assert.deepEqual(instances[0].keys, []);
+    assert.deepEqual(instances[1].keys, ["KeyF"]);
+  } finally {
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
+test("an older boot that finishes last frees its instance and does not stack listeners", async () => {
+  const dom = installBootDom();
+  const gates = [];
+  const instances = [];
+  setBootInstanceLoaderForTests(
+    () =>
+      new Promise((resolve) => {
+        const inst = wasmStandIn(instances.length + 1);
+        instances.push(inst);
+        gates.push(() => resolve(inst));
+      })
+  );
+  try {
+    const first = boot();
+    const second = boot();
+    gates[1]();
+    await second;
+    assert.equal(instances[1].freed, false);
+    assert.equal(dom.listeners.keydown.length, 1);
+    gates[0]();
+    await first;
+    assert.equal(instances[0].freed, true);
+    assert.equal(instances[1].freed, false);
+    assert.equal(dom.listeners.keydown.length, 1);
+    assert.equal(dom.listeners.keyup.length, 1);
+    dom.listeners.keydown[0]({
+      code: "KeyM",
+      repeat: false,
+      target: { closest: () => null },
+    });
+    assert.deepEqual(instances[0].keys, []);
+    assert.deepEqual(instances[1].keys, ["KeyM"]);
+  } finally {
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
+test("a single boot focuses the canvas and runs the frame loop", async () => {
+  const dom = installBootDom();
+  const inst = wasmStandIn(1);
+  setBootInstanceLoaderForTests(async () => inst);
+  try {
+    await boot();
+    assert.equal(inst.freed, false);
+    assert.equal(dom.els.ua571.focusCount, 1);
+    assert.equal(dom.listeners.keydown.length, 1);
+    assert.equal(dom.listeners.keyup.length, 1);
+    assert.equal(dom.rafs.length, 1);
+    dom.rafs[0].cb();
+    assert.equal(inst.frames, 1);
+    assert.match(dom.els.status.textContent, /FIRE · READY/);
+  } finally {
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
+test("a failed boot shows the load-failure status and does not attach game listeners", async () => {
+  const dom = installBootDom();
+  const errors = [];
+  const orig = console.error;
+  console.error = (...args) => {
+    errors.push(args);
+  };
+  setBootInstanceLoaderForTests(async () => {
+    throw new Error("wasm missing");
+  });
+  try {
+    await boot();
+    assert.equal(dom.listeners.keydown.length, 0);
+    assert.equal(dom.listeners.keyup.length, 0);
+    assert.equal(dom.rafs.length, 0);
+    assert.equal(dom.els.ua571.focusCount, 0);
+    assert.match(dom.els.status.textContent, /Failed to load WASM/);
+    assert.match(dom.els.status.textContent, /build-web\.sh/);
+    assert.equal(errors.length, 1);
+    assert.doesNotMatch(dom.els.status.textContent, /Loading WebAssembly/);
+  } finally {
+    console.error = orig;
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
 });
 
 test("narrow chrome CSS wraps controls at 480px without overflow", () => {
