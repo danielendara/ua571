@@ -340,15 +340,31 @@ impl Ua571Web {
         self.dirty = true;
     }
 
+    /// Sound was requested but no audio context is running.
+    ///
+    /// `set_sound(false)` announces "Sound off". Call this after that so the
+    /// live region says the context never started instead. Does not touch
+    /// hidden-tab mute.
+    pub fn sound_did_not_start(&mut self) {
+        mark_sound_did_not_start(&mut self.state, &mut self.status_hint);
+        self.dirty = true;
+    }
+
     /// Create (if needed) and await resume. Must run inside a user gesture.
-    pub async fn unlock_audio(&mut self) -> Result<(), JsValue> {
+    ///
+    /// * `Ok(true)` — a context exists and `resume()` resolved.
+    /// * `Ok(false)` — `AudioContext::new()` failed, so there is nothing to resume.
+    /// * `Err` — `resume()` rejected.
+    ///
+    /// Does not change `config.sound` or hidden-tab mute (`set_hidden`).
+    pub async fn unlock_audio(&mut self) -> Result<bool, JsValue> {
         self.ensure_audio();
         let Some(ac) = self.audio.as_ref() else {
-            return Ok(());
+            return Ok(false);
         };
         let p = ac.resume()?;
         JsFuture::from(p).await?;
-        Ok(())
+        Ok(true)
     }
 
     /// Short status line for HTML chrome.
@@ -496,6 +512,14 @@ fn apply_demo_checkbox(state: &mut AppState, on: bool) {
 
 fn is_confirm_code(code: &str) -> bool {
     matches!(code, "Enter" | "NumpadEnter" | "Space")
+}
+
+/// Revert a sound enable that never got a running `AudioContext`.
+fn mark_sound_did_not_start(state: &mut AppState, hint: &mut Option<&'static str>) {
+    if state.config.sound {
+        state.toggle_sound();
+    }
+    *hint = Some("Sound did not start");
 }
 
 /// Space/Enter OS-repeat may fire only if the originating keydown was on Fire.
@@ -902,6 +926,30 @@ mod tests {
         assert!(
             !line.contains("Demo on") && !line.contains("Demo off"),
             "hint should clear on the next action: {line}"
+        );
+    }
+
+    #[test]
+    fn failed_sound_unlock_mutes_and_does_not_say_sound_on() {
+        let mut state = web_state();
+        state.toggle_sound();
+        let mut hint = Some("Sound on");
+        assert!(state.config.sound);
+        assert_eq!(hint, Some("Sound on"));
+        // Page calls set_sound(false) first ("Sound off"), then replaces the hint.
+        state.toggle_sound();
+        hint = Some("Sound off");
+        mark_sound_did_not_start(&mut state, &mut hint);
+        assert!(!state.config.sound);
+        assert_eq!(hint, Some("Sound did not start"));
+        let line = super::chrome_status_line(&state, hint);
+        assert!(
+            line.contains("MUTE") && line.contains("Sound did not start"),
+            "{line}"
+        );
+        assert!(
+            !line.contains("Sound on") && !line.contains("Sound off"),
+            "failed unlock must not look like a successful mute toggle: {line}"
         );
     }
 

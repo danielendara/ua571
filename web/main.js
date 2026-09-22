@@ -415,6 +415,32 @@ function freeWasmInstance(instance) {
   }
 }
 
+/**
+ * Sound checkbox. A failed unlock (no context, or resume() rejected) turns
+ * sound back off and says it did not start. Hidden-tab mute is unchanged.
+ */
+export async function applySoundChoice(app, on, els) {
+  if (!app || typeof app.set_sound !== "function") return { on: false, started: false };
+  app.set_sound(Boolean(on));
+  let started = false;
+  if (on) {
+    try {
+      started = (await app.unlock_audio()) === true;
+    } catch (_) {
+      started = false;
+    }
+    if (!started) {
+      app.set_sound(false);
+      if (typeof app.sound_did_not_start === "function") app.sound_did_not_start();
+    }
+  }
+  if (els && els.sound) els.sound.checked = Boolean(app.sound_enabled);
+  if (els && els.status && typeof app.status_line === "function") {
+    writeLiveRegion(els.status, pendingThemeHint || formatChromeStatus(app));
+  }
+  return { on: Boolean(app.sound_enabled), started };
+}
+
 export function handleGameKeyDown(app, e) {
   // Let the HTML chrome (checkboxes, selects, links) keep native keys.
   if (isChromeTarget(e.target)) return false;
@@ -592,14 +618,10 @@ function startPage() {
   document.getElementById("sound").addEventListener("change", async (e) => {
     persistPagePrefs();
     if (app) {
-      app.set_sound(e.target.checked);
-      if (e.target.checked) {
-        try {
-          await app.unlock_audio();
-        } catch (_) {
-          /* autoplay policy — next key still retries */
-        }
-      }
+      await applySoundChoice(app, e.target.checked, {
+        sound: e.target,
+        status: document.getElementById("status"),
+      });
       refocusPlaySurface(document.getElementById("ua571"));
     }
   });

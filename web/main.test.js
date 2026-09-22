@@ -31,6 +31,7 @@ import {
   syncChromeFromApp,
   writeLiveRegion,
   writeStoredPrefs,
+  applySoundChoice,
   boot,
   setBootInstanceLoaderForTests,
 } from "./main.js";
@@ -986,6 +987,93 @@ test("a failed boot shows the load-failure status and does not attach game liste
     setBootInstanceLoaderForTests(null);
     dom.restore();
   }
+});
+
+function mockSoundApp(unlock) {
+  let sound = false;
+  let hint = null;
+  return {
+    set_sound(on) {
+      if (on !== sound) {
+        sound = on;
+        hint = on ? "Sound on" : "Sound off";
+      }
+    },
+    sound_did_not_start() {
+      sound = false;
+      hint = "Sound did not start";
+    },
+    unlock_audio: unlock,
+    get sound_enabled() {
+      return sound;
+    },
+    screen_name() {
+      return "options";
+    },
+    get should_quit() {
+      return false;
+    },
+    status_line() {
+      const audio = sound ? "SND" : "MUTE";
+      return hint ? `S1 · ${audio} · ${hint}` : `S1 · ${audio}`;
+    },
+  };
+}
+
+test("turning sound on keeps Sound on when resume resolves", async () => {
+  const app = mockSoundApp(async () => true);
+  const status = liveRegion("Loading WebAssembly…");
+  const sound = { checked: true };
+  const result = await applySoundChoice(app, true, { sound, status });
+  assert.equal(result.started, true);
+  assert.equal(result.on, true);
+  assert.equal(sound.checked, true);
+  assert.equal(app.sound_enabled, true);
+  assert.match(status.textContent, /Sound on/);
+  assert.match(status.textContent, /SND/);
+  assert.doesNotMatch(status.textContent, /did not start/);
+});
+
+test("AudioContext construction failure leaves sound off", async () => {
+  const app = mockSoundApp(async () => false);
+  const status = liveRegion("S1 · MUTE");
+  const sound = { checked: true };
+  await applySoundChoice(app, true, { sound, status });
+  assert.equal(sound.checked, false);
+  assert.equal(app.sound_enabled, false);
+  assert.match(status.textContent, /did not start/i);
+  assert.match(status.textContent, /MUTE/);
+  assert.doesNotMatch(status.textContent, /Sound on/);
+  assert.doesNotMatch(status.textContent, /Sound off/);
+});
+
+test("a rejected resume() leaves sound off and says it did not start", async () => {
+  const app = mockSoundApp(async () => {
+    throw new Error("resume rejected");
+  });
+  const status = liveRegion("S1 · MUTE");
+  const sound = { checked: true };
+  await applySoundChoice(app, true, { sound, status });
+  assert.equal(sound.checked, false);
+  assert.equal(app.sound_enabled, false);
+  assert.match(status.textContent, /did not start/i);
+  assert.match(status.textContent, /MUTE/);
+  assert.doesNotMatch(status.textContent, /Sound on/);
+  assert.doesNotMatch(status.textContent, /Sound off/);
+});
+
+test("unchecking Sound mutes and shows Sound off", async () => {
+  const app = mockSoundApp(async () => true);
+  const status = liveRegion("");
+  const sound = { checked: true };
+  await applySoundChoice(app, true, { sound, status });
+  await applySoundChoice(app, false, { sound, status });
+  assert.equal(sound.checked, false);
+  assert.equal(app.sound_enabled, false);
+  assert.match(status.textContent, /Sound off/);
+  assert.match(status.textContent, /MUTE/);
+  assert.doesNotMatch(status.textContent, /did not start/);
+  assert.doesNotMatch(status.textContent, /Sound on/);
 });
 
 test("narrow chrome CSS wraps controls at 480px without overflow", () => {
