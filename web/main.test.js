@@ -31,6 +31,8 @@ import {
   syncChromeFromApp,
   writeLiveRegion,
   writeStoredPrefs,
+  wasmLoadFailureStatus,
+  startPage,
   applySoundChoice,
   boot,
   setBootInstanceLoaderForTests,
@@ -978,8 +980,9 @@ test("a failed boot shows the load-failure status and does not attach game liste
     assert.equal(dom.listeners.keyup.length, 0);
     assert.equal(dom.rafs.length, 0);
     assert.equal(dom.els.ua571.focusCount, 0);
-    assert.match(dom.els.status.textContent, /Failed to load WASM/);
-    assert.match(dom.els.status.textContent, /build-web\.sh/);
+    assert.match(dom.els.status.textContent, /Console did not load/);
+    assert.match(dom.els.status.textContent, /Restart/);
+    assert.doesNotMatch(dom.els.status.textContent, /build-web\.sh/);
     assert.equal(errors.length, 1);
     assert.doesNotMatch(dom.els.status.textContent, /Loading WebAssembly/);
   } finally {
@@ -1087,4 +1090,240 @@ test("narrow chrome CSS wraps controls at 480px without overflow", () => {
   assert.match(block, /\.controls/);
   assert.match(block, /\.status/);
   assert.doesNotMatch(css, /overflow-x:\s*scroll/);
+});
+
+test("wasm load failure text is player-facing except on localhost", () => {
+  assert.match(html, /id="status"/);
+  assert.match(html, /role="status"/);
+  assert.equal((html.match(/id="restart"/g) || []).length, 1);
+
+  for (const host of ["ua571.danielendara.com", "example.com", ""]) {
+    const text = wasmLoadFailureStatus(host);
+    assert.match(text, /Restart/);
+    assert.match(text, /did not load/i);
+    assert.doesNotMatch(text, /build-web\.sh/);
+  }
+  for (const host of ["localhost", "127.0.0.1"]) {
+    const text = wasmLoadFailureStatus(host);
+    assert.match(text, /Restart/);
+    assert.match(text, /\.\/scripts\/build-web\.sh/);
+  }
+});
+
+function installBootPageDom() {
+  const listeners = { keydown: [], keyup: [] };
+  const els = {};
+  function makeEl(id, extra = {}) {
+    const handlers = [];
+    const node = {
+      id,
+      value: extra.value ?? "",
+      checked: Boolean(extra.checked),
+      textContent: extra.textContent ?? "",
+      dataset: {},
+      hidden: extra.hidden ?? false,
+      href: "",
+      focus() {},
+      addEventListener(type, fn) {
+        handlers.push({ type, fn });
+      },
+      removeEventListener() {},
+      click() {
+        for (const h of handlers) if (h.type === "click") h.fn();
+      },
+    };
+    els[id] = node;
+    return node;
+  }
+  makeEl("status", { textContent: "Loading WebAssembly…" });
+  makeEl("ua571");
+  makeEl("theme", { value: "yellow" });
+  makeEl("scale", { value: "3" });
+  makeEl("demo");
+  makeEl("skipBoot");
+  makeEl("sound");
+  makeEl("restart");
+  makeEl("app-version-wrap", { hidden: true });
+  makeEl("app-version");
+
+  const prev = {
+    document: globalThis.document,
+    window: globalThis.window,
+    location: globalThis.location,
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+    cancelAnimationFrame: globalThis.cancelAnimationFrame,
+  };
+  const rafs = [];
+  let nextRaf = 1;
+  globalThis.document = {
+    body: { dataset: {} },
+    hidden: false,
+    getElementById(id) {
+      return els[id] || null;
+    },
+    querySelector() {
+      return null;
+    },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  globalThis.window = {
+    addEventListener(type, fn) {
+      (listeners[type] ||= []).push(fn);
+    },
+    removeEventListener(type, fn) {
+      const list = listeners[type] || [];
+      const i = list.indexOf(fn);
+      if (i >= 0) list.splice(i, 1);
+    },
+    location: null,
+    history: { replaceState() {}, state: null },
+  };
+  globalThis.requestAnimationFrame = (cb) => {
+    const id = nextRaf++;
+    rafs.push({ id, cb });
+    return id;
+  };
+  globalThis.cancelAnimationFrame = (id) => {
+    const i = rafs.findIndex((r) => r.id === id);
+    if (i >= 0) rafs.splice(i, 1);
+  };
+  return {
+    els,
+    listeners,
+    rafs,
+    setHost(hostname) {
+      globalThis.location = {
+        hostname,
+        search: "",
+        pathname: "/",
+        hash: "",
+      };
+      globalThis.window.location = globalThis.location;
+    },
+    restore() {
+      const put = (key, value) => {
+        if (value === undefined) delete globalThis[key];
+        else globalThis[key] = value;
+      };
+      put("document", prev.document);
+      put("window", prev.window);
+      put("location", prev.location);
+      put("requestAnimationFrame", prev.requestAnimationFrame);
+      put("cancelAnimationFrame", prev.cancelAnimationFrame);
+    },
+  };
+}
+
+function bootStandIn() {
+  return {
+    free() {},
+    key_down() {},
+    key_up() {},
+    frame() {},
+    screen_name() {
+      return "fire";
+    },
+    status_line() {
+      return "READY";
+    },
+    get sound_enabled() {
+      return false;
+    },
+    get demo_active() {
+      return false;
+    },
+    get should_quit() {
+      return false;
+    },
+    get system_mode() {
+      return "";
+    },
+    get weapon_status() {
+      return "";
+    },
+    get iff_status() {
+      return "";
+    },
+  };
+}
+
+async function bootFailure(hostname) {
+  const dom = installBootPageDom();
+  dom.setHost(hostname);
+  const errors = [];
+  const orig = console.error;
+  console.error = (...args) => {
+    errors.push(args);
+  };
+  setBootInstanceLoaderForTests(async () => {
+    throw new Error("wasm missing");
+  });
+  try {
+    await boot();
+    return { dom, errors };
+  } finally {
+    console.error = orig;
+  }
+}
+
+test("a rejected boot on a public host mentions Restart and not the build script", async () => {
+  const { dom, errors } = await bootFailure("ua571.danielendara.com");
+  try {
+    assert.match(dom.els.status.textContent, /Restart/);
+    assert.match(dom.els.status.textContent, /did not load/i);
+    assert.doesNotMatch(dom.els.status.textContent, /build-web\.sh/);
+    assert.doesNotMatch(dom.els.status.textContent, /Loading WebAssembly/);
+    assert.equal(errors.length, 1);
+    assert.equal(dom.listeners.keydown?.length || 0, 0);
+  } finally {
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
+test("a rejected boot on localhost still mentions the build script", async () => {
+  const { dom, errors } = await bootFailure("localhost");
+  try {
+    assert.match(dom.els.status.textContent, /Restart/);
+    assert.match(dom.els.status.textContent, /\.\/scripts\/build-web\.sh/);
+    assert.doesNotMatch(dom.els.status.textContent, /Loading WebAssembly/);
+    assert.equal(errors.length, 1);
+  } finally {
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
+test("Restart after a failed load calls boot again and success replaces the failure", async () => {
+  const dom = installBootPageDom();
+  dom.setHost("ua571.danielendara.com");
+  let calls = 0;
+  const orig = console.error;
+  console.error = () => {};
+  setBootInstanceLoaderForTests(async () => {
+    calls += 1;
+    if (calls === 1) throw new Error("wasm missing");
+    return bootStandIn();
+  });
+  try {
+    startPage();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(dom.els.status.textContent, /Restart/);
+    assert.doesNotMatch(dom.els.status.textContent, /build-web\.sh/);
+    assert.equal(calls, 1);
+
+    dom.els.restart.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(calls, 2);
+    assert.ok(dom.rafs.length >= 1);
+    dom.rafs[dom.rafs.length - 1].cb();
+    assert.match(dom.els.status.textContent, /FIRE · READY/);
+    assert.doesNotMatch(dom.els.status.textContent, /did not load/i);
+    assert.doesNotMatch(dom.els.status.textContent, /Loading WebAssembly/);
+  } finally {
+    console.error = orig;
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
 });
