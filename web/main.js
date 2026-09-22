@@ -400,6 +400,15 @@ export function shouldAdvanceFrame(hidden) {
   return !hidden;
 }
 
+/** Player-facing WASM load failure. Local dev also gets the build-script hint. */
+export function wasmLoadFailureStatus(hostname) {
+  const player = "Console did not load. Use Restart to try again.";
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return `${player} Run: ./scripts/build-web.sh  then serve the web/ folder.`;
+  }
+  return player;
+}
+
 /** @internal Tests inject a stand-in for `import("./pkg/ua571_web.js")`. Pass null to restore. */
 export function setBootInstanceLoaderForTests(loader) {
   bootInstanceLoader = loader;
@@ -573,8 +582,9 @@ export async function boot() {
   } catch (err) {
     if (stale()) return;
     console.error(err);
-    status.textContent =
-      "Failed to load WASM. Run: ./scripts/build-web.sh  then serve the web/ folder.";
+    const hostname =
+      typeof location !== "undefined" && location ? location.hostname : "";
+    status.textContent = wasmLoadFailureStatus(hostname);
   }
 }
 
@@ -590,7 +600,7 @@ function sharePagePrefs() {
   syncShareUrl(readOptions());
 }
 
-function startPage() {
+export function startPage() {
   const canvas = document.getElementById("ua571");
   const skip = document.querySelector("a.skip-link");
   if (skip) {
