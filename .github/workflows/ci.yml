@@ -153,6 +153,17 @@ jobs:
           test -f web/build-id.js
           wasm-bindgen --version | grep -F "${WASM_BINDGEN_VERSION}"
 
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Chrome tests
+        run: npm --prefix web test
+
   infra:
     name: infra
     runs-on: ubuntu-latest
