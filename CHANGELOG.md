@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Web: on-screen touch pad below the canvas (← → section, ↑ ↓ select, press-and-hold Fire, Arm, Reload, Options). It's shown by default on `(pointer: coarse)` and toggled from the header on desktop. Buttons send the same key codes through `key_down`/`key_up`, so the POST/Quit/fire-denial rules are unchanged. Hold-to-fire stops on release, cancel, leave, and tab hide. The WASM app gains an `armed` getter for the Arm button's `aria-pressed` (#132)
 - TUI + pixel: saved console session (`~/.config/ua571/session.toml`) remembering theme, sound, and weapon / IFF / system mode — parity with the web frontend's `localStorage` prefs. Written atomically on clean exit, separate from the hand-written `config.toml`. Precedence: CLI flag → saved session → config file → defaults. `--no-save-session` opts out (#109)
 
 - CI: Ubuntu `cargo llvm-cov --workspace` with a 65% line floor (measured ~69%) and coverage artifact upload

@@ -292,6 +292,12 @@ impl Ua571Web {
         demo_checkbox_on(&self.state)
     }
 
+    /// Whether the active sentry is armed (touch pad Arm `aria-pressed`, #132).
+    #[wasm_bindgen(getter)]
+    pub fn armed(&self) -> bool {
+        self.state.active_sentry().is_armed()
+    }
+
     /// Start or stop demo auto-play without rebuilding the WASM app.
     ///
     /// During POST this only records the preference; auto-play still starts
