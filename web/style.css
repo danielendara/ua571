@@ -231,6 +231,99 @@ footer {
   color: var(--fg);
 }
 
+/* On-screen touch pad (#132): below the canvas, theme colours via vars. */
+.touch-pad {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  width: min(100%, 960px);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.touch-pad[hidden] {
+  display: none;
+}
+
+.touch-pad button {
+  margin: 0;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.4rem 0.7rem;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-pad button:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.touch-pad button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.touch-pad button[aria-pressed="true"],
+.touch-pad button.is-held {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+.pad-dir {
+  display: grid;
+  grid-template-columns: repeat(3, 48px);
+  grid-template-rows: repeat(3, 48px);
+  gap: 0.25rem;
+}
+
+.pad-dir button {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  font-size: 1.1rem;
+}
+
+.pad-up {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.pad-left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.pad-right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.pad-down {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.pad-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(44px, auto));
+  gap: 0.4rem;
+}
+
+.pad-fire {
+  grid-row: span 2;
+  min-width: 72px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
 @media (max-width: 640px) {
   .controls label.check {
     margin-top: 0;
@@ -311,5 +404,19 @@ footer {
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem 0.5rem;
+  }
+
+  .touch-pad {
+    width: 100%;
+    gap: 0.75rem;
+  }
+
+  .pad-actions {
+    grid-template-columns: repeat(2, minmax(44px, 1fr));
+  }
+
+  .pad-fire {
+    grid-row: auto;
+    grid-column: 1 / -1;
   }
 }

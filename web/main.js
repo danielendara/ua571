@@ -22,6 +22,8 @@ let bootInstanceLoader = null;
 let lastPersistedOptions = { systemMode: null, weaponStatus: null, iffStatus: null };
 /** One-shot status after T cycles theme (cleared on the next game key). */
 let pendingThemeHint = null;
+/** On-screen pad hold-to-fire controller; stopped on teardown and when hidden. */
+const fireHold = createFireHold(() => app);
 
 function readOptions() {
   // System mode / weapon status / IFF have no HTML chrome element (they're
@@ -45,6 +47,7 @@ function readOptions() {
 }
 
 function teardown() {
+  fireHold.stop();
   if (raf) cancelAnimationFrame(raf);
   raf = 0;
   if (onKey) {
@@ -471,6 +474,191 @@ export function handleGameKeyDown(app, e) {
   return true;
 }
 
+/**
+ * On-screen touch pad (#132). Every button sends the same `KeyboardEvent.code`
+ * through `key_down` / `key_up` as the matching key, so all game rules (demo
+ * stop, fire denial, CRITICAL/EMPTY/LINK DOWN) stay in WASM.
+ */
+export const TOUCH_PAD_ACTIONS = Object.freeze({
+  left: "ArrowLeft",
+  right: "ArrowRight",
+  up: "ArrowUp",
+  down: "ArrowDown",
+  fire: "Space",
+  arm: "KeyA",
+  reload: "KeyR",
+  panel: "Escape",
+});
+
+/** Hold-to-fire mimics OS key repeat: first repeat after a delay, then steady. */
+export const FIRE_REPEAT_DELAY_MS = 500;
+export const FIRE_REPEAT_INTERVAL_MS = 33;
+
+/** Media query that shows the pad by default (phones / tablets). */
+export const TOUCH_PAD_DEFAULT_QUERY = "(pointer: coarse)";
+
+/** The pad does nothing during POST, after Quit, or before WASM loads. */
+export function padIsInert(app) {
+  if (!app) return true;
+  if (app.should_quit) return true;
+  return typeof app.screen_name === "function" && app.screen_name() === "boot";
+}
+
+/** A tap: one non-repeat keydown + keyup, exactly like a key press. */
+export function pressPadAction(app, action) {
+  const code = TOUCH_PAD_ACTIONS[action];
+  if (!code || padIsInert(app)) return false;
+  pendingThemeHint = null;
+  app.key_down(code, false);
+  app.key_up(code);
+  return true;
+}
+
+/**
+ * Press-and-hold Fire. `start` sends the originating Space keydown, then
+ * repeat keydowns (WASM only honours them if the origin was on Fire). `stop`
+ * is idempotent and always sends the keyup, so fire cannot stick on.
+ */
+export function createFireHold(getApp, timers = globalThis) {
+  let delayId = null;
+  let intervalId = null;
+  let holding = null;
+  const clear = () => {
+    if (delayId !== null) timers.clearTimeout(delayId);
+    if (intervalId !== null) timers.clearInterval(intervalId);
+    delayId = null;
+    intervalId = null;
+  };
+  const hold = {
+    active: () => holding !== null,
+    start() {
+      if (holding) return false;
+      const app = getApp();
+      if (padIsInert(app)) return false;
+      pendingThemeHint = null;
+      holding = app;
+      app.key_down(TOUCH_PAD_ACTIONS.fire, false);
+      delayId = timers.setTimeout(() => {
+        delayId = null;
+        intervalId = timers.setInterval(() => {
+          const current = getApp();
+          if (current !== holding || padIsInert(current)) {
+            hold.stop();
+            return;
+          }
+          current.key_down(TOUCH_PAD_ACTIONS.fire, true);
+        }, FIRE_REPEAT_INTERVAL_MS);
+      }, FIRE_REPEAT_DELAY_MS);
+      return true;
+    },
+    stop() {
+      clear();
+      if (!holding) return false;
+      const app = holding;
+      holding = null;
+      try {
+        app.key_up(TOUCH_PAD_ACTIONS.fire);
+      } catch (_) {
+        /* app freed mid-hold (reboot) — nothing left to release */
+      }
+      return true;
+    },
+  };
+  return hold;
+}
+
+function padButton(target) {
+  return target && target.closest ? target.closest("[data-pad-action]") : null;
+}
+
+/**
+ * Wire the pad. Pointer presses act on `pointerdown` and never move focus
+ * (keyboard play stays on the canvas); keyboard activation of a focused pad
+ * button (`click` with `detail === 0`) taps and refocuses the canvas (#84).
+ */
+export function bindTouchPad(root, { getApp, canvas, hold }) {
+  if (!root || typeof root.addEventListener !== "function") return () => {};
+  const onPointerDown = (e) => {
+    const button = padButton(e.target);
+    if (!button || button.disabled) return;
+    if (typeof e.preventDefault === "function") e.preventDefault();
+    const action = button.dataset.padAction;
+    if (action === "fire") {
+      if (hold.start() && button.classList) button.classList.add("is-held");
+    } else {
+      pressPadAction(getApp(), action);
+    }
+  };
+  const release = (e) => {
+    const button = padButton(e.target);
+    if (!button || button.dataset.padAction !== "fire") return;
+    hold.stop();
+    if (button.classList) button.classList.remove("is-held");
+  };
+  const onClick = (e) => {
+    const button = padButton(e.target);
+    if (!button || e.detail !== 0) return;
+    pressPadAction(getApp(), button.dataset.padAction);
+    refocusPlaySurface(canvas);
+  };
+  const onContextMenu = (e) => {
+    if (padButton(e.target) && typeof e.preventDefault === "function") e.preventDefault();
+  };
+  const handlers = [
+    ["pointerdown", onPointerDown],
+    ["pointerup", release],
+    ["pointercancel", release],
+    ["pointerleave", release],
+    ["click", onClick],
+    ["contextmenu", onContextMenu],
+  ];
+  // pointerleave does not bubble; capture it on the pad root.
+  for (const [type, fn] of handlers) root.addEventListener(type, fn, type === "pointerleave");
+  return () => {
+    hold.stop();
+    for (const [type, fn] of handlers) {
+      root.removeEventListener(type, fn, type === "pointerleave");
+    }
+  };
+}
+
+function setIfChanged(el, attr, value) {
+  if (!el || typeof el.getAttribute !== "function") return;
+  if (el.getAttribute(attr) !== value) el.setAttribute(attr, value);
+}
+
+/** Per-frame pad state: disabled while inert, `aria-pressed` on toggles. */
+export function syncTouchPad(app, root) {
+  if (!root || typeof root.querySelectorAll !== "function") return;
+  const inert = padIsInert(app);
+  for (const button of root.querySelectorAll("[data-pad-action]")) {
+    if (button.disabled !== inert) button.disabled = inert;
+  }
+  const panel = root.querySelector('[data-pad-action="panel"]');
+  if (panel && app && typeof app.screen_name === "function") {
+    setIfChanged(panel, "aria-pressed", String(app.screen_name() === "options"));
+  }
+  const arm = root.querySelector('[data-pad-action="arm"]');
+  if (arm && app && typeof app.armed === "boolean") {
+    setIfChanged(arm, "aria-pressed", String(app.armed));
+  }
+}
+
+/** Show/hide the pad and keep its header toggle's `aria-pressed` in sync. */
+export function setTouchPadVisible(pad, toggle, visible) {
+  if (pad) pad.hidden = !visible;
+  if (toggle && typeof toggle.setAttribute === "function") {
+    toggle.setAttribute("aria-pressed", String(Boolean(visible)));
+  }
+  if (!visible) fireHold.stop();
+  return Boolean(visible);
+}
+
+/** @internal The page's shared hold-to-fire controller (tests drive it). */
+export function touchPadFireHold() {
+  return fireHold;
+}
+
 export async function boot() {
   const generation = ++bootGeneration;
   const status = document.getElementById("status");
@@ -553,6 +741,7 @@ export async function boot() {
         demo: document.getElementById("demo"),
         sound: document.getElementById("sound"),
       });
+      syncTouchPad(app, document.getElementById("touch-pad"));
       if (typeof localStorage !== "undefined") {
         lastPersistedOptions = persistOptionsIfChanged(
           app,
@@ -569,6 +758,7 @@ export async function boot() {
       },
     };
     onVisibility = () => {
+      if (document.hidden) fireHold.stop();
       applyDocumentVisibility(Boolean(document.hidden), app, loopCtl);
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -609,6 +799,21 @@ export function startPage() {
     });
   }
   bindPlaySurfaceRefocus(document.querySelector(".controls"), canvas);
+
+  const pad = document.getElementById("touch-pad");
+  const padToggle = document.getElementById("touchPadToggle");
+  bindTouchPad(pad, { getApp: () => app, canvas, hold: fireHold });
+  let padVisible = setTouchPadVisible(
+    pad,
+    padToggle,
+    typeof window.matchMedia === "function" &&
+      window.matchMedia(TOUCH_PAD_DEFAULT_QUERY).matches
+  );
+  if (padToggle) {
+    padToggle.addEventListener("click", () => {
+      padVisible = setTouchPadVisible(pad, padToggle, !padVisible);
+    });
+  }
 
   document.getElementById("restart").addEventListener("click", () => {
     boot();

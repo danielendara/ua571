@@ -36,6 +36,15 @@ import {
   applySoundChoice,
   boot,
   setBootInstanceLoaderForTests,
+  TOUCH_PAD_ACTIONS,
+  TOUCH_PAD_DEFAULT_QUERY,
+  bindTouchPad,
+  createFireHold,
+  padIsInert,
+  pressPadAction,
+  setTouchPadVisible,
+  syncTouchPad,
+  touchPadFireHold,
 } from "./main.js";
 
 const html = readFileSync(
@@ -1326,4 +1335,323 @@ test("Restart after a failed load calls boot again and success replaces the fail
     setBootInstanceLoaderForTests(null);
     dom.restore();
   }
+});
+
+/* ---------- On-screen touch pad (#132) ---------- */
+
+function padApp({ screen = "fire", quit = false } = {}) {
+  return {
+    screen,
+    quit,
+    calls: [],
+    key_down(code, repeat) {
+      this.calls.push(["down", code, repeat]);
+    },
+    key_up(code) {
+      this.calls.push(["up", code]);
+    },
+    screen_name() {
+      return this.screen;
+    },
+    get should_quit() {
+      return this.quit;
+    },
+  };
+}
+
+function fakeTimers() {
+  let next = 1;
+  const timeouts = new Map();
+  const intervals = new Map();
+  return {
+    setTimeout(fn, ms) {
+      const id = next++;
+      timeouts.set(id, { fn, ms });
+      return id;
+    },
+    clearTimeout(id) {
+      timeouts.delete(id);
+    },
+    setInterval(fn, ms) {
+      const id = next++;
+      intervals.set(id, { fn, ms });
+      return id;
+    },
+    clearInterval(id) {
+      intervals.delete(id);
+    },
+    runTimeouts() {
+      for (const [id, t] of [...timeouts]) {
+        timeouts.delete(id);
+        t.fn();
+      }
+    },
+    tickIntervals(n = 1) {
+      for (let i = 0; i < n; i++) for (const t of [...intervals.values()]) t.fn();
+    },
+    pending() {
+      return timeouts.size + intervals.size;
+    },
+  };
+}
+
+function padButtonStub(action) {
+  const classes = new Set();
+  const attrs = {};
+  const node = {
+    dataset: { padAction: action },
+    disabled: false,
+    classList: {
+      add: (c) => classes.add(c),
+      remove: (c) => classes.delete(c),
+      has: (c) => classes.has(c),
+    },
+    getAttribute: (k) => (k in attrs ? attrs[k] : null),
+    setAttribute: (k, v) => {
+      attrs[k] = String(v);
+    },
+    closest(sel) {
+      return sel === "[data-pad-action]" ? node : null;
+    },
+  };
+  return node;
+}
+
+function padRootStub(actions = Object.keys(TOUCH_PAD_ACTIONS)) {
+  const handlers = {};
+  const buttons = Object.fromEntries(actions.map((a) => [a, padButtonStub(a)]));
+  return {
+    buttons,
+    handlers,
+    addEventListener(type, fn) {
+      handlers[type] = fn;
+    },
+    removeEventListener(type, fn) {
+      if (handlers[type] === fn) delete handlers[type];
+    },
+    querySelectorAll() {
+      return Object.values(buttons);
+    },
+    querySelector(sel) {
+      const m = sel.match(/data-pad-action="(\w+)"/);
+      return m ? buttons[m[1]] || null : null;
+    },
+    fire(type, action, extra = {}) {
+      let prevented = false;
+      handlers[type]({
+        target: buttons[action],
+        detail: 1,
+        preventDefault() {
+          prevented = true;
+        },
+        ...extra,
+      });
+      return prevented;
+    },
+  };
+}
+
+test("each pad button dispatches the same key code as its keyboard key", () => {
+  assert.deepEqual(TOUCH_PAD_ACTIONS, {
+    left: "ArrowLeft",
+    right: "ArrowRight",
+    up: "ArrowUp",
+    down: "ArrowDown",
+    fire: "Space",
+    arm: "KeyA",
+    reload: "KeyR",
+    panel: "Escape",
+  });
+  for (const [action, code] of Object.entries(TOUCH_PAD_ACTIONS)) {
+    const app = padApp();
+    assert.equal(pressPadAction(app, action), true, action);
+    assert.deepEqual(app.calls, [
+      ["down", code, false],
+      ["up", code],
+    ]);
+  }
+  assert.equal(pressPadAction(padApp(), "bogus"), false);
+});
+
+test("pad is inert during POST, after Quit, and before WASM loads", () => {
+  for (const app of [padApp({ screen: "boot" }), padApp({ quit: true }), null]) {
+    assert.equal(padIsInert(app), true);
+    assert.equal(pressPadAction(app, "arm"), false);
+    const hold = createFireHold(() => app, fakeTimers());
+    assert.equal(hold.start(), false);
+    if (app) assert.deepEqual(app.calls, []);
+  }
+  assert.equal(padIsInert(padApp({ screen: "options" })), false);
+});
+
+test("hold-to-fire repeats like key repeat and release always stops it", () => {
+  const timers = fakeTimers();
+  const app = padApp();
+  const hold = createFireHold(() => app, timers);
+
+  assert.equal(hold.start(), true);
+  assert.equal(hold.start(), false, "a second pointer does not stack a hold");
+  assert.deepEqual(app.calls, [["down", "Space", false]]);
+
+  timers.runTimeouts();
+  timers.tickIntervals(3);
+  assert.deepEqual(app.calls.slice(1), [
+    ["down", "Space", true],
+    ["down", "Space", true],
+    ["down", "Space", true],
+  ]);
+
+  assert.equal(hold.stop(), true);
+  assert.equal(timers.pending(), 0);
+  assert.deepEqual(app.calls.at(-1), ["up", "Space"]);
+  const count = app.calls.length;
+  timers.tickIntervals(2);
+  assert.equal(app.calls.length, count);
+  assert.equal(hold.stop(), false, "stop is idempotent");
+});
+
+test("hold-to-fire stops itself when the app goes to POST or Quit mid-hold", () => {
+  const timers = fakeTimers();
+  const app = padApp();
+  const hold = createFireHold(() => app, timers);
+  hold.start();
+  timers.runTimeouts();
+  app.quit = true;
+  timers.tickIntervals(1);
+  assert.equal(hold.active(), false);
+  assert.deepEqual(app.calls.at(-1), ["up", "Space"]);
+  assert.equal(timers.pending(), 0);
+});
+
+test("pad pointer events: fire holds until pointerup / pointercancel / pointerleave", () => {
+  for (const endEvent of ["pointerup", "pointercancel", "pointerleave"]) {
+    const timers = fakeTimers();
+    const app = padApp();
+    const hold = createFireHold(() => app, timers);
+    const root = padRootStub();
+    const canvas = { focusCount: 0, focus() { this.focusCount += 1; } };
+    bindTouchPad(root, { getApp: () => app, canvas, hold });
+
+    assert.equal(root.fire("pointerdown", "fire"), true, "pointerdown prevents focus/selection");
+    assert.equal(hold.active(), true);
+    assert.equal(root.buttons.fire.classList.has("is-held"), true);
+
+    root.fire(endEvent, "fire");
+    assert.equal(hold.active(), false, endEvent);
+    assert.equal(root.buttons.fire.classList.has("is-held"), false);
+    assert.deepEqual(app.calls.at(-1), ["up", "Space"]);
+    assert.equal(canvas.focusCount, 0, "pointer presses leave focus alone");
+  }
+});
+
+test("pad taps on pointerdown; keyboard click taps and refocuses the canvas; no context menu", () => {
+  const app = padApp();
+  const hold = createFireHold(() => app, fakeTimers());
+  const root = padRootStub();
+  const canvas = { focusCount: 0, focus() { this.focusCount += 1; } };
+  const unbind = bindTouchPad(root, { getApp: () => app, canvas, hold });
+
+  root.fire("pointerdown", "right");
+  root.fire("click", "right", { detail: 1 });
+  assert.deepEqual(app.calls, [
+    ["down", "ArrowRight", false],
+    ["up", "ArrowRight"],
+  ], "the pointer's follow-up click does not double-dispatch");
+
+  root.fire("click", "reload", { detail: 0 });
+  assert.deepEqual(app.calls.slice(-2), [
+    ["down", "KeyR", false],
+    ["up", "KeyR"],
+  ]);
+  assert.equal(canvas.focusCount, 1);
+
+  assert.equal(root.fire("contextmenu", "fire"), true);
+
+  unbind();
+  assert.equal(root.handlers.pointerdown, undefined);
+});
+
+test("disabled pad buttons ignore pointer presses", () => {
+  const app = padApp();
+  const root = padRootStub();
+  bindTouchPad(root, { getApp: () => app, canvas: null, hold: createFireHold(() => app, fakeTimers()) });
+  root.buttons.arm.disabled = true;
+  root.fire("pointerdown", "arm");
+  assert.deepEqual(app.calls, []);
+});
+
+test("syncTouchPad disables the pad while inert and mirrors toggle state", () => {
+  const root = padRootStub();
+  const app = padApp({ screen: "boot" });
+  syncTouchPad(app, root);
+  assert.ok(Object.values(root.buttons).every((b) => b.disabled));
+
+  app.screen = "options";
+  Object.defineProperty(app, "armed", { value: true });
+  syncTouchPad(app, root);
+  assert.ok(Object.values(root.buttons).every((b) => !b.disabled));
+  assert.equal(root.buttons.panel.getAttribute("aria-pressed"), "true");
+  assert.equal(root.buttons.arm.getAttribute("aria-pressed"), "true");
+
+  app.screen = "fire";
+  syncTouchPad(app, root);
+  assert.equal(root.buttons.panel.getAttribute("aria-pressed"), "false");
+  syncTouchPad(null, null);
+});
+
+test("setTouchPadVisible toggles the pad and the header aria-pressed", () => {
+  const pad = { hidden: true };
+  const attrs = {};
+  const toggle = { setAttribute: (k, v) => (attrs[k] = v) };
+  assert.equal(setTouchPadVisible(pad, toggle, true), true);
+  assert.equal(pad.hidden, false);
+  assert.equal(attrs["aria-pressed"], "true");
+  assert.equal(setTouchPadVisible(pad, toggle, false), false);
+  assert.equal(pad.hidden, true);
+  assert.equal(attrs["aria-pressed"], "false");
+  assert.equal(TOUCH_PAD_DEFAULT_QUERY, "(pointer: coarse)");
+});
+
+test("hiding the tab stops a held pad fire", async () => {
+  const dom = installBootDom();
+  const inst = wasmStandIn(1);
+  const released = [];
+  inst.key_up = (code) => released.push(code);
+  setBootInstanceLoaderForTests(async () => inst);
+  try {
+    await boot();
+    const hold = touchPadFireHold();
+    assert.equal(hold.start(), true);
+    assert.deepEqual(inst.keys, ["Space"]);
+    globalThis.document.hidden = true;
+    for (const fn of dom.listeners.visibilitychange) fn();
+    assert.equal(hold.active(), false);
+    assert.deepEqual(released, ["Space"]);
+  } finally {
+    touchPadFireHold().stop();
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
+test("index.html pad: real buttons for every action, header toggle, below the canvas", () => {
+  for (const action of Object.keys(TOUCH_PAD_ACTIONS)) {
+    assert.match(html, new RegExp(`<button type="button"[^>]*data-pad-action="${action}"[^>]*aria-label="[^"]+"`));
+  }
+  assert.match(html, /data-pad-action="panel"[^>]*aria-pressed="false"/);
+  assert.match(html, /id="touchPadToggle"[^>]*aria-controls="touch-pad"[^>]*aria-pressed="false"/);
+  assert.ok(html.indexOf('id="touch-pad"') > html.indexOf('id="ua571"'));
+});
+
+test("pad CSS: 44px targets, touch-action manipulation, no selection, fits 480px", () => {
+  const css = readFileSync(new URL("./style.css", import.meta.url), "utf8");
+  const pad = css.split(".touch-pad button {")[1] || "";
+  assert.match(pad, /min-width:\s*44px/);
+  assert.match(pad, /min-height:\s*44px/);
+  assert.match(pad, /touch-action:\s*manipulation/);
+  assert.match(pad, /user-select:\s*none/);
+  assert.match(pad, /-webkit-touch-callout:\s*none/);
+  const narrow = css.split(/@media \(max-width:\s*480px\)/)[1] || "";
+  assert.match(narrow, /\.touch-pad/);
+  assert.doesNotMatch(css, /overflow-x:\s*scroll/);
 });

@@ -74,12 +74,29 @@
           <label class="check">
             <input type="checkbox" id="skipBoot" /> Skip boot
           </label>
+          <button id="touchPadToggle" type="button" aria-controls="touch-pad" aria-pressed="false">
+            Touch pad
+          </button>
           <button id="restart" type="button">Restart</button>
         </div>
       </header>
 
       <main>
         <canvas id="ua571" width="1920" height="720" tabindex="0" aria-label="UA 571-C display"></canvas>
+        <div id="touch-pad" class="touch-pad" role="group" aria-label="Touch controls" hidden>
+          <div class="pad-dir" role="group" aria-label="Section and selection">
+            <button type="button" class="pad-up" data-pad-action="up" aria-label="Select up">↑</button>
+            <button type="button" class="pad-left" data-pad-action="left" aria-label="Previous section">←</button>
+            <button type="button" class="pad-right" data-pad-action="right" aria-label="Next section">→</button>
+            <button type="button" class="pad-down" data-pad-action="down" aria-label="Select down">↓</button>
+          </div>
+          <div class="pad-actions" role="group" aria-label="Weapon">
+            <button type="button" class="pad-fire" data-pad-action="fire" aria-label="Fire (hold to keep firing)">Fire</button>
+            <button type="button" data-pad-action="arm" aria-label="Arm or safe" aria-pressed="false">Arm</button>
+            <button type="button" data-pad-action="reload" aria-label="Reload">Reload</button>
+            <button type="button" data-pad-action="panel" aria-label="Options panel" aria-pressed="false">Options</button>
+          </div>
+        </div>
         <p
           id="status"
           class="status"
@@ -98,7 +115,7 @@
           <kbd>A</kbd> arm · <kbd>R</kbd> reload ·
           <kbd>Enter</kbd>/<kbd>Space</kbd> fire ·
           <kbd>1–4</kbd> sentry · <kbd>D</kbd> demo · <kbd>M</kbd> sound ·
-          <kbd>T</kbd> theme
+          <kbd>T</kbd> theme · Touch pad: tap, hold Fire to keep firing
         </p>
         <p class="credit">
           By
