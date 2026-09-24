@@ -38,6 +38,7 @@ Three frontends share one simulation core:
 - **Event log** — arming, fire, critical, demo messages
 - **Demo mode** — scripted perimeter defense auto-play
 - **Themes** — **yellow** (default, film/GRiD prop), phosphor green, amber, mono
+- **Web Fullscreen** — the web console's **Fullscreen** button fills the screen with the canvas (and the touch pad, if open), letterboxed in black; game state, demo, and sound carry over. In fullscreen the browser takes the first `Esc` to exit, so the in-app `Esc` fire/options toggle works when not in fullscreen. The button is hidden where the Fullscreen API isn't available (e.g. iPhone Safari).
 - **Fire SFX** — MG42-inspired pulse when a round fires (**muted by default**; `m` or the web Sound checkbox enables it. `--mute` starts muted, same as the default; `sound = true` in config to start with SFX on)
 - **Cross-platform** — macOS, Linux, Windows; browser via WebAssembly
 

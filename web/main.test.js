@@ -9,6 +9,12 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   applyDocumentVisibility,
+  applyFullscreenCanvasSize,
+  bindFullscreen,
+  fitCanvasSize,
+  FULLSCREEN_LABELS,
+  isFullscreenSupported,
+  syncFullscreenButton,
   PREFS_STORAGE_KEY,
   applyPrefsToElements,
   bindPlaySurfaceRefocus,
@@ -1655,3 +1661,235 @@ test("pad CSS: 44px targets, touch-action manipulation, no selection, fits 480px
   assert.match(narrow, /\.touch-pad/);
   assert.doesNotMatch(css, /overflow-x:\s*scroll/);
 });
+
+// --- Fullscreen (#136) -------------------------------------------------------
+
+function fullscreenButtonStub() {
+  const handlers = {};
+  const attrs = { "aria-pressed": "false" };
+  return {
+    hidden: true,
+    textContent: "Fullscreen",
+    getAttribute(name) {
+      return attrs[name] ?? null;
+    },
+    setAttribute(name, value) {
+      attrs[name] = String(value);
+    },
+    addEventListener(type, fn) {
+      handlers[type] = fn;
+    },
+    removeEventListener(type) {
+      delete handlers[type];
+    },
+    click() {
+      handlers.click?.();
+    },
+  };
+}
+
+function fullscreenHarness({ enabled = true, padHidden = true, padHeight = 0, reject = false } = {}) {
+  const calls = { request: 0, exit: 0, focus: 0 };
+  const docHandlers = {};
+  const winHandlers = {};
+  const stage = {
+    requestFullscreen() {
+      calls.request += 1;
+      return reject ? Promise.reject(new Error("denied")) : Promise.resolve();
+    },
+  };
+  const doc = {
+    fullscreenEnabled: enabled,
+    fullscreenElement: null,
+    exitFullscreen() {
+      calls.exit += 1;
+      return Promise.resolve();
+    },
+    addEventListener(type, fn) {
+      docHandlers[type] = fn;
+    },
+    removeEventListener(type) {
+      delete docHandlers[type];
+    },
+  };
+  const win = {
+    innerWidth: 1280,
+    innerHeight: 1024,
+    addEventListener(type, fn) {
+      winHandlers[type] = fn;
+    },
+    removeEventListener(type) {
+      delete winHandlers[type];
+    },
+  };
+  const canvas = {
+    width: 1920,
+    height: 720,
+    style: { width: "", height: "" },
+    focus() {
+      calls.focus += 1;
+    },
+  };
+  const pad = { hidden: padHidden, offsetHeight: padHeight };
+  const button = fullscreenButtonStub();
+  const enter = () => {
+    doc.fullscreenElement = stage;
+    docHandlers.fullscreenchange();
+  };
+  const leave = () => {
+    doc.fullscreenElement = null;
+    docHandlers.fullscreenchange();
+  };
+  return { calls, doc, win, stage, canvas, pad, button, docHandlers, winHandlers, enter, leave };
+}
+
+test("fitCanvasSize keeps the canvas aspect ratio and the largest fit (#136)", () => {
+  const canvas = { canvasWidth: 1920, canvasHeight: 720 };
+  // Width-bound (4:3 monitor): letterbox top/bottom.
+  assert.deepEqual(fitCanvasSize({ ...canvas, viewportWidth: 1280, viewportHeight: 1024 }), {
+    width: 1280,
+    height: 480,
+  });
+  // 21:9 ultrawide is still narrower than the 8:3 console, so it's width-bound too.
+  assert.deepEqual(fitCanvasSize({ ...canvas, viewportWidth: 3440, viewportHeight: 1440 }), {
+    width: 3440,
+    height: 1290,
+  });
+  // Height-bound (wider than 8:3): letterbox left/right.
+  assert.deepEqual(fitCanvasSize({ ...canvas, viewportWidth: 2560, viewportHeight: 720 }), {
+    width: 1920,
+    height: 720,
+  });
+  // Upscales past the WASM pixel size on big screens (CSS-only, pixelated).
+  assert.deepEqual(fitCanvasSize({ ...canvas, viewportWidth: 3840, viewportHeight: 2160 }), {
+    width: 3840,
+    height: 1440,
+  });
+  // Phone landscape with the touch pad reserving room below.
+  assert.deepEqual(
+    fitCanvasSize({ ...canvas, viewportWidth: 844, viewportHeight: 390, reservedHeight: 150 }),
+    { width: 640, height: 240 }
+  );
+  // Degenerate input never produces NaN.
+  assert.deepEqual(fitCanvasSize({ ...canvas, viewportWidth: 0, viewportHeight: 800 }), {
+    width: 0,
+    height: 0,
+  });
+  assert.deepEqual(
+    fitCanvasSize({ ...canvas, viewportWidth: 800, viewportHeight: 100, reservedHeight: 200 }),
+    { width: 0, height: 0 }
+  );
+});
+
+test("Fullscreen button is hidden when the Fullscreen API is unavailable (#136)", () => {
+  const off = fullscreenHarness({ enabled: false });
+  off.button.hidden = false;
+  bindFullscreen(off);
+  assert.equal(off.button.hidden, true);
+  assert.equal(off.docHandlers.fullscreenchange, undefined);
+
+  const noRequest = fullscreenHarness();
+  delete noRequest.stage.requestFullscreen;
+  assert.equal(isFullscreenSupported(noRequest.doc, noRequest.stage), false);
+  bindFullscreen(noRequest);
+  assert.equal(noRequest.button.hidden, true);
+
+  const on = fullscreenHarness();
+  bindFullscreen(on);
+  assert.equal(on.button.hidden, false);
+  assert.equal(on.button.getAttribute("aria-pressed"), "false");
+  assert.equal(on.button.textContent, FULLSCREEN_LABELS.enter);
+
+  // Missing button (e.g. an older page) is a no-op.
+  assert.doesNotThrow(() => bindFullscreen({ ...on, button: null }).refit());
+});
+
+test("Fullscreen button requests fullscreen on the stage, exits when active (#136)", async () => {
+  const h = fullscreenHarness();
+  bindFullscreen(h);
+
+  h.button.click();
+  assert.equal(h.calls.request, 1);
+  assert.equal(h.calls.exit, 0);
+
+  h.enter();
+  h.button.click();
+  assert.equal(h.calls.exit, 1);
+
+  const denied = fullscreenHarness({ reject: true });
+  bindFullscreen(denied);
+  denied.button.click();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(denied.button.getAttribute("aria-pressed"), "false");
+  assert.equal(denied.calls.focus, 1, "a refused request still returns focus to the canvas");
+});
+
+test("fullscreenchange syncs aria-pressed/label, sizes the canvas, and refocuses it (#136)", () => {
+  const h = fullscreenHarness();
+  bindFullscreen(h);
+
+  h.enter();
+  assert.equal(h.button.getAttribute("aria-pressed"), "true");
+  assert.equal(h.button.textContent, FULLSCREEN_LABELS.exit);
+  assert.equal(h.canvas.style.width, "1280px");
+  assert.equal(h.canvas.style.height, "480px");
+  assert.equal(h.calls.focus, 1);
+  // WASM keeps owning the canvas pixel size.
+  assert.equal(h.canvas.width, 1920);
+  assert.equal(h.canvas.height, 720);
+
+  // Browser Esc (or any other exit) arrives as the same event.
+  h.leave();
+  assert.equal(h.button.getAttribute("aria-pressed"), "false");
+  assert.equal(h.button.textContent, FULLSCREEN_LABELS.enter);
+  assert.equal(h.canvas.style.width, "");
+  assert.equal(h.canvas.style.height, "");
+  assert.equal(h.calls.focus, 2);
+});
+
+test("fullscreen refits on resize and leaves room for an open touch pad (#136)", () => {
+  const h = fullscreenHarness({ padHidden: false, padHeight: 138 });
+  const fullscreen = bindFullscreen(h);
+
+  h.win.innerWidth = 844;
+  h.win.innerHeight = 390;
+  h.enter();
+  // 390 - (138 + 12 gap) = 240 → 640×240.
+  assert.equal(h.canvas.style.width, "640px");
+  assert.equal(h.canvas.style.height, "240px");
+
+  h.pad.hidden = true;
+  fullscreen.refit();
+  assert.equal(h.canvas.style.width, "844px");
+  assert.equal(h.canvas.style.height, "316px");
+
+  h.win.innerWidth = 1920;
+  h.win.innerHeight = 1080;
+  h.winHandlers.resize();
+  assert.equal(h.canvas.style.width, "1920px");
+
+  // Resizes outside fullscreen never touch the page layout.
+  h.leave();
+  h.winHandlers.resize();
+  assert.equal(h.canvas.style.width, "");
+
+  fullscreen.unbind();
+  assert.equal(h.docHandlers.fullscreenchange, undefined);
+  assert.equal(h.winHandlers.resize, undefined);
+});
+
+test("syncFullscreenButton and applyFullscreenCanvasSize tolerate missing nodes (#136)", () => {
+  assert.doesNotThrow(() => syncFullscreenButton(null, true));
+  assert.doesNotThrow(() => applyFullscreenCanvasSize(null, { active: true }));
+});
+
+test("index.html: Fullscreen button in .controls, stage wraps canvas + pad, Esc documented (#136)", () => {
+  const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "index.html"), "utf8");
+  const controls = html.slice(html.indexOf('<div class="controls">'), html.indexOf("</header>"));
+  assert.match(controls, /<button id="fullscreenToggle" type="button"[^>]*aria-pressed="false"[^>]*hidden>/);
+  const stage = html.slice(html.indexOf('id="console-stage"'), html.indexOf('id="status"'));
+  assert.ok(stage.includes('<canvas id="ua571"'));
+  assert.ok(stage.includes('id="touch-pad"'));
+  assert.match(html, /browser takes the first <kbd>Esc<\/kbd> to exit/);
+});
+
