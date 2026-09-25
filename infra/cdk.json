@@ -18,7 +18,6 @@
     "@aws-cdk/core:stackRelativeExports": true,
     "domainName": "ua571.danielendara.com",
     "hostedZoneName": "danielendara.com",
-    "githubRepo": "danielendara/ua571",
-    "githubBranch": "main"
+    "githubRepo": "danielendara/ua571"
   }
 }
