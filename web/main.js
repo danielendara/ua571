@@ -659,6 +659,122 @@ export function touchPadFireHold() {
   return fireHold;
 }
 
+/**
+ * Fullscreen (#136). The button fullscreens the canvas + touch-pad wrapper;
+ * nothing re-instantiates WASM, so game state, demo, and sound carry over.
+ * Fullscreen is never written to the URL or saved prefs.
+ */
+export const FULLSCREEN_LABELS = Object.freeze({ enter: "Fullscreen", exit: "Exit fullscreen" });
+
+/** Largest CSS size that fits the viewport at the canvas's own aspect ratio. */
+export function fitCanvasSize({
+  viewportWidth,
+  viewportHeight,
+  canvasWidth,
+  canvasHeight,
+  reservedHeight = 0,
+}) {
+  const availableHeight = Math.max(0, viewportHeight - reservedHeight);
+  if (!(viewportWidth > 0) || !(availableHeight > 0) || !(canvasWidth > 0) || !(canvasHeight > 0)) {
+    return { width: 0, height: 0 };
+  }
+  const scale = Math.min(viewportWidth / canvasWidth, availableHeight / canvasHeight);
+  return {
+    width: Math.floor(canvasWidth * scale),
+    height: Math.floor(canvasHeight * scale),
+  };
+}
+
+export function isFullscreenSupported(doc, stage) {
+  return Boolean(
+    doc && doc.fullscreenEnabled && stage && typeof stage.requestFullscreen === "function"
+  );
+}
+
+/** Keep the button's pressed state and label in sync with the document. */
+export function syncFullscreenButton(button, active) {
+  if (!button) return;
+  const pressed = String(Boolean(active));
+  if (typeof button.getAttribute !== "function" || button.getAttribute("aria-pressed") !== pressed) {
+    button.setAttribute("aria-pressed", pressed);
+  }
+  const label = active ? FULLSCREEN_LABELS.exit : FULLSCREEN_LABELS.enter;
+  if (button.textContent !== label) button.textContent = label;
+}
+
+/** Size the canvas for fullscreen, or clear the inline size to restore the page layout. */
+export function applyFullscreenCanvasSize(canvas, { active, viewportWidth, viewportHeight, pad, gap = 0 }) {
+  if (!canvas || !canvas.style) return;
+  if (!active) {
+    canvas.style.width = "";
+    canvas.style.height = "";
+    return;
+  }
+  const padOpen = Boolean(pad && !pad.hidden);
+  const reservedHeight = padOpen ? (pad.offsetHeight || 0) + gap : 0;
+  const { width, height } = fitCanvasSize({
+    viewportWidth,
+    viewportHeight,
+    canvasWidth: canvas.width,
+    canvasHeight: canvas.height,
+    reservedHeight,
+  });
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+}
+
+/**
+ * Wire the Fullscreen button. Hidden when the Fullscreen API is unavailable.
+ * Any exit route (button, browser Esc, API) arrives as `fullscreenchange`,
+ * which restores the layout, syncs the button, and refocuses the canvas.
+ * Returns `refit` (re-size while fullscreen, e.g. after the pad opens) and `unbind`.
+ */
+export function bindFullscreen({ doc, win, button, stage, canvas, pad, gap = 12 }) {
+  const inert = { refit() {}, unbind() {} };
+  if (!button) return inert;
+  const supported = isFullscreenSupported(doc, stage);
+  button.hidden = !supported;
+  if (!supported) return inert;
+
+  const isActive = () => doc.fullscreenElement === stage;
+  const resize = () =>
+    applyFullscreenCanvasSize(canvas, {
+      active: isActive(),
+      viewportWidth: win && win.innerWidth,
+      viewportHeight: win && win.innerHeight,
+      pad,
+      gap,
+    });
+  const onChange = () => {
+    syncFullscreenButton(button, isActive());
+    resize();
+    refocusPlaySurface(canvas);
+  };
+  const onClick = () => {
+    const request = isActive() ? doc.exitFullscreen() : stage.requestFullscreen();
+    // A refused request (no user gesture, policy) leaves the page as it was.
+    if (request && typeof request.catch === "function") {
+      request.catch(() => refocusPlaySurface(canvas));
+    }
+  };
+  const refit = () => {
+    if (isActive()) resize();
+  };
+
+  syncFullscreenButton(button, isActive());
+  button.addEventListener("click", onClick);
+  doc.addEventListener("fullscreenchange", onChange);
+  if (win && typeof win.addEventListener === "function") win.addEventListener("resize", refit);
+  return {
+    refit,
+    unbind() {
+      button.removeEventListener("click", onClick);
+      doc.removeEventListener("fullscreenchange", onChange);
+      if (win && typeof win.removeEventListener === "function") win.removeEventListener("resize", refit);
+    },
+  };
+}
+
 export async function boot() {
   const generation = ++bootGeneration;
   const status = document.getElementById("status");
@@ -803,6 +919,14 @@ export function startPage() {
   const pad = document.getElementById("touch-pad");
   const padToggle = document.getElementById("touchPadToggle");
   bindTouchPad(pad, { getApp: () => app, canvas, hold: fireHold });
+  const fullscreen = bindFullscreen({
+    doc: document,
+    win: window,
+    button: document.getElementById("fullscreenToggle"),
+    stage: document.getElementById("console-stage"),
+    canvas,
+    pad,
+  });
   let padVisible = setTouchPadVisible(
     pad,
     padToggle,
@@ -812,6 +936,8 @@ export function startPage() {
   if (padToggle) {
     padToggle.addEventListener("click", () => {
       padVisible = setTouchPadVisible(pad, padToggle, !padVisible);
+      // Opening/closing the pad in fullscreen changes the room left for the canvas.
+      fullscreen.refit();
     });
   }
 

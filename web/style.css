@@ -179,6 +179,15 @@ main {
   gap: 0.75rem;
 }
 
+/* Canvas + touch pad; the Fullscreen button (#136) fullscreens this wrapper. */
+.console-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
 #ua571 {
   width: min(100%, 960px);
   height: auto;
@@ -195,6 +204,26 @@ main {
 
 #ua571:focus {
   border-color: var(--fg);
+}
+
+/* Fullscreen (#136): black letterbox. JS sets the canvas CSS size from
+   fitCanvasSize() (largest fit at the WASM canvas's aspect ratio); the WASM
+   keeps owning the canvas pixel size, and pixelated rendering upscales it. */
+.console-stage:fullscreen {
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+}
+
+.console-stage::backdrop {
+  background: #000;
+}
+
+.console-stage:fullscreen #ua571 {
+  max-width: none;
+  border: 0;
+  box-shadow: none;
 }
 
 .status {
