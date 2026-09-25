@@ -2,8 +2,6 @@
 
 use std::collections::VecDeque;
 use std::fmt;
-use std::time::Duration;
-
 use web_time::Instant;
 
 #[cfg(feature = "serde")]
@@ -86,21 +84,12 @@ impl fmt::Display for LogKind {
 pub struct LogEvent {
     pub kind: LogKind,
     pub at: Instant,
-    /// Monotonic sequence for stable ordering.
-    pub seq: u64,
-}
-
-impl LogEvent {
-    pub fn age(&self, now: Instant) -> Duration {
-        now.saturating_duration_since(self.at)
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct EventLog {
     events: VecDeque<LogEvent>,
     capacity: usize,
-    next_seq: u64,
 }
 
 impl Default for EventLog {
@@ -114,7 +103,6 @@ impl EventLog {
         Self {
             events: VecDeque::with_capacity(capacity),
             capacity: capacity.max(1),
-            next_seq: 0,
         }
     }
 
@@ -125,9 +113,7 @@ impl EventLog {
         self.events.push_back(LogEvent {
             kind,
             at: Instant::now(),
-            seq: self.next_seq,
         });
-        self.next_seq += 1;
     }
 
     pub fn push_info(&mut self, message: impl Into<String>) {

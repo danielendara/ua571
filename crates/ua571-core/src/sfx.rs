@@ -20,12 +20,6 @@ pub fn fire_burst_pcm() -> (u32, Vec<f32>) {
     decode_wav_pcm16(FIRE_BURST_WAV).expect("bundled fire_burst.wav is PCM16")
 }
 
-/// Duration of the bundled burst (used to gate retriggers).
-pub fn fire_burst_duration_secs() -> f32 {
-    let (sr, samples) = fire_burst_pcm();
-    samples.len() as f32 / sr as f32
-}
-
 fn decode_wav_pcm16(bytes: &[u8]) -> Result<(u32, Vec<f32>), &'static str> {
     if bytes.len() < 44 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
         return Err("not a WAVE file");
@@ -157,11 +151,6 @@ pub fn synthesize_fire_burst(sample_rate: u32, duration_ms: u32, seed: u32) -> V
     out
 }
 
-/// Default pulse at the native sample rate (seeded).
-pub fn synthesize_default_fire(seed: u32) -> Vec<f32> {
-    synthesize_fire_burst(FIRE_SFX_SAMPLE_RATE, FIRE_SFX_MS, seed)
-}
-
 #[inline]
 fn xorshift_noise(rng: &mut u32) -> f32 {
     let mut x = *rng;
@@ -205,7 +194,7 @@ mod tests {
         assert!(s.len() > 1000);
         assert!(s.iter().any(|v| v.abs() > 0.1));
         assert!(s.iter().all(|v| v.is_finite() && v.abs() <= 1.0));
-        let d = fire_burst_duration_secs();
+        let d = s.len() as f32 / sr as f32;
         assert!((0.07..=0.12).contains(&d), "burst len {d}");
     }
 }

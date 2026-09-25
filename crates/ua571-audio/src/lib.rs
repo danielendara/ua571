@@ -15,7 +15,7 @@ pub struct FireAudio {
     sink: MixerDeviceSink,
     sample_rate: u32,
     samples: Vec<f32>,
-    pub muted: bool,
+    muted: bool,
 }
 
 impl FireAudio {

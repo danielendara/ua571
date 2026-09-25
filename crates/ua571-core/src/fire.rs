@@ -155,8 +155,7 @@ impl FireTelemetry {
         blink_dirty || self.temperature != temp_before || self.rm != rm_before
     }
 
-    /// Idle tick for blink animation only (legacy name).
-    pub fn tick_blink(&mut self) {
+    fn tick_blink(&mut self) {
         if !self.critical {
             self.critical_blink = false;
             return;
