@@ -110,6 +110,9 @@ aws s3 cp web/pkg/ua571_web_bg.wasm s3://$UA571_S3_BUCKET/pkg/ua571_web_bg.wasm 
 aws s3 sync web/ s3://$UA571_S3_BUCKET/ \
   --exclude "pkg/*" --exclude ".gitignore" \
   --cache-control "public,max-age=60,must-revalidate"
+aws s3 cp web/manifest.webmanifest s3://$UA571_S3_BUCKET/manifest.webmanifest \
+  --content-type "application/manifest+json" \
+  --cache-control "public,max-age=60,must-revalidate"
 aws cloudfront create-invalidation \
   --distribution-id $UA571_CLOUDFRONT_DISTRIBUTION_ID \
   --paths "/*"

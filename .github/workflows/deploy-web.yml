@@ -120,6 +120,11 @@ jobs:
             --exclude "pkg/*" \
             --exclude ".gitignore" \
             --cache-control "${CACHE}"
+          # s3 sync has no .webmanifest MIME mapping and would store it as
+          # binary/octet-stream, which breaks installability.
+          aws s3 cp web/manifest.webmanifest "s3://${UA571_S3_BUCKET}/manifest.webmanifest" \
+            --content-type "application/manifest+json" \
+            --cache-control "${CACHE}"
 
       - name: Invalidate CloudFront
         env:
