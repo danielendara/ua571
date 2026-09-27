@@ -3,7 +3,7 @@
  * Drive the exported helpers with a WASM-shaped stub and a #status node.
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,7 @@ import {
   fitCanvasSize,
   FULLSCREEN_LABELS,
   isFullscreenSupported,
+  isStandaloneDisplay,
   syncFullscreenButton,
   PREFS_STORAGE_KEY,
   applyPrefsToElements,
@@ -1881,6 +1882,78 @@ test("fullscreen refits on resize and leaves room for an open touch pad (#136)",
 test("syncFullscreenButton and applyFullscreenCanvasSize tolerate missing nodes (#136)", () => {
   assert.doesNotThrow(() => syncFullscreenButton(null, true));
   assert.doesNotThrow(() => applyFullscreenCanvasSize(null, { active: true }));
+});
+
+test("standalone display hides the Fullscreen button and does not request fullscreen (#138)", () => {
+  const media = fullscreenHarness();
+  media.win.matchMedia = (query) => ({ matches: query === "(display-mode: standalone)", media: query });
+  media.button.hidden = false;
+  bindFullscreen(media);
+  assert.equal(isStandaloneDisplay(media.win, {}), true);
+  assert.equal(media.button.hidden, true);
+  media.button.click();
+  assert.equal(media.calls.request, 0);
+  assert.equal(media.docHandlers.fullscreenchange, undefined);
+
+  const ios = fullscreenHarness();
+  ios.button.hidden = false;
+  bindFullscreen({ ...ios, nav: { standalone: true } });
+  assert.equal(isStandaloneDisplay(ios.win, { standalone: true }), true);
+  assert.equal(ios.button.hidden, true);
+  ios.button.click();
+  assert.equal(ios.calls.request, 0);
+
+  const browser = fullscreenHarness();
+  browser.win.matchMedia = () => ({ matches: false });
+  bindFullscreen({ ...browser, nav: { standalone: false } });
+  assert.equal(isStandaloneDisplay(browser.win, { standalone: false }), false);
+  assert.equal(browser.button.hidden, false);
+  browser.button.click();
+  assert.equal(browser.calls.request, 1);
+});
+
+test("manifest parses, theme matches yellow --fg, and listed icons exist (#138)", () => {
+  const dir = dirname(fileURLToPath(import.meta.url));
+  const manifest = JSON.parse(readFileSync(join(dir, "manifest.webmanifest"), "utf8"));
+  const css = readFileSync(join(dir, "style.css"), "utf8");
+  const yellow = css.slice(css.indexOf('body[data-theme="yellow"]'), css.indexOf('body[data-theme="phosphor"]'));
+  const fg = yellow.match(/--fg:\s*(#[0-9a-fA-F]{6})/);
+  assert.ok(fg, "default yellow theme defines --fg");
+  assert.equal(manifest.name.length > 0, true);
+  assert.equal(manifest.short_name, "UA 571-C");
+  assert.equal(manifest.start_url, "/");
+  assert.equal(manifest.scope, "/");
+  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.background_color.toLowerCase(), "#000000");
+  assert.equal(manifest.theme_color.toLowerCase(), fg[1].toLowerCase());
+  assert.equal(manifest.theme_color.toLowerCase(), "#ffee00");
+
+  const icons = manifest.icons;
+  assert.ok(icons.some((icon) => icon.sizes === "192x192" && icon.type === "image/png"));
+  assert.ok(icons.some((icon) => icon.sizes === "512x512" && icon.type === "image/png" && icon.purpose !== "maskable"));
+  assert.ok(
+    icons.some(
+      (icon) => icon.sizes === "512x512" && icon.type === "image/png" && String(icon.purpose).includes("maskable")
+    )
+  );
+  for (const icon of icons) {
+    const file = join(dir, icon.src.replace(/^\//, ""));
+    assert.equal(existsSync(file), true, icon.src);
+    const png = readFileSync(file);
+    assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+    const [w, h] = [png.readUInt32BE(16), png.readUInt32BE(20)];
+    assert.equal(`${w}x${h}`, icon.sizes);
+  }
+
+  assert.match(html, /<link rel="manifest" href="manifest\.webmanifest"\s*\/?>/);
+  assert.match(html, new RegExp(`<meta name="theme-color" content="${manifest.theme_color}"\\s*\\/?>`));
+  assert.match(html, /<link rel="apple-touch-icon" href="apple-touch-icon\.png" sizes="180x180"\s*\/?>/);
+  assert.match(html, /<meta name="apple-mobile-web-app-capable" content="yes"\s*\/?>/);
+  assert.match(html, /<meta name="apple-mobile-web-app-status-bar-style" content="black"\s*\/?>/);
+  const touch = readFileSync(join(dir, "apple-touch-icon.png"));
+  assert.equal(touch.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal(touch.readUInt32BE(16), 180);
+  assert.equal(touch.readUInt32BE(20), 180);
 });
 
 test("index.html: Fullscreen button in .controls, stage wraps canvas + pad, Esc documented (#136)", () => {

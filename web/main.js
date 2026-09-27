@@ -663,8 +663,17 @@ export function touchPadFireHold() {
  * Fullscreen (#136). The button fullscreens the canvas + touch-pad wrapper;
  * nothing re-instantiates WASM, so game state, demo, and sound carry over.
  * Fullscreen is never written to the URL or saved prefs.
+ * An installed home-screen app (`display-mode: standalone`, or iOS
+ * `navigator.standalone`) is already edge-to-edge, so the button stays hidden.
  */
 export const FULLSCREEN_LABELS = Object.freeze({ enter: "Fullscreen", exit: "Exit fullscreen" });
+
+/** True when the page is an installed standalone app (already full-screen). */
+export function isStandaloneDisplay(win, nav) {
+  const query =
+    win && typeof win.matchMedia === "function" ? win.matchMedia("(display-mode: standalone)") : null;
+  return Boolean((query && query.matches) || (nav && nav.standalone));
+}
 
 /** Largest CSS size that fits the viewport at the canvas's own aspect ratio. */
 export function fitCanvasSize({
@@ -724,15 +733,17 @@ export function applyFullscreenCanvasSize(canvas, { active, viewportWidth, viewp
 }
 
 /**
- * Wire the Fullscreen button. Hidden when the Fullscreen API is unavailable.
+ * Wire the Fullscreen button. Hidden when the Fullscreen API is unavailable
+ * or the page is already standalone (Add to Home Screen). A hidden button has
+ * no click listener, so it cannot request fullscreen.
  * Any exit route (button, browser Esc, API) arrives as `fullscreenchange`,
  * which restores the layout, syncs the button, and refocuses the canvas.
  * Returns `refit` (re-size while fullscreen, e.g. after the pad opens) and `unbind`.
  */
-export function bindFullscreen({ doc, win, button, stage, canvas, pad, gap = 12 }) {
+export function bindFullscreen({ doc, win, nav, button, stage, canvas, pad, gap = 12 }) {
   const inert = { refit() {}, unbind() {} };
   if (!button) return inert;
-  const supported = isFullscreenSupported(doc, stage);
+  const supported = isFullscreenSupported(doc, stage) && !isStandaloneDisplay(win, nav);
   button.hidden = !supported;
   if (!supported) return inert;
 
@@ -922,6 +933,7 @@ export function startPage() {
   const fullscreen = bindFullscreen({
     doc: document,
     win: window,
+    nav: typeof navigator !== "undefined" ? navigator : undefined,
     button: document.getElementById("fullscreenToggle"),
     stage: document.getElementById("console-stage"),
     canvas,
