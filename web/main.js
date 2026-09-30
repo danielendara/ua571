@@ -237,6 +237,14 @@ export function isChromeTarget(el) {
   );
 }
 
+/**
+ * After `boot()` finishes, move focus to the canvas unless a chrome control
+ * (e.g. a Theme/Scale select stepped with the keyboard) already has it.
+ */
+export function shouldRefocusAfterBoot(activeElement) {
+  return !isChromeTarget(activeElement);
+}
+
 /** Theme order matches `Theme::ALL` / the #theme `<option>` list. */
 export function themeValuesFromSelect(select) {
   if (!select || !select.options) return [];
@@ -313,22 +321,68 @@ export function handleSkipToPlaySurface(event, canvas) {
   return refocusPlaySurface(canvas);
 }
 
+/** Keys that change a closed `<select>` value (Windows/Linux fire `change` per key). */
+const SELECT_VALUE_KEYS = new Set([
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+]);
+
+function isSelectValueKey(e) {
+  if (SELECT_VALUE_KEYS.has(e.key)) return true;
+  // Type-ahead: a single printable character.
+  return (
+    typeof e.key === "string" &&
+    e.key.length === 1 &&
+    !e.ctrlKey &&
+    !e.metaKey &&
+    !e.altKey
+  );
+}
+
 /**
  * After chrome `change` (or a button click), put focus back on the canvas
- * so keyboard play is not trapped in the header controls.
+ * so keyboard play is not trapped in the header controls. A `<select>` being
+ * stepped with the keyboard keeps focus (WCAG 3.2.2) until Enter or Escape;
+ * Tab leaves natively.
  */
 export function bindPlaySurfaceRefocus(chromeRoot, canvas) {
   if (!chromeRoot || !canvas) return () => {};
-  const onChange = () => {
+  let keyboardSelect = null;
+  const onKeydown = (e) => {
+    const t = e && e.target;
+    if (!t || t.tagName !== "SELECT") return;
+    if (e.key === "Enter" || e.key === "Escape") {
+      keyboardSelect = null;
+      refocusPlaySurface(canvas);
+    } else if (isSelectValueKey(e)) {
+      keyboardSelect = t;
+    }
+  };
+  const onChange = (e) => {
+    const t = e && e.target;
+    if (keyboardSelect && t === keyboardSelect) {
+      keyboardSelect = null;
+      return;
+    }
     refocusPlaySurface(canvas);
   };
   const onClick = (e) => {
+    // A pointer interaction ends any keyboard-stepping state.
+    keyboardSelect = null;
     const t = e && e.target;
     if (t && t.closest && t.closest("button")) refocusPlaySurface(canvas);
   };
+  chromeRoot.addEventListener("keydown", onKeydown);
   chromeRoot.addEventListener("change", onChange);
   chromeRoot.addEventListener("click", onClick);
   return () => {
+    chromeRoot.removeEventListener("keydown", onKeydown);
     chromeRoot.removeEventListener("change", onChange);
     chromeRoot.removeEventListener("click", onClick);
   };
@@ -895,7 +949,9 @@ export async function boot() {
       raf = requestAnimationFrame(loop);
     }
 
-    refocusPlaySurface(canvas);
+    if (shouldRefocusAfterBoot(document.activeElement)) {
+      refocusPlaySurface(canvas);
+    }
   } catch (err) {
     if (stale()) return;
     console.error(err);

@@ -35,6 +35,7 @@ import {
   readStoredPrefs,
   refocusPlaySurface,
   shouldAdvanceFrame,
+  shouldRefocusAfterBoot,
   syncChromeFromApp,
   writeLiveRegion,
   writeStoredPrefs,
@@ -365,6 +366,101 @@ test("chrome change/button click refocuses the canvas", () => {
   assert.equal(focused, 2, "select/checkbox click must not steal focus early");
   unbind();
   assert.equal(typeof listeners.change, "undefined");
+});
+
+function refocusHarness() {
+  let focused = 0;
+  const canvas = {
+    focus() {
+      focused += 1;
+    },
+  };
+  const listeners = {};
+  const chromeRoot = {
+    addEventListener(type, fn) {
+      listeners[type] = fn;
+    },
+    removeEventListener(type) {
+      delete listeners[type];
+    },
+  };
+  const unbind = bindPlaySurfaceRefocus(chromeRoot, canvas);
+  return { listeners, unbind, count: () => focused };
+}
+
+function fakeSelect() {
+  return { tagName: "SELECT", closest: (sel) => (sel.includes("select") ? {} : null) };
+}
+
+test("keyboard-stepping a SELECT keeps focus; Enter/Escape return it to the canvas", () => {
+  const { listeners, count } = refocusHarness();
+  const select = fakeSelect();
+
+  listeners.keydown({ key: "ArrowDown", target: select });
+  listeners.change({ target: select });
+  assert.equal(count(), 0, "arrow-key change must not refocus the canvas");
+  listeners.keydown({ key: "ArrowDown", target: select });
+  listeners.change({ target: select });
+  assert.equal(count(), 0, "a second step still keeps focus on the select");
+
+  listeners.keydown({ key: "Enter", target: select });
+  assert.equal(count(), 1);
+  listeners.keydown({ key: "Escape", target: select });
+  assert.equal(count(), 2);
+});
+
+test("SELECT type-ahead and Home/End keep focus too", () => {
+  const { listeners, count } = refocusHarness();
+  const select = fakeSelect();
+  for (const key of ["Home", "End", "PageDown", "a"]) {
+    listeners.keydown({ key, target: select });
+    listeners.change({ target: select });
+  }
+  assert.equal(count(), 0);
+});
+
+test("a SELECT change with no preceding keydown still refocuses the canvas", () => {
+  const { listeners, count } = refocusHarness();
+  listeners.change({ target: fakeSelect() });
+  assert.equal(count(), 1);
+});
+
+test("keyboard state is cleared by a later pointer click", () => {
+  const { listeners, count } = refocusHarness();
+  const select = fakeSelect();
+  listeners.keydown({ key: "ArrowDown", target: select });
+  listeners.click({ target: { closest: () => null } });
+  listeners.change({ target: select });
+  assert.equal(count(), 1);
+});
+
+test("non-SELECT keydown and a checkbox change do not affect refocus", () => {
+  const { listeners, count } = refocusHarness();
+  const checkbox = { tagName: "INPUT", closest: () => ({}) };
+  listeners.keydown({ key: "ArrowDown", target: checkbox });
+  listeners.change({ target: checkbox });
+  assert.equal(count(), 1, "checkbox change still refocuses");
+  listeners.click({ target: { closest: (sel) => (sel === "button" ? {} : null) } });
+  assert.equal(count(), 2, "button click still refocuses");
+});
+
+test("unbind removes the keydown listener", () => {
+  const { listeners, unbind } = refocusHarness();
+  assert.equal(typeof listeners.keydown, "function");
+  unbind();
+  assert.equal(typeof listeners.keydown, "undefined");
+  assert.equal(typeof listeners.change, "undefined");
+  assert.equal(typeof listeners.click, "undefined");
+});
+
+test("shouldRefocusAfterBoot skips chrome selects/inputs and allows body, canvas, null", () => {
+  const chrome = (tag) => ({ tagName: tag, closest: () => ({}) });
+  const plain = (tag) => ({ tagName: tag, closest: () => null });
+  assert.equal(shouldRefocusAfterBoot(chrome("SELECT")), false);
+  assert.equal(shouldRefocusAfterBoot(chrome("INPUT")), false);
+  assert.equal(shouldRefocusAfterBoot(plain("BODY")), true);
+  assert.equal(shouldRefocusAfterBoot(plain("CANVAS")), true);
+  assert.equal(shouldRefocusAfterBoot(null), true);
 });
 
 test("refocusPlaySurface no-ops without a canvas", () => {
