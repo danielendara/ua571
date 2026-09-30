@@ -10,8 +10,8 @@ On Linux, native fire SFX needs ALSA headers (Debian/Ubuntu: `sudo apt-get insta
 # Once per clone — enables pre-commit secret guard
 ./scripts/install-git-hooks.sh
 
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo fmt --all
 # Coverage (CI job `coverage`; fails under 65% workspace lines)
 # needs cargo-llvm-cov + rustup component llvm-tools-preview
@@ -32,8 +32,9 @@ Web frontend:
 ./scripts/build-web.sh
 python3 -m http.server 8080 --directory web
 
-# Status live-region chrome (no WASM; Linux `cargo test --workspace` also runs this)
-node --test web/main.test.js
+# Web chrome tests (Node; CI job `web`). On Linux, `cargo test --workspace` also
+# runs `web/main.test.js` via the `ua571-web` crate.
+npm --prefix web test
 ```
 
 ## Project layout
@@ -42,6 +43,7 @@ node --test web/main.test.js
 |-------|------|
 | `ua571-core` | Domain / simulation only (no UI) |
 | `ua571-render` | Shared monochrome GRiD-style drawing |
+| `ua571-audio` | Native fire SFX (TUI + pixel) |
 | `ua571-tui` | Terminal UI |
 | `ua571-pixel` | Desktop window UI |
 | `ua571-web` | WASM bindings for the browser |
@@ -61,7 +63,7 @@ node --test web/main.test.js
 
 1. Fork and branch from `main`.
 2. Keep commits focused.
-3. Ensure CI passes (fmt, clippy, tests on Linux/macOS/Windows, coverage, wasm, secret-guard).
+3. Ensure CI passes (`secret-guard`, matrix `check` on Linux/macOS/Windows, `coverage`, `wasm32`, `web`, `infra`).
 4. Maintainer squash-merges. Do not expect direct push access.
 
 Maintainer GitHub settings: [docs/GITHUB.md](docs/GITHUB.md).

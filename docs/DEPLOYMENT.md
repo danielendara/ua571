@@ -94,7 +94,7 @@ Repo/org variables also work if you prefer; the workflow reads `vars.*`.
 ### 4. First deploy
 
 - **Actions → Deploy web → Run workflow**, or  
-- Push a change under `web/` / `crates/ua571-web/` / etc. to `main`.
+- Push to `main` with changes under any of: `crates/ua571-core/`, `crates/ua571-render/`, `crates/ua571-web/`, `web/`, `scripts/build-web.sh`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, or `.github/workflows/deploy-web.yml`.
 
 ## Local deploy (emergency)
 
