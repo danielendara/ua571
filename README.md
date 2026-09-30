@@ -34,10 +34,12 @@ Three frontends share one simulation core:
 
 - **Options panel** — system mode, weapon status, IFF, test routine, target / spectral / select profiles
 - **Firing panel** — rounds remaining, time-at-100%, temperature & R(M) gauges (bottom-up), CRITICAL alert
-- **Four sentries** — independent ammo and configuration (film setup)
+- **Four sentries** — independent ammo and configuration (film setup); fire is blocked when a unit is offline or its microwave datalink is down
 - **Event log** — arming, fire, critical, demo messages
 - **Demo mode** — scripted perimeter defense auto-play
 - **Themes** — **yellow** (default, film/GRiD prop), phosphor green, amber, mono
+- **Web touch pad** — on-screen controls below the canvas (← → section, ↑ ↓ select, hold Fire, Arm, Reload, Options); shown by default on coarse pointers (`pointer: coarse`) and toggled from the header on desktop. Buttons use the same key codes as the keyboard, so POST / quit / fire-denial rules are unchanged.
+- **Installable web app** — `manifest.webmanifest` plus icons; add to the home screen for a standalone console (hides the Fullscreen button; edge-to-edge on iPhone).
 - **Web Fullscreen** — the web console's **Fullscreen** button fills the screen with the canvas (and the touch pad, if open), letterboxed in black; game state, demo, and sound carry over. In fullscreen the browser takes the first `Esc` to exit, so the in-app `Esc` fire/options toggle works when not in fullscreen. The button is hidden where the Fullscreen API isn't available (e.g. iPhone Safari) and when the console is already installed to the home screen (`display: standalone`), which is the edge-to-edge path on iPhone.
 - **Fire SFX** — MG42-inspired pulse when a round fires (**muted by default**; `m` or the web Sound checkbox enables it. `--mute` starts muted, same as the default; `sound = true` in config to start with SFX on)
 - **Cross-platform** — macOS, Linux, Windows; browser via WebAssembly
@@ -150,13 +152,14 @@ demo progress) is never saved.
 crates/
   ua571-core/     pure domain + simulation (no UI)
   ua571-render/   shared GRiD monochrome framebuffer + scene draw
+  ua571-audio/    native fire SFX (rodio; TUI + pixel)
   ua571-tui/      ratatui → binary `ua571`
   ua571-pixel/    minifb window → binary `ua571-pixel`
   ua571-web/      wasm-bindgen + canvas → web/pkg (build artifact)
 web/              static HTML/CSS/JS host page
 infra/            AWS CDK (S3, CloudFront, ACM, Route53, OIDC role)
-scripts/          build-web.sh
-docs/             DEPLOYMENT.md
+scripts/          build-web.sh, check-secrets.sh, install-git-hooks.sh
+docs/             DEPLOYMENT.md, GITHUB.md, RECOVERY.md, SECURITY_GUARDS.md
 ```
 
 Pixel and Web share `ua571-render`. The TUI is a separate character-cell view of the same `ua571-core` state.
@@ -174,9 +177,10 @@ See [NOTICE](NOTICE) for the full film disclaimer and upstream credit.
 ## Development
 
 ```bash
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo fmt --all
+npm --prefix web test
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).

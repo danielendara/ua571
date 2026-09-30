@@ -1,13 +1,13 @@
 # ua571 recovery runbook
 
-This is the recovery runbook for ua571: how to roll back a bad web deploy and confirm the site is healthy. Last verified 2026-09-27 (read-only). Anything not seen directly is marked **UNVERIFIED**. All RTOs are **estimates**.
+This is the recovery runbook for ua571: how to roll back a bad web deploy and confirm the site is healthy. Last verified 2026-09-30 (read-only). Anything not seen directly is marked **UNVERIFIED**. All RTOs are **estimates**.
 
 ---
 
 ## ua571: Rust TUI + WASM web console (reference template)
 
 - **Hosting:** S3 (**versioned: true**, RETAIN, non-guessable name) + CloudFront + Route 53 at `ua571.danielendara.com`. Verified in `infra/lib/web-stack.ts`.
-- **Deploy path:** GitHub Actions "Deploy web" on push to `main` (path-filtered) or `workflow_dispatch`. It uses OIDC role `ua571-github-deploy` (no long-lived keys) and GitHub Environment `production` (no required reviewers at launch). It runs `aws s3 sync` (`pkg/` with `--delete`) and invalidates `/*`, with Cache-Control `max-age=60`. Recent runs take **about 30-40 s**.
+- **Deploy path:** GitHub Actions "Deploy web" on push to `main` when paths under `crates/ua571-core/`, `crates/ua571-render/`, `crates/ua571-web/`, `web/`, `scripts/build-web.sh`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, or `.github/workflows/deploy-web.yml` change — or via `workflow_dispatch`. It uses OIDC role `ua571-github-deploy` (no long-lived keys) and GitHub Environment `production` (no required reviewers at launch). It runs `aws s3 sync` (`pkg/` with `--delete`; site sync without parent `--delete`), sets `application/manifest+json` on `manifest.webmanifest`, and invalidates `/*`, with Cache-Control `max-age=60`. Recent runs take **about 30-40 s** (estimate).
 - **Rollback, option 1 (RTO est. 1-3 min):** `git revert <BAD_SHA>` on `main` through a PR, and the push triggers the deploy. `workflow_dispatch` **can't deploy an old SHA**: the job only runs when `github.ref == refs/heads/main`, so dispatch always ships current `main`.
 ```bash
 gh workflow run deploy-web.yml -R danielendara/ua571 --ref main   # re-deploy main after the revert lands
