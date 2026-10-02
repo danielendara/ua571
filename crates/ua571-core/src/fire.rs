@@ -70,7 +70,6 @@ impl FireTelemetry {
         Self {
             rounds,
             time_centisecs: DEFAULT_TIME_CENTISECS,
-            // Idle: cold barrel, zero fire rate.
             temperature: TEMP_MIN,
             rm: RM_MIN,
             critical: rounds < CRITICAL_THRESHOLD,
@@ -117,7 +116,6 @@ impl FireTelemetry {
         self.cool_temp_counter = 0;
         self.cool_rm_counter = 0;
 
-        // Time-at-100% drains while firing.
         if self.time_centisecs > 0 {
             self.time_centisecs = self.time_centisecs.saturating_sub(7);
         }
@@ -125,13 +123,11 @@ impl FireTelemetry {
             self.time_centisecs = 0;
         }
 
-        // R(M) ramps up quickly toward cyclic rate.
         self.rm_counter = (self.rm_counter + 1) % 2;
         if self.rm_counter == 0 && self.rm < RM_MAX {
             self.rm = self.rm.saturating_add(2).min(RM_MAX);
         }
 
-        // Temperature climbs more gradually under sustained fire.
         self.temp_counter = (self.temp_counter + 1) % 3;
         if self.temp_counter == 0 && self.temperature < TEMP_MAX {
             self.temperature = self.temperature.saturating_add(1).min(TEMP_MAX);
@@ -173,7 +169,6 @@ impl FireTelemetry {
             return;
         }
 
-        // R(M) falls off relatively quickly when not firing.
         if self.rm > RM_MIN {
             self.cool_rm_counter += 1;
             if self.cool_rm_counter >= RM_DECAY_EVERY_TICKS {

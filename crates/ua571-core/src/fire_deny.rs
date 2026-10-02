@@ -1,21 +1,17 @@
 //! Shared fire-deny classification for pixel, web, and TUI.
 //!
-//! `AppState::fire()` already logs OFFLINE / LINK DOWN / SAFE / DRUM EMPTY /
-//! CRITICAL into the event log — the TUI's EVENT LOG panel picks that up for
-//! free. Frontends that show a short one-shot status line instead of (or in
-//! addition to) a log — web's `#status` live region, pixel's window title —
-//! should call [`fire_deny_reason`] instead of re-deriving the same
-//! online/link/armed/rounds branches, so every console uses the same reason
-//! classes and copy (see #82, #86).
+//! `AppState::fire()` logs OFFLINE / LINK DOWN / SAFE / DRUM EMPTY / CRITICAL
+//! into the event log. Frontends that show a one-shot status line (web `#status`,
+//! pixel window title) should use [`fire_deny_reason`] so every console shares the
+//! same reason classes and copy.
 
 use crate::state::AppState;
 
 /// Reason a fire attempt produced no round, or the classification to show
 /// alongside a fire that just crossed into CRITICAL.
 ///
-/// `None` (not a variant here) covers both "not armed" (SAFE — already shown
-/// as standing chrome by every frontend) and a normal, successful,
-/// non-critical fire: neither needs a called-out status line.
+/// `None` covers both "not armed" (SAFE — standing chrome on every frontend) and
+/// a normal, non-critical successful fire: neither needs a called-out status line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FireDenyReason {
     /// Selected sentry is powered down.
@@ -40,13 +36,10 @@ impl FireDenyReason {
     }
 }
 
-/// Classify the active sentry's current fire status for a one-shot status
-/// line.
+/// Classify the active sentry's current fire status for a one-shot status line.
 ///
-/// Call once *before* [`AppState::fire`] to get the deny reason to show when
-/// it returns `false` (the state a denied call leaves unchanged), and call
-/// again *after* a successful fire to see whether it just crossed into
-/// CRITICAL.
+/// Call once *before* [`AppState::fire`] for the deny reason when it returns
+/// `false`, and again *after* a successful fire to detect a fresh CRITICAL crossing.
 pub fn fire_deny_reason(state: &AppState) -> Option<FireDenyReason> {
     let s = state.active_sentry();
     if !s.online {
@@ -64,14 +57,11 @@ pub fn fire_deny_reason(state: &AppState) -> Option<FireDenyReason> {
     }
 }
 
-/// Fire once and classify the result for a one-shot status line in a single
-/// call: the deny reason if fire was blocked (state left unchanged by
-/// [`AppState::fire`]), or the post-fire classification — currently just
-/// CRITICAL, when the shot just crossed the threshold — when it succeeds.
-/// `None` for an ordinary, non-critical successful fire.
+/// Fire once and return `(fired, status)` for a one-shot status line.
 ///
-/// Shared so every frontend does the same "capture the reason before
-/// firing, fall back to it if denied" dance exactly once.
+/// On denial, `status` is the pre-fire reason (state unchanged). On success,
+/// `status` is post-fire classification — currently CRITICAL when the shot crossed
+/// the threshold — or `None` for an ordinary fire.
 pub fn fire_with_status(state: &mut AppState) -> (bool, Option<FireDenyReason>) {
     let before = fire_deny_reason(state);
     let fired = state.fire();
@@ -112,7 +102,7 @@ mod tests {
 
     #[test]
     fn unarmed_is_none_not_a_reason() {
-        // SAFE is already standing chrome on every frontend; not a "reason".
+        // SAFE is standing chrome; not a "reason".
         let app = fresh();
         assert!(!app.active_sentry().is_armed());
         assert_eq!(fire_deny_reason(&app), None);
@@ -156,8 +146,7 @@ mod tests {
 
     #[test]
     fn matches_app_state_fire_outcomes() {
-        // Mirror the exact scenarios AppState::fire() itself tests, so the
-        // shared classifier cannot drift from the log it already emits.
+        // Same scenarios as `AppState::fire` tests so the classifier cannot drift.
         let mut app = fresh();
         app.toggle_arm();
         app.active_sentry_mut().unwrap().online = false;

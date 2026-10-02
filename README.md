@@ -46,7 +46,7 @@ Three frontends share one simulation core:
 
 ## Quick start
 
-**Requirements:** Rust **1.98.0** (`rust-toolchain.toml`; MSRV 1.80), a terminal (TUI) or windowed desktop (pixel).
+**Requirements:** Rust **1.98.0** (`rust-toolchain.toml` — pinned toolchain; `rust-version` in `Cargo.toml` is the MSRV floor only), a terminal (TUI) or windowed desktop (pixel).
 
 ```bash
 git clone https://github.com/danielendara/ua571.git

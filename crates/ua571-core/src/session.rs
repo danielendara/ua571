@@ -1,16 +1,9 @@
-//! Saved console session for the native frontends (#109).
+//! Saved console session for native TUI and pixel.
 //!
-//! The web frontend already remembers how you left the console — theme, sound,
-//! skip-boot, and weapon / IFF / system mode — in localStorage. TUI and pixel
-//! read a config file at startup and then never wrote anything back, so every
-//! `T` theme cycle and Options change was thrown away on exit.
+//! One file under the platform config dir, written atomically on clean exit,
+//! separate from the hand-written config file. Saved state never rewrites config.
 //!
-//! This is that memory, for native: one small file under the platform config
-//! dir, written atomically on a clean exit, separate from the config file the
-//! operator hand-writes. Saved state never rewrites their config.
-//!
-//! Precedence, extending #17's rule: **CLI flag → saved session → config file →
-//! built-in defaults.**
+//! Precedence: **CLI flag → saved session → config file → built-in defaults.**
 
 use crate::config::Theme;
 use crate::options::{IffStatus, SystemMode, WeaponStatus};
@@ -91,8 +84,7 @@ pub struct NativeStartup {
     pub notice: Option<String>,
 }
 
-/// Resolves startup state with the full precedence chain (#109):
-/// **CLI flag → saved session → config file → built-in defaults.**
+/// Resolves startup state (**CLI → session → config → defaults**).
 ///
 /// A missing session file is silent; an unreadable or unparsable one is ignored
 /// with a notice, never a failed boot.
@@ -149,14 +141,13 @@ pub fn compose_config(
             config.sound = sound;
         }
     }
-    // The CLI always wins, and only for flags actually passed (#17).
+    // CLI wins only for flags actually passed.
     crate::config::apply_cli_overrides(&mut config, cli)?;
     Ok(config.validate())
 }
 
 impl NativeStartup {
-    /// Applies the restored Options-panel positions to every sentry and logs the
-    /// notice once, in the voice of the existing theme-cycle logging (#98).
+    /// Applies restored Options-panel positions to every sentry and logs `notice` once.
     pub fn apply(&self, state: &mut crate::state::AppState) {
         for sentry in state.bank.iter_mut() {
             if let Some(mode) = self.system_mode {

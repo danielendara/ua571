@@ -16,7 +16,7 @@ edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/danielendara/ua571"
 authors = ["Daniel Endara"]
-rust-version = "1.80"
+rust-version = "1.80" # MSRV floor for `cargo` metadata; pinned toolchain is in rust-toolchain.toml
 
 [workspace.dependencies]
 ua571-core = { path = "crates/ua571-core", version = "0.2.0" }
