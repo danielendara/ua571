@@ -49,7 +49,7 @@ impl FireAudio {
         if self.muted || count == 0 {
             return;
         }
-        let n = count.min(6) as usize;
+        let n = count.min(ua571_core::MAX_FIRE_SFX_BURST as u32) as usize;
         if n == 1 {
             self.play_fire();
             return;

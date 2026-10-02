@@ -8,6 +8,17 @@ use crate::options::{OptionsState, WeaponStatus};
 
 pub const SENTRY_COUNT: usize = 4;
 
+/// Circled unit mark for sentry `id` (1→A … 4→D).
+pub fn sentry_mark_char(id: u8) -> char {
+    match id {
+        1 => 'A',
+        2 => 'B',
+        3 => 'C',
+        4 => 'D',
+        _ => 'A',
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Sentry {

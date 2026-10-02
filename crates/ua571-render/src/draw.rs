@@ -1,8 +1,8 @@
 //! Scene drawing ported from the GRiD Pascal UA571C layout coordinates.
 
-use ua571_core::{AppState, MenuSection, Screen, WeaponStatus};
+use ua571_core::{sentry_mark_char, AppState, MenuSection, Screen, WeaponStatus};
 
-use crate::fb::{Framebuffer, HEIGHT, WIDTH};
+use crate::fb::{Framebuffer, WIDTH};
 
 const SECTION_SCALE: i32 = 1;
 const HEADER_SCALE: i32 = 2;
@@ -25,17 +25,6 @@ pub fn render(state: &AppState, fb: &mut Framebuffer) {
     }
 }
 
-/// Sentry 1→A … 4→D (circled unit marks in the header).
-fn sentry_mark(id: u8) -> char {
-    match id {
-        1 => 'A',
-        2 => 'B',
-        3 => 'C',
-        4 => 'D',
-        _ => 'A',
-    }
-}
-
 /// HEADER.PAS DisplayHeader + circled unit letter for the active sentry.
 fn draw_header(state: &AppState, fb: &mut Framebuffer) {
     // Title centered-ish at original positions (scaled fonts approximate Tb12x16 / Tb24x32).
@@ -48,7 +37,7 @@ fn draw_header(state: &AppState, fb: &mut Framebuffer) {
     fb.draw_text(sub, (WIDTH as i32 - sw) / 2, 20, SECTION_SCALE);
 
     // Circled unit marks — letter tracks active sentry (1=A … 4=D).
-    let mark = sentry_mark(state.active_sentry().id);
+    let mark = sentry_mark_char(state.active_sentry().id);
     draw_circled_letter(fb, mark, 18, 17);
     draw_circled_letter(fb, mark, WIDTH as i32 - 18, 17);
 
@@ -396,7 +385,6 @@ fn draw_boot(state: &AppState, fb: &mut Framebuffer) {
     }
 
     fb.draw_text("PRESS ANY KEY", cx - 52, 210, SECTION_SCALE);
-    let _ = HEIGHT; // keep height constant meaningful
 }
 
 #[cfg(test)]
