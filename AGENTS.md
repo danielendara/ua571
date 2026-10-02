@@ -9,7 +9,7 @@ You are working in a repository that may be **public open source** while product
    - `infra/cdk.out/**`
    - `.env`, `.env.*` (except `*.example`)
    - AWS credentials files, `*.pem`, private keys
-   - `web/pkg/**`, `target/**` (build outputs)
+   - `web/pkg/**`, `web/build-id.js`, `target/**` (build outputs)
 
 2. **Never paste into source or docs:**
    - Real AWS account IDs, access keys, secret keys, session tokens

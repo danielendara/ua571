@@ -74,7 +74,8 @@ Agents **may**:
 
 - Paths → `security/commit-denylist.txt`  
 - Content regexes → `security/content-deny-patterns.txt`  
+- `commit-denylist.txt` does not support `!` negation lines; exceptions belong in `path_allowlisted` inside `scripts/check-secrets.sh`.
 
 CI and pre-commit pick them up automatically (`path_denied` is applied to
-tracked/staged/untracked lists; `!.env.example` and the guard script itself
-are allowlisted).
+tracked/staged/untracked lists; `.env.example` and the guard script itself
+are allowlisted in `check-secrets.sh`).

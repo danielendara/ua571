@@ -284,6 +284,7 @@ function handler(event) {
     });
     new cdk.CfnOutput(this, 'DistributionDomainName', {
       value: distribution.distributionDomainName,
+      description: 'CloudFront distribution hostname (for DNS debugging)',
     });
   }
 }
