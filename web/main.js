@@ -131,7 +131,7 @@ export function writeStoredPrefs(storage, prefs) {
 }
 
 /** Built-in chrome defaults — omitted from the share URL. */
-export const DEFAULT_CHROME_PREFS = {
+const DEFAULT_CHROME_PREFS = {
   theme: "yellow",
   scale: "3",
   sound: false,
@@ -913,7 +913,10 @@ export async function boot() {
     };
     const loop = () => {
       if (!app) return;
-      if (typeof document !== "undefined" && document.hidden) {
+      if (
+        typeof document !== "undefined" &&
+        !shouldAdvanceFrame(document.hidden)
+      ) {
         raf = 0;
         return;
       }
