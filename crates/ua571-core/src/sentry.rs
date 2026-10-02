@@ -24,7 +24,7 @@ impl Sentry {
         assert!((1..=SENTRY_COUNT as u8).contains(&id));
         Self {
             id,
-            options: OptionsState::new(),
+            options: OptionsState::default(),
             fire: FireTelemetry::new(starting_rounds),
             link_ok: true,
             online: true,
@@ -62,28 +62,12 @@ impl SentryBank {
         self.units.get_mut(index)
     }
 
-    pub fn by_id(&self, id: u8) -> Option<&Sentry> {
-        self.units.iter().find(|s| s.id == id)
-    }
-
-    pub fn by_id_mut(&mut self, id: u8) -> Option<&mut Sentry> {
-        self.units.iter_mut().find(|s| s.id == id)
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = &Sentry> {
         self.units.iter()
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Sentry> {
         self.units.iter_mut()
-    }
-
-    pub fn len(&self) -> usize {
-        SENTRY_COUNT
-    }
-
-    pub fn is_empty(&self) -> bool {
-        false
     }
 }
 
@@ -94,12 +78,11 @@ mod tests {
     #[test]
     fn four_sentries() {
         let bank = SentryBank::new(500);
-        assert_eq!(bank.len(), 4);
+        assert_eq!(SENTRY_COUNT, 4);
         assert_eq!(bank.get(0).unwrap().id, 1);
         assert_eq!(bank.get(3).unwrap().id, 4);
         assert!(bank.get(4).is_none());
-        assert_eq!(bank.by_id(2).unwrap().id, 2);
-        assert!(bank.by_id(9).is_none());
+        assert_eq!(bank.get(1).unwrap().id, 2);
         assert!(!bank.get(0).unwrap().is_armed());
         assert_eq!(bank.get(0).unwrap().label(), "SENTRY-1");
     }

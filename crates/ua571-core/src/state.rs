@@ -96,14 +96,6 @@ impl AppState {
         }
     }
 
-    pub fn select_sentry_by_id(&mut self, id: u8) {
-        if let Some(index) =
-            (0..SENTRY_COUNT).find(|&i| self.bank.get(i).map(|s| s.id == id).unwrap_or(false))
-        {
-            self.select_sentry(index);
-        }
-    }
-
     pub fn set_screen(&mut self, screen: Screen) {
         if self.screen == screen {
             return;
@@ -582,9 +574,9 @@ mod tests {
         assert_eq!(app.active_sentry().id, 3);
         app.select_sentry(99);
         assert_eq!(app.active_sentry().id, 3);
-        app.select_sentry_by_id(1);
+        app.select_sentry(0);
         assert_eq!(app.active_sentry().id, 1);
-        app.select_sentry_by_id(9);
+        app.select_sentry(99);
         assert_eq!(app.active_sentry().id, 1);
     }
 
