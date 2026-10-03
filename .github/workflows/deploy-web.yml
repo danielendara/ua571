@@ -87,12 +87,8 @@ jobs:
 
       - name: Verify package artifacts
         run: |
-          test -f web/index.html
-          test -f web/pkg/ua571_web.js
-          test -f web/pkg/ua571_web_bg.wasm
-          test -f web/build-id.js
+          ./scripts/verify-web-artifacts.sh
           wasm-bindgen --version | grep -F "${WASM_BINDGEN_VERSION}"
-          ls -la web/pkg
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6

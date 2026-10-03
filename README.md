@@ -158,6 +158,8 @@ crates/
   ua571-web/      wasm-bindgen + canvas → web/pkg (build artifact)
 web/              static HTML/CSS/JS host page
 infra/            AWS CDK (S3, CloudFront, ACM, Route53, OIDC role)
+security/         commit path/content denylists for check-secrets.sh
+.github/          CI workflows (ci.yml, deploy-web.yml)
 scripts/          build-web.sh, check-secrets.sh, install-git-hooks.sh
 docs/             DEPLOYMENT.md, GITHUB.md, RECOVERY.md, SECURITY_GUARDS.md
 ```

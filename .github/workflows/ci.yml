@@ -147,10 +147,7 @@ jobs:
           ./scripts/build-web.sh
       - name: Verify package artifacts
         run: |
-          test -f web/index.html
-          test -f web/pkg/ua571_web.js
-          test -f web/pkg/ua571_web_bg.wasm
-          test -f web/build-id.js
+          ./scripts/verify-web-artifacts.sh
           wasm-bindgen --version | grep -F "${WASM_BINDGEN_VERSION}"
 
   web:
