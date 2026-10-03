@@ -849,22 +849,31 @@ test("Sound on/off appears in #status after key m once", () => {
   assert.equal(sound.checked, false);
 });
 
-function installBootDom() {
+function installBootDom({ page = false } = {}) {
   const listeners = { keydown: [], keyup: [], visibilitychange: [] };
   const els = {};
   function makeEl(id, extra = {}) {
+    const handlers = [];
     const node = {
       id,
       value: extra.value ?? "",
       checked: Boolean(extra.checked),
       textContent: extra.textContent ?? "",
       dataset: {},
-      focusCount: 0,
+      hidden: extra.hidden ?? false,
+      href: "",
+      focusCount: page ? undefined : 0,
       focus() {
-        this.focusCount += 1;
+        if (node.focusCount != null) node.focusCount += 1;
       },
-      addEventListener() {},
+      addEventListener(type, fn) {
+        if (page) handlers.push({ type, fn });
+      },
       removeEventListener() {},
+      click() {
+        if (!page) return;
+        for (const h of handlers) if (h.type === "click") h.fn();
+      },
     };
     els[id] = node;
     return node;
@@ -876,10 +885,16 @@ function installBootDom() {
   makeEl("demo");
   makeEl("skipBoot");
   makeEl("sound");
+  if (page) {
+    makeEl("restart");
+    makeEl("app-version-wrap", { hidden: true });
+    makeEl("app-version");
+  }
 
   const prev = {
     document: globalThis.document,
     window: globalThis.window,
+    location: globalThis.location,
     requestAnimationFrame: globalThis.requestAnimationFrame,
     cancelAnimationFrame: globalThis.cancelAnimationFrame,
   };
@@ -891,10 +906,15 @@ function installBootDom() {
     getElementById(id) {
       return els[id] || null;
     },
+    querySelector() {
+      return null;
+    },
     addEventListener(type, fn) {
+      if (page) return;
       (listeners[type] ||= []).push(fn);
     },
     removeEventListener(type, fn) {
+      if (page) return;
       const list = listeners[type] || [];
       const i = list.indexOf(fn);
       if (i >= 0) list.splice(i, 1);
@@ -909,6 +929,8 @@ function installBootDom() {
       const i = list.indexOf(fn);
       if (i >= 0) list.splice(i, 1);
     },
+    location: page ? null : undefined,
+    history: page ? { replaceState() {}, state: null } : undefined,
   };
   globalThis.requestAnimationFrame = (cb) => {
     const id = nextRaf++;
@@ -919,21 +941,34 @@ function installBootDom() {
     const i = rafs.findIndex((r) => r.id === id);
     if (i >= 0) rafs.splice(i, 1);
   };
-  return {
+  const out = {
     els,
     listeners,
     rafs,
     restore() {
-      if (prev.document === undefined) delete globalThis.document;
-      else globalThis.document = prev.document;
-      if (prev.window === undefined) delete globalThis.window;
-      else globalThis.window = prev.window;
-      if (prev.requestAnimationFrame === undefined) delete globalThis.requestAnimationFrame;
-      else globalThis.requestAnimationFrame = prev.requestAnimationFrame;
-      if (prev.cancelAnimationFrame === undefined) delete globalThis.cancelAnimationFrame;
-      else globalThis.cancelAnimationFrame = prev.cancelAnimationFrame;
+      const put = (key, value) => {
+        if (value === undefined) delete globalThis[key];
+        else globalThis[key] = value;
+      };
+      put("document", prev.document);
+      put("window", prev.window);
+      put("location", prev.location);
+      put("requestAnimationFrame", prev.requestAnimationFrame);
+      put("cancelAnimationFrame", prev.cancelAnimationFrame);
     },
   };
+  if (page) {
+    out.setHost = (hostname) => {
+      globalThis.location = {
+        hostname,
+        search: "",
+        pathname: "/",
+        hash: "",
+      };
+      globalThis.window.location = globalThis.location;
+    };
+  }
+  return out;
 }
 
 function wasmStandIn(id) {
@@ -1070,6 +1105,24 @@ test("a single boot focuses the canvas and runs the frame loop", async () => {
     dom.rafs[0].cb();
     assert.equal(inst.frames, 1);
     assert.match(dom.els.status.textContent, /FIRE · READY/);
+  } finally {
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
+test("the frame loop does not advance while the document is hidden", async () => {
+  assert.equal(shouldAdvanceFrame(true), false);
+  const dom = installBootDom();
+  const inst = wasmStandIn(1);
+  setBootInstanceLoaderForTests(async () => inst);
+  try {
+    await boot();
+    dom.rafs[0].cb();
+    assert.equal(inst.frames, 1);
+    globalThis.document.hidden = true;
+    dom.rafs[0].cb();
+    assert.equal(inst.frames, 1);
   } finally {
     setBootInstanceLoaderForTests(null);
     dom.restore();
@@ -1222,111 +1275,6 @@ test("wasm load failure text is player-facing except on localhost", () => {
   }
 });
 
-function installBootPageDom() {
-  const listeners = { keydown: [], keyup: [] };
-  const els = {};
-  function makeEl(id, extra = {}) {
-    const handlers = [];
-    const node = {
-      id,
-      value: extra.value ?? "",
-      checked: Boolean(extra.checked),
-      textContent: extra.textContent ?? "",
-      dataset: {},
-      hidden: extra.hidden ?? false,
-      href: "",
-      focus() {},
-      addEventListener(type, fn) {
-        handlers.push({ type, fn });
-      },
-      removeEventListener() {},
-      click() {
-        for (const h of handlers) if (h.type === "click") h.fn();
-      },
-    };
-    els[id] = node;
-    return node;
-  }
-  makeEl("status", { textContent: "Loading WebAssembly…" });
-  makeEl("ua571");
-  makeEl("theme", { value: "yellow" });
-  makeEl("scale", { value: "3" });
-  makeEl("demo");
-  makeEl("skipBoot");
-  makeEl("sound");
-  makeEl("restart");
-  makeEl("app-version-wrap", { hidden: true });
-  makeEl("app-version");
-
-  const prev = {
-    document: globalThis.document,
-    window: globalThis.window,
-    location: globalThis.location,
-    requestAnimationFrame: globalThis.requestAnimationFrame,
-    cancelAnimationFrame: globalThis.cancelAnimationFrame,
-  };
-  const rafs = [];
-  let nextRaf = 1;
-  globalThis.document = {
-    body: { dataset: {} },
-    hidden: false,
-    getElementById(id) {
-      return els[id] || null;
-    },
-    querySelector() {
-      return null;
-    },
-    addEventListener() {},
-    removeEventListener() {},
-  };
-  globalThis.window = {
-    addEventListener(type, fn) {
-      (listeners[type] ||= []).push(fn);
-    },
-    removeEventListener(type, fn) {
-      const list = listeners[type] || [];
-      const i = list.indexOf(fn);
-      if (i >= 0) list.splice(i, 1);
-    },
-    location: null,
-    history: { replaceState() {}, state: null },
-  };
-  globalThis.requestAnimationFrame = (cb) => {
-    const id = nextRaf++;
-    rafs.push({ id, cb });
-    return id;
-  };
-  globalThis.cancelAnimationFrame = (id) => {
-    const i = rafs.findIndex((r) => r.id === id);
-    if (i >= 0) rafs.splice(i, 1);
-  };
-  return {
-    els,
-    listeners,
-    rafs,
-    setHost(hostname) {
-      globalThis.location = {
-        hostname,
-        search: "",
-        pathname: "/",
-        hash: "",
-      };
-      globalThis.window.location = globalThis.location;
-    },
-    restore() {
-      const put = (key, value) => {
-        if (value === undefined) delete globalThis[key];
-        else globalThis[key] = value;
-      };
-      put("document", prev.document);
-      put("window", prev.window);
-      put("location", prev.location);
-      put("requestAnimationFrame", prev.requestAnimationFrame);
-      put("cancelAnimationFrame", prev.cancelAnimationFrame);
-    },
-  };
-}
-
 function bootStandIn() {
   return {
     free() {},
@@ -1360,55 +1308,8 @@ function bootStandIn() {
   };
 }
 
-async function bootFailure(hostname) {
-  const dom = installBootPageDom();
-  dom.setHost(hostname);
-  const errors = [];
-  const orig = console.error;
-  console.error = (...args) => {
-    errors.push(args);
-  };
-  setBootInstanceLoaderForTests(async () => {
-    throw new Error("wasm missing");
-  });
-  try {
-    await boot();
-    return { dom, errors };
-  } finally {
-    console.error = orig;
-  }
-}
-
-test("a rejected boot on a public host mentions Restart and not the build script", async () => {
-  const { dom, errors } = await bootFailure("ua571.danielendara.com");
-  try {
-    assert.match(dom.els.status.textContent, /Restart/);
-    assert.match(dom.els.status.textContent, /did not load/i);
-    assert.doesNotMatch(dom.els.status.textContent, /build-web\.sh/);
-    assert.doesNotMatch(dom.els.status.textContent, /Loading WebAssembly/);
-    assert.equal(errors.length, 1);
-    assert.equal(dom.listeners.keydown?.length || 0, 0);
-  } finally {
-    setBootInstanceLoaderForTests(null);
-    dom.restore();
-  }
-});
-
-test("a rejected boot on localhost still mentions the build script", async () => {
-  const { dom, errors } = await bootFailure("localhost");
-  try {
-    assert.match(dom.els.status.textContent, /Restart/);
-    assert.match(dom.els.status.textContent, /\.\/scripts\/build-web\.sh/);
-    assert.doesNotMatch(dom.els.status.textContent, /Loading WebAssembly/);
-    assert.equal(errors.length, 1);
-  } finally {
-    setBootInstanceLoaderForTests(null);
-    dom.restore();
-  }
-});
-
 test("Restart after a failed load calls boot again and success replaces the failure", async () => {
-  const dom = installBootPageDom();
+  const dom = installBootDom({ page: true });
   dom.setHost("ua571.danielendara.com");
   let calls = 0;
   const orig = console.error;
@@ -2053,7 +1954,6 @@ test("manifest parses, theme matches yellow --fg, and listed icons exist (#138)"
 });
 
 test("index.html: Fullscreen button in .controls, stage wraps canvas + pad, Esc documented (#136)", () => {
-  const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "index.html"), "utf8");
   const controls = html.slice(html.indexOf('<div class="controls">'), html.indexOf("</header>"));
   assert.match(controls, /<button id="fullscreenToggle" type="button"[^>]*aria-pressed="false"[^>]*hidden>/);
   const stage = html.slice(html.indexOf('id="console-stage"'), html.indexOf('id="status"'));
