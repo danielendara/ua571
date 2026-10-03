@@ -179,7 +179,7 @@ main {
   gap: 0.75rem;
 }
 
-/* Canvas + touch pad; the Fullscreen button (#136) fullscreens this wrapper. */
+/* Canvas + touch pad; the Fullscreen button fullscreens this wrapper. */
 .console-stage {
   display: flex;
   flex-direction: column;
@@ -206,7 +206,7 @@ main {
   border-color: var(--fg);
 }
 
-/* Fullscreen (#136): black letterbox. JS sets the canvas CSS size from
+/* Fullscreen: black letterbox. JS sets the canvas CSS size from
    fitCanvasSize() (largest fit at the WASM canvas's aspect ratio); the WASM
    keeps owning the canvas pixel size, and pixelated rendering upscales it. */
 .console-stage:fullscreen {
@@ -260,7 +260,7 @@ footer {
   color: var(--fg);
 }
 
-/* On-screen touch pad (#132): below the canvas, theme colours via vars. */
+/* On-screen touch pad: below the canvas, theme colours via vars. */
 .touch-pad {
   display: flex;
   flex-wrap: wrap;

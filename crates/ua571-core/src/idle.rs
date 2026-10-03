@@ -1,19 +1,13 @@
 //! Shared "paused in the background" policy for windowed/tabbed frontends.
 //!
-//! Web pauses ticks and SFX while its browser tab is hidden (`set_hidden`,
-//! #73); pixel does the same while its desktop window has lost OS focus
-//! (#90) — a shared machine shouldn't keep hearing gunfire from a window the
-//! operator isn't looking at. Both boil down to the same pure decision: while
-//! backgrounded, never tick and never make sound, and when the frontend comes
-//! back to the foreground, resume ticking and only resume sound if the
-//! operator's own sound preference was already on. Neither frontend flips
-//! that preference for this — muting while backgrounded must not look like
-//! the user muted, and coming back to the foreground must not unmute sound
-//! the operator turned off. [`idle_runtime`] is the single place both
-//! frontends compute that, so the tick/mute rule can't drift between them.
+//! While a tab is hidden or a desktop window lacks focus, [`idle_runtime`] pauses
+//! simulation ticks and SFX so a shared machine does not keep playing gunfire in
+//! the background. Returning to the foreground resumes ticks and only resumes
+//! audio when the operator's sound preference was already on — background mute
+//! must not look like a user mute, and foreground must not unmute sound they
+//! turned off.
 //!
-//! TUI runs in a terminal with no reliable analog to page-visibility or
-//! window-focus, so it does not use this.
+//! TUI has no reliable page-visibility or window-focus analog, so it does not use this.
 
 /// Whether the simulation should tick and SFX should play right now.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

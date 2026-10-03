@@ -529,7 +529,7 @@ export function handleGameKeyDown(app, e) {
 }
 
 /**
- * On-screen touch pad (#132). Every button sends the same `KeyboardEvent.code`
+ * On-screen touch pad. Every button sends the same `KeyboardEvent.code`
  * through `key_down` / `key_up` as the matching key, so all game rules (demo
  * stop, fire denial, CRITICAL/EMPTY/LINK DOWN) stay in WASM.
  */
@@ -628,7 +628,7 @@ function padButton(target) {
 /**
  * Wire the pad. Pointer presses act on `pointerdown` and never move focus
  * (keyboard play stays on the canvas); keyboard activation of a focused pad
- * button (`click` with `detail === 0`) taps and refocuses the canvas (#84).
+ * button (`click` with `detail === 0`) taps and refocuses the canvas.
  */
 export function bindTouchPad(root, { getApp, canvas, hold }) {
   if (!root || typeof root.addEventListener !== "function") return () => {};
@@ -714,7 +714,7 @@ export function touchPadFireHold() {
 }
 
 /**
- * Fullscreen (#136). The button fullscreens the canvas + touch-pad wrapper;
+ * Fullscreen. The button fullscreens the canvas + touch-pad wrapper;
  * nothing re-instantiates WASM, so game state, demo, and sound carry over.
  * Fullscreen is never written to the URL or saved prefs.
  * An installed home-screen app (`display-mode: standalone`, or iOS

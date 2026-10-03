@@ -60,8 +60,7 @@ export class Ua571WebStack extends cdk.Stack {
       cookieBehavior: cloudfront.CacheCookieBehavior.none(),
     });
 
-    // WASM/pkg assets: long TTL (filenames change when you re-run wasm-bindgen with new hashes
-    // only if you introduce hashed names later; still invalidated on deploy).
+    // WASM/pkg assets: long TTL; deploy invalidation still applies.
     const assetCachePolicy = new cloudfront.CachePolicy(this, 'AssetCachePolicy', {
       cachePolicyName: `ua571-assets-${this.account}`,
       comment: 'pkg/ WASM and glue for ua571',
