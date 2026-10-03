@@ -1,7 +1,5 @@
 //! Configuration options matching the UA 571-C options panel sections.
 
-use std::fmt;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -42,10 +40,6 @@ impl MenuSection {
         }
     }
 
-    pub fn from_index(i: usize) -> Option<Self> {
-        Self::ALL.get(i).copied()
-    }
-
     pub fn label(self) -> &'static str {
         match self {
             MenuSection::SystemMode => "SYSTEM MODE",
@@ -55,18 +49,6 @@ impl MenuSection {
             MenuSection::TargetProfile => "TARGET PROFILE",
             MenuSection::SpectralProfile => "SPECTRAL PROFILE",
             MenuSection::TargetSelect => "TARGET SELECT",
-        }
-    }
-
-    pub fn short_label(self) -> &'static str {
-        match self {
-            MenuSection::SystemMode => "SYSTEM",
-            MenuSection::WeaponStatus => "WEAPON",
-            MenuSection::IffStatus => "IFF",
-            MenuSection::TestRoutine => "TEST",
-            MenuSection::TargetProfile => "TARGET",
-            MenuSection::SpectralProfile => "SPECTRAL",
-            MenuSection::TargetSelect => "SELECT",
         }
     }
 
@@ -82,18 +64,6 @@ impl MenuSection {
             self.index() - 1
         };
         Self::ALL[i]
-    }
-
-    pub fn option_count(self) -> usize {
-        match self {
-            MenuSection::SystemMode => SystemMode::ALL.len(),
-            MenuSection::WeaponStatus => WeaponStatus::ALL.len(),
-            MenuSection::IffStatus => IffStatus::ALL.len(),
-            MenuSection::TestRoutine => TestRoutine::ALL.len(),
-            MenuSection::TargetProfile => TargetProfile::ALL.len(),
-            MenuSection::SpectralProfile => SpectralProfile::ALL.len(),
-            MenuSection::TargetSelect => TargetSelect::ALL.len(),
-        }
     }
 }
 
@@ -161,12 +131,6 @@ macro_rules! option_enum {
                     self.index() - 1
                 };
                 Self::ALL[i]
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(self.label())
             }
         }
     };
@@ -241,10 +205,6 @@ pub struct OptionsState {
 }
 
 impl OptionsState {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn focus_next_section(&mut self) {
         self.focus = self.focus.next();
     }
@@ -276,19 +236,6 @@ impl OptionsState {
             MenuSection::TargetProfile => self.target_profile = self.target_profile.prev(),
             MenuSection::SpectralProfile => self.spectral_profile = self.spectral_profile.prev(),
             MenuSection::TargetSelect => self.target_select = self.target_select.prev(),
-        }
-    }
-
-    /// Index of the currently selected option in the focused section.
-    pub fn focused_selection_index(&self) -> usize {
-        match self.focus {
-            MenuSection::SystemMode => self.system_mode.index(),
-            MenuSection::WeaponStatus => self.weapon_status.index(),
-            MenuSection::IffStatus => self.iff_status.index(),
-            MenuSection::TestRoutine => self.test_routine.index(),
-            MenuSection::TargetProfile => self.target_profile.index(),
-            MenuSection::SpectralProfile => self.spectral_profile.index(),
-            MenuSection::TargetSelect => self.target_select.index(),
         }
     }
 
@@ -333,7 +280,7 @@ mod tests {
 
     #[test]
     fn section_wraps() {
-        let mut o = OptionsState::new();
+        let mut o = OptionsState::default();
         assert_eq!(o.focus, MenuSection::SystemMode);
         o.focus_prev_section();
         assert_eq!(o.focus, MenuSection::TargetSelect);
@@ -343,8 +290,10 @@ mod tests {
 
     #[test]
     fn selection_cycles() {
-        let mut o = OptionsState::new();
-        o.focus = MenuSection::WeaponStatus;
+        let mut o = OptionsState {
+            focus: MenuSection::WeaponStatus,
+            ..Default::default()
+        };
         assert_eq!(o.weapon_status, WeaponStatus::Safe);
         o.select_down();
         assert_eq!(o.weapon_status, WeaponStatus::Armed);
@@ -354,22 +303,23 @@ mod tests {
 
     #[test]
     fn focused_index_and_section_options() {
-        let mut o = OptionsState::new();
-        o.focus = MenuSection::IffStatus;
-        o.iff_status = IffStatus::Engaged;
-        assert_eq!(o.focused_selection_index(), IffStatus::Engaged.index());
+        let o = OptionsState {
+            focus: MenuSection::IffStatus,
+            iff_status: IffStatus::Engaged,
+            ..Default::default()
+        };
         let (labels, idx) = o.section_options(MenuSection::IffStatus);
         assert_eq!(labels.len(), IffStatus::ALL.len());
         assert_eq!(labels[idx], "ENGAGED");
-        assert_eq!(MenuSection::from_index(1), Some(MenuSection::WeaponStatus));
-        assert_eq!(MenuSection::WeaponStatus.option_count(), 2);
-        assert_eq!(MenuSection::SystemMode.short_label(), "SYSTEM");
+        assert_eq!(MenuSection::ALL[1], MenuSection::WeaponStatus);
     }
 
     #[test]
     fn select_up_wraps_in_section() {
-        let mut o = OptionsState::new();
-        o.focus = MenuSection::TargetProfile;
+        let mut o = OptionsState {
+            focus: MenuSection::TargetProfile,
+            ..Default::default()
+        };
         assert_eq!(o.target_profile, TargetProfile::Soft);
         o.select_up();
         assert_eq!(o.target_profile, TargetProfile::Hard);

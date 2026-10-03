@@ -24,7 +24,7 @@ pub mod state;
 #[cfg(not(target_arch = "wasm32"))]
 pub use config::{default_config_path, load_native_config, ConfigLoadError, NativeCli};
 pub use config::{Config, Theme};
-pub use demo::{default_script, DemoPlayer, DemoStep};
+pub use demo::DemoPlayer;
 pub use fire::{
     FireTelemetry, CRITICAL_THRESHOLD, DEFAULT_ROUNDS, DEFAULT_TIME_CENTISECS, RM_MAX, TEMP_MAX,
 };

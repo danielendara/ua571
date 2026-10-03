@@ -2,7 +2,6 @@
 
 use std::collections::VecDeque;
 use std::fmt;
-use web_time::Instant;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -83,7 +82,6 @@ impl fmt::Display for LogKind {
 #[derive(Debug, Clone)]
 pub struct LogEvent {
     pub kind: LogKind,
-    pub at: Instant,
 }
 
 #[derive(Debug, Clone)]
@@ -110,10 +108,7 @@ impl EventLog {
         if self.events.len() >= self.capacity {
             self.events.pop_front();
         }
-        self.events.push_back(LogEvent {
-            kind,
-            at: Instant::now(),
-        });
+        self.events.push_back(LogEvent { kind });
     }
 
     pub fn push_info(&mut self, message: impl Into<String>) {
@@ -126,12 +121,9 @@ impl EventLog {
         self.events.iter()
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.events.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.events.is_empty()
     }
 
     /// Newest-first slice for UI.
@@ -164,7 +156,7 @@ mod tests {
         log.push_info("new");
         let recent = log.recent(1);
         assert!(recent[0].kind.to_string().contains("new"));
-        assert!(!log.is_empty());
+        assert_eq!(log.len(), 2);
     }
 
     #[test]
