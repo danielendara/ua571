@@ -36,13 +36,15 @@ pub use options::{
     IffStatus, MenuSection, OptionsState, SpectralProfile, SystemMode, TargetProfile, TargetSelect,
     TestRoutine, WeaponStatus,
 };
-pub use sentry::{Sentry, SentryBank, SENTRY_COUNT};
+pub use sentry::{sentry_mark_char, Sentry, SentryBank, SENTRY_COUNT};
 #[cfg(not(target_arch = "wasm32"))]
 pub use session::{
     default_session_path, load_native_startup, load_session, save_session, NativeStartup,
     SessionPrefs,
 };
-pub use sfx::{synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS, FIRE_SFX_SAMPLE_RATE};
+pub use sfx::{
+    synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS, FIRE_SFX_SAMPLE_RATE, MAX_FIRE_SFX_BURST,
+};
 pub use state::{AppState, Screen};
 
 /// Workspace crate version (Keep a Changelog / SemVer).

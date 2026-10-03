@@ -29,9 +29,6 @@ impl Screen {
     }
 }
 
-/// Cap queued fire SFX so a lagging UI does not explode with overlapping bursts.
-const MAX_PENDING_FIRE_SFX: u32 = 6;
-
 #[derive(Debug)]
 pub struct AppState {
     pub screen: Screen,
@@ -275,7 +272,8 @@ impl AppState {
                 self.log.push(LogKind::Critical { sentry: id, rounds });
             }
             if self.config.sound {
-                self.pending_fire_sfx = (self.pending_fire_sfx + 1).min(MAX_PENDING_FIRE_SFX);
+                self.pending_fire_sfx =
+                    (self.pending_fire_sfx + 1).min(crate::sfx::MAX_FIRE_SFX_BURST as u32);
             }
         } else {
             self.log.push(LogKind::Empty { sentry: id });

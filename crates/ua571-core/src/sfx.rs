@@ -15,6 +15,9 @@ pub const FIRE_SFX_MS: u32 = 55;
 /// MG42-ish cyclic rate (shots per second). Used for multi-fire stagger.
 pub const FIRE_CYCLIC_HZ: f32 = 20.0;
 
+/// Cap queued / staggered fire SFX so a lagging UI does not explode with overlapping bursts.
+pub const MAX_FIRE_SFX_BURST: usize = 6;
+
 /// Decode the bundled burst as `(sample_rate, mono f32 in [-1, 1])`.
 pub fn fire_burst_pcm() -> (u32, Vec<f32>) {
     decode_wav_pcm16(FIRE_BURST_WAV).expect("bundled fire_burst.wav is PCM16")

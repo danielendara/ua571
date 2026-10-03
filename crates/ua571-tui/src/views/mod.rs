@@ -7,7 +7,7 @@ use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
-use ua571_core::{AppState, Screen};
+use ua571_core::{sentry_mark_char, AppState, Screen};
 
 use crate::theme::ConsoleTheme;
 
@@ -67,13 +67,7 @@ fn draw_header(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: 
     let screen = Span::styled(format!(" {} ", state.screen.label()), theme.accent_style());
 
     // Sentry 1→A … 4→D (matches pixel/web circled unit marks).
-    let mark = match state.active_sentry().id {
-        1 => 'A',
-        2 => 'B',
-        3 => 'C',
-        4 => 'D',
-        _ => 'A',
-    };
+    let mark = sentry_mark_char(state.active_sentry().id);
     let mark_l = format!(" ({mark}) ");
     let mark_r = format!("({mark}) ");
 

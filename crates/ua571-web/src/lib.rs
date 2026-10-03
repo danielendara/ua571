@@ -2,31 +2,10 @@
 
 #![forbid(unsafe_code)]
 
-/// Parses a stored/query-string value into the exact Rust variant it names
-/// (e.g. `"AutoRemote"`), for the localStorage prefs round-trip — falls back
-/// to the type's default on anything else, so a missing/invalid/stale key
-/// never fails boot.
-///
-/// The names now live in core (`wire_name` / `parse_wire_name`) because the
-/// native frontends persist the same values to their session file (#109) —
-/// one spelling, three frontends. `{:?}` still produces the same string; a
-/// core test pins that.
-fn parse_system_mode(s: &str) -> SystemMode {
-    SystemMode::parse_wire_name(s)
-}
-
-fn parse_weapon_status(s: &str) -> WeaponStatus {
-    WeaponStatus::parse_wire_name(s)
-}
-
-fn parse_iff_status(s: &str) -> IffStatus {
-    IffStatus::parse_wire_name(s)
-}
-
 use ua571_core::sfx::{fire_burst_pcm, FIRE_CYCLIC_HZ};
 use ua571_core::{
     apply_panel_key, idle_runtime, AppState, Config, IffStatus, PanelKey, Screen, SystemMode,
-    Theme, WeaponStatus,
+    Theme, WeaponStatus, MAX_FIRE_SFX_BURST,
 };
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
@@ -132,9 +111,9 @@ impl Ua571Web {
 
         let mut state = AppState::new(config);
         if let Some(sentry) = state.active_sentry_mut() {
-            sentry.options.system_mode = parse_system_mode(system_mode);
-            sentry.options.weapon_status = parse_weapon_status(weapon_status);
-            sentry.options.iff_status = parse_iff_status(iff_status);
+            sentry.options.system_mode = SystemMode::parse_wire_name(system_mode);
+            sentry.options.weapon_status = WeaponStatus::parse_wire_name(weapon_status);
+            sentry.options.iff_status = IffStatus::parse_wire_name(iff_status);
         }
 
         Ok(Self {
@@ -416,7 +395,7 @@ impl Ua571Web {
         if ac.state() == AudioContextState::Suspended {
             let _ = ac.resume();
         }
-        let n = count.min(6);
+        let n = count.min(MAX_FIRE_SFX_BURST as u32);
         let period = 1.0 / f64::from(FIRE_CYCLIC_HZ);
         let now = ac.current_time();
         for k in 0..n {
@@ -674,46 +653,66 @@ mod tests {
 
     #[test]
     fn parses_system_mode_names_and_falls_back_to_default_on_anything_else() {
-        assert_eq!(parse_system_mode("AutoRemote"), SystemMode::AutoRemote);
-        assert_eq!(parse_system_mode("ManOverride"), SystemMode::ManOverride);
-        assert_eq!(parse_system_mode("SemiAuto"), SystemMode::SemiAuto);
-        assert_eq!(parse_system_mode(""), SystemMode::default());
-        assert_eq!(parse_system_mode("bogus"), SystemMode::default());
-        assert_eq!(parse_system_mode("automode"), SystemMode::default());
+        assert_eq!(
+            SystemMode::parse_wire_name("AutoRemote"),
+            SystemMode::AutoRemote
+        );
+        assert_eq!(
+            SystemMode::parse_wire_name("ManOverride"),
+            SystemMode::ManOverride
+        );
+        assert_eq!(
+            SystemMode::parse_wire_name("SemiAuto"),
+            SystemMode::SemiAuto
+        );
+        assert_eq!(SystemMode::parse_wire_name(""), SystemMode::default());
+        assert_eq!(SystemMode::parse_wire_name("bogus"), SystemMode::default());
+        assert_eq!(
+            SystemMode::parse_wire_name("automode"),
+            SystemMode::default()
+        );
     }
 
     #[test]
     fn parses_weapon_status_names_and_falls_back_to_default_on_anything_else() {
-        assert_eq!(parse_weapon_status("Safe"), WeaponStatus::Safe);
-        assert_eq!(parse_weapon_status("Armed"), WeaponStatus::Armed);
-        assert_eq!(parse_weapon_status(""), WeaponStatus::default());
-        assert_eq!(parse_weapon_status("armed"), WeaponStatus::default());
+        assert_eq!(WeaponStatus::parse_wire_name("Safe"), WeaponStatus::Safe);
+        assert_eq!(WeaponStatus::parse_wire_name("Armed"), WeaponStatus::Armed);
+        assert_eq!(WeaponStatus::parse_wire_name(""), WeaponStatus::default());
+        assert_eq!(
+            WeaponStatus::parse_wire_name("armed"),
+            WeaponStatus::default()
+        );
     }
 
     #[test]
     fn parses_iff_status_names_and_falls_back_to_default_on_anything_else() {
-        assert_eq!(parse_iff_status("Search"), IffStatus::Search);
-        assert_eq!(parse_iff_status("Test"), IffStatus::Test);
-        assert_eq!(parse_iff_status("Engaged"), IffStatus::Engaged);
-        assert_eq!(parse_iff_status("Interrogate"), IffStatus::Interrogate);
-        assert_eq!(parse_iff_status(""), IffStatus::default());
-        assert_eq!(parse_iff_status("engaged"), IffStatus::default());
+        assert_eq!(IffStatus::parse_wire_name("Search"), IffStatus::Search);
+        assert_eq!(IffStatus::parse_wire_name("Test"), IffStatus::Test);
+        assert_eq!(IffStatus::parse_wire_name("Engaged"), IffStatus::Engaged);
+        assert_eq!(
+            IffStatus::parse_wire_name("Interrogate"),
+            IffStatus::Interrogate
+        );
+        assert_eq!(IffStatus::parse_wire_name(""), IffStatus::default());
+        assert_eq!(IffStatus::parse_wire_name("engaged"), IffStatus::default());
     }
 
     /// `{:?}` (Debug) on the active sentry's options must round-trip through
-    /// the three `parse_*` functions above — this is the exact contract the
-    /// web prefs localStorage round-trip depends on (write via `{:?}`, read
-    /// back via `parse_*`).
+    /// `parse_wire_name` — the exact contract the web prefs localStorage
+    /// round-trip depends on (write via `{:?}`, read back via `parse_wire_name`).
     #[test]
     fn option_debug_names_round_trip_through_parse() {
         for mode in SystemMode::ALL {
-            assert_eq!(parse_system_mode(&format!("{mode:?}")), mode);
+            assert_eq!(SystemMode::parse_wire_name(&format!("{mode:?}")), mode);
         }
         for status in WeaponStatus::ALL {
-            assert_eq!(parse_weapon_status(&format!("{status:?}")), status);
+            assert_eq!(
+                WeaponStatus::parse_wire_name(&format!("{status:?}")),
+                status
+            );
         }
         for iff in IffStatus::ALL {
-            assert_eq!(parse_iff_status(&format!("{iff:?}")), iff);
+            assert_eq!(IffStatus::parse_wire_name(&format!("{iff:?}")), iff);
         }
     }
 
