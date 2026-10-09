@@ -121,9 +121,12 @@ impl EventLog {
         self.events.iter()
     }
 
-    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.events.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.events.is_empty()
     }
 
     /// Newest-first slice for UI.

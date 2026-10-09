@@ -1945,6 +1945,7 @@ test("manifest parses, theme matches yellow --fg, and listed icons exist (#138)"
   assert.match(html, /<link rel="manifest" href="manifest\.webmanifest"\s*\/?>/);
   assert.match(html, new RegExp(`<meta name="theme-color" content="${manifest.theme_color}"\\s*\\/?>`));
   assert.match(html, /<link rel="apple-touch-icon" href="apple-touch-icon\.png" sizes="180x180"\s*\/?>/);
+  assert.match(html, /<meta name="mobile-web-app-capable" content="yes"\s*\/?>/);
   assert.match(html, /<meta name="apple-mobile-web-app-capable" content="yes"\s*\/?>/);
   assert.match(html, /<meta name="apple-mobile-web-app-status-bar-style" content="black"\s*\/?>/);
   const touch = readFileSync(join(dir, "apple-touch-icon.png"));
