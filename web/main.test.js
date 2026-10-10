@@ -31,6 +31,7 @@ import {
   hydrateChromePrefs,
   persistChromeFromForm,
   persistOptionsIfChanged,
+  persistKeyTogglesIfChanged,
   prefsFromSearch,
   searchFromPrefs,
   syncShareUrl,
@@ -671,6 +672,81 @@ test("persistOptionsIfChanged is a no-op without an app", () => {
   const last = { systemMode: null, weaponStatus: null, iffStatus: null };
   assert.equal(persistOptionsIfChanged(null, storage, last), last);
   assert.equal(storage.map[PREFS_STORAGE_KEY], undefined);
+});
+
+test("persistKeyTogglesIfChanged does nothing when sound and demo are unchanged", () => {
+  const storage = memoryStorage();
+  let sets = 0;
+  const counting = { ...storage, setItem: (k, v) => { sets++; storage.setItem(k, v); } };
+  const loc = mockLocation("?sound=1");
+  const hist = mockHistory(loc);
+  const last = { sound: true, demo: false };
+  const app = { sound_enabled: true, demo_active: false };
+  assert.equal(persistKeyTogglesIfChanged(app, counting, last, { location: loc, history: hist }), last);
+  assert.equal(persistKeyTogglesIfChanged(null, counting, last), last);
+  assert.equal(sets, 0);
+  assert.deepEqual(hist.urls, []);
+});
+
+test("persistKeyTogglesIfChanged stores sound on and adds ?sound=1", () => {
+  const storage = memoryStorage();
+  const loc = mockLocation("");
+  const hist = mockHistory(loc);
+  const app = { sound_enabled: true, demo_active: false };
+  const next = persistKeyTogglesIfChanged(app, storage, { sound: false, demo: false }, {
+    location: loc,
+    history: hist,
+    readOpts: () => ({ theme: "yellow", scale: 3, sound: true, skipBoot: false, demo: false }),
+  });
+  assert.deepEqual(next, { sound: true, demo: false });
+  assert.equal(readStoredPrefs(storage).sound, true);
+  assert.match(loc.search, /sound=1/);
+});
+
+test("persistKeyTogglesIfChanged drops sound from the URL when muted with M", () => {
+  const storage = memoryStorage();
+  const loc = mockLocation("?sound=1");
+  const hist = mockHistory(loc);
+  const app = { sound_enabled: false, demo_active: false };
+  persistKeyTogglesIfChanged(app, storage, { sound: true, demo: false }, {
+    location: loc,
+    history: hist,
+    readOpts: () => ({ theme: "yellow", scale: 3, sound: false, skipBoot: false, demo: false }),
+  });
+  assert.equal(readStoredPrefs(storage).sound, false);
+  assert.doesNotMatch(loc.search, /sound/);
+  assert.equal(loc.search, "");
+});
+
+test("persistKeyTogglesIfChanged drops demo from the URL and never stores it", () => {
+  const storage = memoryStorage();
+  const loc = mockLocation("?demo=1");
+  const hist = mockHistory(loc);
+  const app = { sound_enabled: false, demo_active: false };
+  const next = persistKeyTogglesIfChanged(app, storage, { sound: false, demo: true }, {
+    location: loc,
+    history: hist,
+    readOpts: () => ({ theme: "yellow", scale: 3, sound: false, skipBoot: false, demo: false }),
+  });
+  assert.deepEqual(next, { sound: false, demo: false });
+  assert.equal(loc.search, "");
+  assert.equal(storage.map[PREFS_STORAGE_KEY], undefined);
+});
+
+test("failed unlock leaves sound:false stored after the checkbox pref is re-persisted", async () => {
+  const storage = memoryStorage();
+  const els = chromeEls({ sound: true });
+  persistChromeFromForm(storage, { theme: "yellow", scale: 3, sound: true, skipBoot: false });
+  assert.equal(readStoredPrefs(storage).sound, true);
+  const app = {
+    sound_enabled: false,
+    set_sound(on) { this.sound_enabled = on; },
+    unlock_audio: async () => false,
+  };
+  await applySoundChoice(app, true, { sound: els.sound });
+  assert.equal(els.sound.checked, false);
+  persistChromeFromForm(storage, { theme: "yellow", scale: 3, sound: els.sound.checked, skipBoot: false });
+  assert.equal(readStoredPrefs(storage).sound, false);
 });
 
 test("hydrateChromePrefs restores storage then query params win", () => {

@@ -20,6 +20,8 @@ let bootInstanceLoader = null;
 /** Last values written to localStorage, so persistOptionsIfChanged only
  * writes on an actual change (reset on every (re)boot). */
 let lastPersistedOptions = { systemMode: null, weaponStatus: null, iffStatus: null };
+/** Last sound/demo values persisted by persistKeyTogglesIfChanged (reset on boot). */
+let lastKeyToggles = { sound: null, demo: null };
 /** One-shot status after T cycles theme (cleared on the next game key). */
 let pendingThemeHint = null;
 /** On-screen pad hold-to-fire controller; stopped on teardown and when hidden. */
@@ -447,6 +449,23 @@ export function persistOptionsIfChanged(app, storage, last) {
     return last;
   }
   writeStoredPrefs(storage, next);
+  return next;
+}
+
+/**
+ * M / D flip sound and demo inside WASM; setting a checkbox's `.checked` in
+ * code fires no `change`, so compare against `last` each frame. Sound goes to
+ * storage and the share URL; demo only to the share URL (writeStoredPrefs
+ * drops it). Returns the (possibly updated) `last`.
+ */
+export function persistKeyTogglesIfChanged(app, storage, last, { location, history, readOpts } = {}) {
+  if (!app) return last;
+  const next = { sound: Boolean(app.sound_enabled), demo: Boolean(app.demo_active) };
+  if (next.sound === last.sound && next.demo === last.demo) return last;
+  if (next.sound !== last.sound && storage) {
+    writeStoredPrefs(storage, { sound: next.sound });
+  }
+  syncShareUrl(readOpts ? readOpts() : next, location, history);
   return next;
 }
 
@@ -902,6 +921,7 @@ export async function boot() {
 
     app = created;
     lastPersistedOptions = { systemMode: null, weaponStatus: null, iffStatus: null };
+    lastKeyToggles = { sound: Boolean(opts.sound), demo: Boolean(opts.demo) };
 
     onKey = (e) => {
       if (
@@ -949,6 +969,12 @@ export async function boot() {
           app,
           localStorage,
           lastPersistedOptions
+        );
+        lastKeyToggles = persistKeyTogglesIfChanged(
+          app,
+          localStorage,
+          lastKeyToggles,
+          { readOpts: readOptions }
         );
       }
       raf = requestAnimationFrame(loop);
@@ -1055,6 +1081,12 @@ export function startPage() {
         status: document.getElementById("status"),
         announce: document.getElementById("status-announce"),
       });
+      // A failed unlock turned sound back off; store that, not the ticked box.
+      persistPagePrefs();
+      lastKeyToggles = {
+        sound: Boolean(app.sound_enabled),
+        demo: Boolean(app.demo_active),
+      };
       refocusPlaySurface(document.getElementById("ua571"));
     }
   });
