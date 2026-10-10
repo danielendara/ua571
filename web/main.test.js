@@ -11,6 +11,8 @@ import {
   announcementFromStatus,
   applyDocumentVisibility,
   applyThemeLive,
+  THEME_COLORS,
+  themeColorFor,
   applyFullscreenCanvasSize,
   bindFullscreen,
   fitCanvasSize,
@@ -247,6 +249,29 @@ test("#status-announce is the polite live region; #status is not", () => {
   assert.doesNotMatch(html, /id="status"\s+class="status"\s+role=/);
   const css = readFileSync(new URL("./style.css", import.meta.url), "utf8");
   assert.match(css, /\.visually-hidden/);
+});
+
+test("themeColorFor maps themes, ignores case, falls back to yellow", () => {
+  assert.equal(themeColorFor("phosphor"), "#50fa7b");
+  assert.equal(themeColorFor("AMBER"), "#ffb000");
+  assert.equal(themeColorFor("mono"), "#e0e0e0");
+  assert.equal(themeColorFor(""), "#ffee00");
+  assert.equal(themeColorFor(undefined), "#ffee00");
+  assert.equal(themeColorFor("bogus"), "#ffee00");
+});
+
+test("THEME_COLORS matches #theme options and style.css --fg", () => {
+  const select = html.match(/<select id="theme">([\s\S]*?)<\/select>/);
+  assert.ok(select, "expected #theme select");
+  const values = [...select[1].matchAll(/<option value="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(values, Object.keys(THEME_COLORS));
+  const css = readFileSync(new URL("./style.css", import.meta.url), "utf8");
+  for (const [theme, color] of Object.entries(THEME_COLORS)) {
+    const block = css.match(new RegExp(`body\\[data-theme="${theme}"\\]\\s*\\{([^}]*)\\}`));
+    assert.ok(block, `style.css block for ${theme}`);
+    assert.equal(block[1].match(/--fg:\s*(#[0-9a-f]{6})/i)[1].toLowerCase(), color);
+  }
+  assert.match(html, /<meta name="theme-color" content="#ffee00"/);
 });
 
 test("skip-link in index.html targets the focusable canvas", () => {
