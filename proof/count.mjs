@@ -1,0 +1,13 @@
+import { chromium } from 'playwright';
+import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
+const [,, root, port, label] = process.argv;
+const types={'.html':'text/html','.js':'text/javascript','.wasm':'application/wasm','.css':'text/css','.json':'application/json','.webmanifest':'application/manifest+json','.png':'image/png'};
+const srv=http.createServer((q,r)=>{let p=path.join(root,decodeURIComponent(q.url.split('?')[0]));if(p.endsWith('/'))p+='index.html';fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);return r.end()}r.writeHead(200,{'content-type':types[path.extname(p)]||'application/octet-stream'});r.end(b)})}).listen(+port);
+const b=await chromium.launch(); const pg=await b.newPage({viewport:{width:1280,height:800}});
+await pg.goto(`http://localhost:${port}/`); await pg.waitForTimeout(2500);
+const info=await pg.evaluate(()=>{const ids=['status','status-announce'];window.__c={};const o={};for(const id of ids){const el=document.getElementById(id);o[id]=el?{live:el.getAttribute('aria-live'),role:el.getAttribute('role')}:null;if(!el)continue;window.__c[id]=0;new MutationObserver(m=>{window.__c[id]+=m.length}).observe(el,{childList:true,characterData:true,subtree:true});}return o;});
+await pg.click('#demo'); await pg.waitForTimeout(10000);
+const counts=await pg.evaluate(()=>window.__c);
+await pg.screenshot({path:`/tmp/uap/${label}.png`});
+console.log(JSON.stringify({label,info,counts}));
+await b.close(); srv.close();
