@@ -1336,7 +1336,7 @@ mod tests {
         let html = include_str!("../../../web/index.html");
         let status = html
             .split("<p")
-            .find(|chunk| chunk.contains(r#"id="status""#))
+            .find(|chunk| chunk.contains(r#"id="status-announce""#))
             .unwrap_or("");
         assert!(
             status.contains(r#"role="status""#),
