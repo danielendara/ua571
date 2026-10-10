@@ -1,0 +1,17 @@
+import { chromium } from 'playwright';
+import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
+const [,, root, port] = process.argv;
+const types={'.html':'text/html','.js':'text/javascript','.wasm':'application/wasm','.css':'text/css','.json':'application/json','.webmanifest':'application/manifest+json','.png':'image/png'};
+const srv=http.createServer((q,r)=>{let p=path.join(root,decodeURIComponent(q.url.split('?')[0]));if(p.endsWith('/'))p+='index.html';fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);return r.end()}r.writeHead(200,{'content-type':types[path.extname(p)]||'application/octet-stream'});r.end(b)})}).listen(+port);
+const b=await chromium.launch(); const out={};
+const ready=async pg=>{await pg.waitForFunction(()=>document.getElementById('status')?.textContent.trim().length>0,null,{timeout:30000});await pg.waitForTimeout(1500);};
+const tc=pg=>pg.evaluate(()=>({meta:document.querySelector('meta[name=theme-color]').content,select:document.getElementById('theme').value}));
+let pg=await b.newPage({viewport:{width:1280,height:800}});
+await pg.goto(`http://localhost:${port}/?boot=0`); await ready(pg); out.load=await tc(pg); await pg.screenshot({path:'/tmp/uap/t-load.png'});
+await pg.selectOption('#theme','phosphor'); await pg.waitForTimeout(800); out.selectPhosphor=await tc(pg); await pg.screenshot({path:'/tmp/uap/t-select-phosphor.png'});
+await pg.close(); pg=await b.newPage({viewport:{width:1280,height:800}});
+await pg.goto(`http://localhost:${port}/?boot=0`); await ready(pg);
+await pg.locator('canvas').first().click(); await pg.keyboard.press('t'); await pg.waitForTimeout(800); out.tKey=await tc(pg); await pg.screenshot({path:'/tmp/uap/t-key.png'});
+await pg.close(); pg=await b.newPage({viewport:{width:1280,height:800}});
+await pg.goto(`http://localhost:${port}/?boot=0&theme=amber`); await ready(pg); out.urlAmber=await tc(pg); await pg.screenshot({path:'/tmp/uap/t-amber.png'});
+console.log(JSON.stringify(out)); await b.close(); srv.close();
