@@ -73,9 +73,24 @@ function teardown() {
   app = null;
 }
 
+/** Browser-chrome colour per theme; matches each theme's `--fg` in style.css. */
+export const THEME_COLORS = Object.freeze({
+  yellow: "#ffee00",
+  phosphor: "#50fa7b",
+  amber: "#ffb000",
+  mono: "#e0e0e0",
+});
+
+export function themeColorFor(theme) {
+  return THEME_COLORS[String(theme || "").toLowerCase()] || THEME_COLORS.yellow;
+}
+
 function applyPageTheme(theme) {
   if (typeof document === "undefined" || !document.body) return;
   document.body.dataset.theme = theme || "yellow";
+  const meta = document.querySelector('meta[name="theme-color"]');
+  const color = themeColorFor(theme);
+  if (meta && meta.getAttribute("content") !== color) meta.setAttribute("content", color);
 }
 
 /** Switch theme on the live WASM app; false means the caller must reboot. */
