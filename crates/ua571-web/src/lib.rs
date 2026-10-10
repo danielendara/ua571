@@ -136,6 +136,21 @@ impl Ua571Web {
         })
     }
 
+    /// Switch theme in place (keeps rounds, demo and audio state).
+    pub fn set_theme(&mut self, theme: &str) {
+        let theme = Theme::parse(theme).unwrap_or(Theme::Yellow);
+        self.state.config.theme = theme;
+        self.on_rgba = theme.on_rgba();
+        self.off_rgba = theme.off_rgba();
+        self.dirty = true;
+    }
+
+    /// Current theme name (e.g. `yellow`).
+    #[wasm_bindgen(getter)]
+    pub fn theme(&self) -> String {
+        self.state.config.theme.as_str().into()
+    }
+
     /// Logical canvas width (before CSS).
     #[wasm_bindgen(getter)]
     pub fn width(&self) -> u32 {
