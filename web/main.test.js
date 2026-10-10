@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  announcementFromStatus,
   applyDocumentVisibility,
   applyFullscreenCanvasSize,
   bindFullscreen,
@@ -209,6 +210,42 @@ test("#status live region includes LINK OK / DOWN / OFFLINE", () => {
     assert.match(status.textContent, /SEARCH/);
     assert.match(status.textContent, /MUTE/);
   }
+});
+
+test("announcementFromStatus strips only the rounds segment", () => {
+  assert.equal(
+    announcementFromStatus("FIRE · S1 · 487 rds · AUTO-REMOTE · SAFE"),
+    "FIRE · S1 · AUTO-REMOTE · SAFE",
+  );
+  assert.equal(announcementFromStatus("LINK DOWN · MANUAL"), "LINK DOWN · MANUAL");
+});
+
+test("rounds-only change updates #status but not the announcer", () => {
+  let rounds = 500;
+  const app = mockApp();
+  app.status_line = () => `S1 · ${rounds} rds · SAFE · LINK OK · MANUAL · MUTE`;
+  const status = liveRegion("");
+  const announce = liveRegion("");
+  const els = { status, announce };
+  syncChromeFromApp(app, els);
+  assert.equal(announce.textContent, "OPTIONS · S1 · SAFE · LINK OK · MANUAL · MUTE");
+  assert.equal(announce.writeCount(), 1);
+  rounds = 499;
+  syncChromeFromApp(app, els);
+  assert.match(status.textContent, /499 rds/);
+  assert.equal(announce.writeCount(), 1);
+  app.status_line = () => `S1 · ${rounds} rds · ARMED · LINK OK · MANUAL · MUTE`;
+  syncChromeFromApp(app, els);
+  assert.equal(announce.writeCount(), 2);
+  assert.match(announce.textContent, /ARMED/);
+});
+
+test("#status-announce is the polite live region; #status is not", () => {
+  assert.match(html, /id="status-announce"[^>]*role="status"/s);
+  assert.match(html, /id="status-announce"[^>]*aria-live="polite"/s);
+  assert.doesNotMatch(html, /id="status"\s+class="status"\s+role=/);
+  const css = readFileSync(new URL("./style.css", import.meta.url), "utf8");
+  assert.match(css, /\.visually-hidden/);
 });
 
 test("skip-link in index.html targets the focusable canvas", () => {

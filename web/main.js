@@ -395,6 +395,11 @@ export function writeLiveRegion(el, next) {
   return true;
 }
 
+/** Status text for screen readers: drops the per-round count so firing is not announced. */
+export function announcementFromStatus(text) {
+  return String(text).replace(/ · \d+ rds/, "");
+}
+
 export function formatChromeStatus(app) {
   const screen = app.screen_name().toUpperCase();
   const quit = app.should_quit ? " · QUIT (Restart)" : "";
@@ -408,6 +413,7 @@ export function syncChromeFromApp(app, els) {
   if (els.sound) els.sound.checked = app.sound_enabled;
   if (els.demo) els.demo.checked = app.demo_active;
   const next = pendingThemeHint || formatChromeStatus(app);
+  writeLiveRegion(els.announce, announcementFromStatus(next));
   return writeLiveRegion(els.status, next);
 }
 
@@ -502,7 +508,9 @@ export async function applySoundChoice(app, on, els) {
   }
   if (els && els.sound) els.sound.checked = Boolean(app.sound_enabled);
   if (els && els.status && typeof app.status_line === "function") {
-    writeLiveRegion(els.status, pendingThemeHint || formatChromeStatus(app));
+    const text = pendingThemeHint || formatChromeStatus(app);
+    writeLiveRegion(els.announce, announcementFromStatus(text));
+    writeLiveRegion(els.status, text);
   }
   return { on: Boolean(app.sound_enabled), started };
 }
@@ -843,6 +851,7 @@ export function bindFullscreen({ doc, win, nav, button, stage, canvas, pad, gap 
 export async function boot() {
   const generation = ++bootGeneration;
   const status = document.getElementById("status");
+  const announce = document.getElementById("status-announce");
   const canvas = document.getElementById("ua571");
   const opts = readOptions();
   const stale = () => generation !== bootGeneration;
@@ -850,6 +859,7 @@ export async function boot() {
   applyPageTheme(opts.theme);
   teardown();
   status.textContent = "Loading WebAssembly…";
+  writeLiveRegion(announce, status.textContent);
 
   try {
     let created = null;
@@ -922,6 +932,7 @@ export async function boot() {
       }
       syncChromeFromApp(app, {
         status,
+        announce,
         demo: document.getElementById("demo"),
         sound: document.getElementById("sound"),
       });
@@ -961,6 +972,7 @@ export async function boot() {
     const hostname =
       typeof location !== "undefined" && location ? location.hostname : "";
     status.textContent = wasmLoadFailureStatus(hostname);
+    writeLiveRegion(announce, status.textContent);
   }
 }
 
@@ -1033,6 +1045,7 @@ export function startPage() {
       await applySoundChoice(app, e.target.checked, {
         sound: e.target,
         status: document.getElementById("status"),
+        announce: document.getElementById("status-announce"),
       });
       refocusPlaySurface(document.getElementById("ua571"));
     }
