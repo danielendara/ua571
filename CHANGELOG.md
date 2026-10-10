@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Web footer lists reload / Space; status shows `QUIT (Restart)` after `q`
+- Web: the Touch pad show/hide choice is remembered per device (localStorage); default still follows `(pointer: coarse)`
 - CI: cancel superseded PRs, timeouts, Linux-only release build, locked WASM build, CDK `tsc` (`types: ["node"]`), shared wasm cache
 - Deploy: upload `pkg/` first (no parent `--delete` of WASM); do not cancel in-flight production syncs
 - Dependabot ignores rodio 0.x minors and wasm-bindgen (must match CLI 0.2.100)
