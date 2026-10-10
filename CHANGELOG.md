@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: `--mute` starts muted (same as default); it does not lock SFX off
 - TUI restores the terminal on draw/poll errors and panic, not only on a clean quit
 - Secret-guard now applies `security/commit-denylist.txt` to tracked/staged paths
+- Web a11y: round count no longer re-announces on every shot; a hidden `#status-announce` live region announces state changes while `#status` keeps the full line
 
 ### Changed
 
