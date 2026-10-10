@@ -111,6 +111,7 @@ export function readStoredPrefs(storage) {
     }
     if (typeof parsed.sound === "boolean") out.sound = parsed.sound;
     if (typeof parsed.skipBoot === "boolean") out.skipBoot = parsed.skipBoot;
+    if (typeof parsed.touchPad === "boolean") out.touchPad = parsed.touchPad;
     // Not validated against the known variant names here — the WASM
     // constructor's parse_* helpers already fall back to that type's
     // default on anything unrecognized, so a stale/invalid stored value
@@ -566,6 +567,13 @@ export const FIRE_REPEAT_INTERVAL_MS = 33;
 /** Media query that shows the pad by default (phones / tablets). */
 export const TOUCH_PAD_DEFAULT_QUERY = "(pointer: coarse)";
 
+/** Stored Touch pad choice wins; otherwise the pointer media query decides. */
+export function initialTouchPadVisible(stored, coarsePointer) {
+  return stored && typeof stored.touchPad === "boolean"
+    ? stored.touchPad
+    : Boolean(coarsePointer);
+}
+
 /** The pad does nothing during POST, after Quit, or before WASM loads. */
 export function padIsInert(app) {
   if (!app) return true;
@@ -1017,15 +1025,20 @@ export function startPage() {
     canvas,
     pad,
   });
+  const padStorage = typeof localStorage !== "undefined" ? localStorage : null;
   let padVisible = setTouchPadVisible(
     pad,
     padToggle,
-    typeof window.matchMedia === "function" &&
-      window.matchMedia(TOUCH_PAD_DEFAULT_QUERY).matches
+    initialTouchPadVisible(
+      readStoredPrefs(padStorage),
+      typeof window.matchMedia === "function" &&
+        window.matchMedia(TOUCH_PAD_DEFAULT_QUERY).matches
+    )
   );
   if (padToggle) {
     padToggle.addEventListener("click", () => {
       padVisible = setTouchPadVisible(pad, padToggle, !padVisible);
+      writeStoredPrefs(padStorage, { touchPad: padVisible });
       // Opening/closing the pad in fullscreen changes the room left for the canvas.
       fullscreen.refit();
     });

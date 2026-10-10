@@ -35,6 +35,7 @@ import {
   searchFromPrefs,
   syncShareUrl,
   readStoredPrefs,
+  initialTouchPadVisible,
   refocusPlaySurface,
   shouldAdvanceFrame,
   shouldRefocusAfterBoot,
@@ -640,6 +641,33 @@ test("readStoredPrefs ignores a non-string/empty option value", () => {
   const stored = readStoredPrefs(storage);
   assert.equal(stored.systemMode, undefined);
   assert.equal(stored.weaponStatus, undefined);
+});
+
+test("touchPad round-trips and keeps other stored keys", () => {
+  const storage = memoryStorage();
+  writeStoredPrefs(storage, { theme: "amber" });
+  writeStoredPrefs(storage, { touchPad: true });
+  const stored = readStoredPrefs(storage);
+  assert.equal(stored.touchPad, true);
+  assert.equal(stored.theme, "amber");
+});
+
+test("readStoredPrefs ignores a non-boolean touchPad", () => {
+  const storage = memoryStorage({
+    [PREFS_STORAGE_KEY]: JSON.stringify({ touchPad: "yes" }),
+  });
+  assert.equal(readStoredPrefs(storage).touchPad, undefined);
+});
+
+test("initialTouchPadVisible: stored choice wins, else pointer query", () => {
+  assert.equal(initialTouchPadVisible({ touchPad: false }, true), false);
+  assert.equal(initialTouchPadVisible({ touchPad: true }, false), true);
+  assert.equal(initialTouchPadVisible({}, true), true);
+  assert.equal(initialTouchPadVisible({}, false), false);
+});
+
+test("searchFromPrefs never emits a touch pad key", () => {
+  assert.equal(searchFromPrefs({ touchPad: true }), "");
 });
 
 test("persistOptionsIfChanged writes only when a value actually changes", () => {
