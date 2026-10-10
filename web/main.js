@@ -78,6 +78,13 @@ function applyPageTheme(theme) {
   document.body.dataset.theme = theme || "yellow";
 }
 
+/** Switch theme on the live WASM app; false means the caller must reboot. */
+export function applyThemeLive(app, theme) {
+  if (!app || typeof app.set_theme !== "function") return false;
+  app.set_theme(theme);
+  return true;
+}
+
 function showVersion(v) {
   const wrap = document.getElementById("app-version-wrap");
   const el = document.getElementById("app-version");
@@ -896,7 +903,7 @@ export async function boot() {
           readOpts: readOptions,
         })
       ) {
-        boot();
+        if (!applyThemeLive(app, document.getElementById("theme").value)) boot();
         return;
       }
       handleGameKeyDown(app, e);
@@ -1016,11 +1023,12 @@ export function startPage() {
     boot();
   });
 
-  // Theme/scale must re-create the WASM app (canvas pixels are not CSS).
+  // Scale still re-creates the WASM app (canvas pixels are not CSS); theme is
+  // applied live when the app is available.
   document.getElementById("theme").addEventListener("change", (e) => {
     persistPagePrefs();
     applyPageTheme(e.target.value);
-    boot();
+    if (!applyThemeLive(app, e.target.value)) boot();
   });
   document.getElementById("scale").addEventListener("change", () => {
     persistPagePrefs();

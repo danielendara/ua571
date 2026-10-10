@@ -9,6 +9,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   applyDocumentVisibility,
+  applyThemeLive,
   applyFullscreenCanvasSize,
   bindFullscreen,
   fitCanvasSize,
@@ -314,6 +315,18 @@ test("KeyT cycles theme, persists, and shows THEME hint in #status (#107)", () =
     repeat: false,
     target: canvasTarget(),
   });
+});
+
+test("applyThemeLive calls set_theme on the live app (#156)", () => {
+  const calls = [];
+  const app = { set_theme: (t) => calls.push(t) };
+  assert.equal(applyThemeLive(app, "amber"), true);
+  assert.deepEqual(calls, ["amber"]);
+});
+
+test("applyThemeLive returns false without an app or set_theme (#156)", () => {
+  assert.equal(applyThemeLive(null, "amber"), false);
+  assert.equal(applyThemeLive({}, "amber"), false);
 });
 
 test("skip-link focuses the canvas play surface", () => {

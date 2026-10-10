@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: cancel superseded PRs, timeouts, Linux-only release build, locked WASM build, CDK `tsc` (`types: ["node"]`), shared wasm cache
 - Deploy: upload `pkg/` first (no parent `--delete` of WASM); do not cancel in-flight production syncs
 - Dependabot ignores rodio 0.x minors and wasm-bindgen (must match CLI 0.2.100)
+- Web: changing the theme (select or `T`) now switches live via `set_theme` instead of rebooting, so rounds, demo state and sound are kept and POST no longer replays (#156)
 
 ## [0.2.0] — 2026-08-21
 
