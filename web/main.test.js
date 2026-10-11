@@ -59,6 +59,7 @@ import {
   setTouchPadVisible,
   syncTouchPad,
   touchPadFireHold,
+  selectHasValue,
 } from "./main.js";
 
 const html = readFileSync(
@@ -2142,3 +2143,36 @@ test("index.html: Fullscreen button in .controls, stage wraps canvas + pad, Esc 
   assert.match(html, /browser takes the first <kbd>Esc<\/kbd> to exit/);
 });
 
+
+test("hydrateChromePrefs ignores unknown theme/scale values", () => {
+  const els = {
+    theme: mockThemeSelect("yellow"),
+    scale: { options: [{ value: "2" }, { value: "3" }, { value: "4" }], value: "3" },
+  };
+  hydrateChromePrefs({ storage: memoryStorage(), search: "?theme=green&scale=5", els });
+  assert.equal(els.theme.value, "yellow");
+  assert.equal(els.scale.value, "3");
+  hydrateChromePrefs({ storage: memoryStorage(), search: "?theme=AMBER&scale=4", els });
+  assert.equal(els.theme.value, "amber");
+  assert.equal(els.scale.value, "4");
+});
+
+test("hydrateChromePrefs: bogus stored theme stays default; valid stored survives bad query", () => {
+  const els = { theme: mockThemeSelect("yellow") };
+  const bad = memoryStorage();
+  writeStoredPrefs(bad, { theme: "bogus" });
+  hydrateChromePrefs({ storage: bad, search: "", els });
+  assert.equal(els.theme.value, "yellow");
+  const ok = memoryStorage();
+  writeStoredPrefs(ok, { theme: "phosphor" });
+  hydrateChromePrefs({ storage: ok, search: "?theme=green", els });
+  assert.equal(els.theme.value, "phosphor");
+});
+
+test("selectHasValue", () => {
+  const sel = { options: [{ value: "a" }] };
+  assert.equal(selectHasValue(sel, "a"), true);
+  assert.equal(selectHasValue(sel, "b"), false);
+  assert.equal(selectHasValue({}, "x"), true);
+  assert.equal(selectHasValue(null, "x"), false);
+});

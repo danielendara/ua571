@@ -224,10 +224,23 @@ export function syncShareUrl(prefs, location, history) {
   return search;
 }
 
+/** True when `<select>` has an option for `value` (mocks without `options` accept anything). */
+export function selectHasValue(select, value) {
+  if (!select) return false;
+  if (!select.options) return true;
+  return Array.from(select.options, (o) => o.value).includes(value);
+}
+
 export function applyPrefsToElements(prefs, els) {
   if (!prefs || !els) return;
-  if (prefs.theme && els.theme) els.theme.value = prefs.theme;
-  if (prefs.scale != null && els.scale) els.scale.value = String(prefs.scale);
+  if (prefs.theme && els.theme) {
+    const theme = String(prefs.theme).toLowerCase();
+    if (selectHasValue(els.theme, theme)) els.theme.value = theme;
+  }
+  if (prefs.scale != null && els.scale) {
+    const scale = String(prefs.scale).trim();
+    if (selectHasValue(els.scale, scale)) els.scale.value = scale;
+  }
   if (typeof prefs.sound === "boolean" && els.sound) {
     els.sound.checked = prefs.sound;
   }
