@@ -623,16 +623,32 @@ mod tests {
         assert!(CONFIRM_KEYS.contains(&Key::Space));
     }
 
+    /// Non-test source of this file with all whitespace removed. It is cut at
+    /// the test module so a needle can only match real code, never a test's
+    /// own literal, and whitespace is dropped so rustfmt wrapping is ignored.
+    fn non_test_source_compact() -> String {
+        include_str!("main.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap_or_default()
+            .split_whitespace()
+            .collect()
+    }
+
     #[test]
     fn confirm_keys_wired_for_fresh_and_repeat_checks() {
-        let src = include_str!("main.rs");
+        let src = non_test_source_compact();
         assert!(
-            src.contains("CONFIRM_KEYS.iter().any(|&k| window.is_key_pressed(k, KeyRepeat::No))"),
+            src.contains("CONFIRM_KEYS.iter().any(|&k|window.is_key_pressed(k,KeyRepeat::No))"),
             "fresh confirm must check every CONFIRM_KEYS entry"
         );
         assert!(
-            src.contains("CONFIRM_KEYS.iter().any(|&k| window.is_key_pressed(k, KeyRepeat::Yes))"),
+            src.contains("CONFIRM_KEYS.iter().any(|&k|window.is_key_pressed(k,KeyRepeat::Yes))"),
             "hold-to-fire repeat must check every CONFIRM_KEYS entry"
+        );
+        assert!(
+            src.contains("constCONFIRM_KEYS:[Key;3]=[Key::Enter,Key::NumPadEnter,Key::Space];"),
+            "keypad Enter must be wired into CONFIRM_KEYS in non-test code"
         );
     }
 }
