@@ -34,7 +34,7 @@ function readOptions() {
   // change) so an in-progress selection survives, falling back to stored
   // prefs only on a genuinely fresh boot (no `app` yet).
   const stored = readStoredPrefs(
-    typeof localStorage !== "undefined" ? localStorage : null
+    pageStorage()
   );
   return {
     theme: document.getElementById("theme").value,
@@ -114,6 +114,15 @@ function showVersion(v) {
 /** localStorage key for last chrome prefs (not demo). */
 export const PREFS_STORAGE_KEY = "ua571.chrome";
 
+/** `localStorage`, or null when the browser blocks or lacks it (the getter itself can throw). */
+export function pageStorage(win = globalThis) {
+  try {
+    return (win && win.localStorage) || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 export function readStoredPrefs(storage) {
   if (!storage || typeof storage.getItem !== "function") return {};
   try {
@@ -149,10 +158,15 @@ export function readStoredPrefs(storage) {
 }
 
 export function writeStoredPrefs(storage, prefs) {
-  if (!storage || typeof storage.setItem !== "function") return;
+  if (!storage || typeof storage.setItem !== "function") return false;
   const next = { ...readStoredPrefs(storage), ...prefs };
   delete next.demo;
-  storage.setItem(PREFS_STORAGE_KEY, JSON.stringify(next));
+  try {
+    storage.setItem(PREFS_STORAGE_KEY, JSON.stringify(next));
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 /** Built-in chrome defaults — omitted from the share URL. */
@@ -951,7 +965,7 @@ export async function boot() {
         handleThemeKeyDown(e, {
           select: document.getElementById("theme"),
           storage:
-            typeof localStorage !== "undefined" ? localStorage : null,
+            pageStorage(),
           status,
           readOpts: readOptions,
         })
@@ -987,15 +1001,16 @@ export async function boot() {
         sound: document.getElementById("sound"),
       });
       syncTouchPad(app, document.getElementById("touch-pad"));
-      if (typeof localStorage !== "undefined") {
+      const storage = pageStorage();
+      if (storage) {
         lastPersistedOptions = persistOptionsIfChanged(
           app,
-          localStorage,
+          storage,
           lastPersistedOptions
         );
         lastKeyToggles = persistKeyTogglesIfChanged(
           app,
-          localStorage,
+          storage,
           lastKeyToggles,
           { readOpts: readOptions }
         );
@@ -1034,8 +1049,9 @@ export async function boot() {
 
 function persistPagePrefs() {
   const opts = readOptions();
-  if (typeof localStorage !== "undefined") {
-    persistChromeFromForm(localStorage, opts);
+  const storage = pageStorage();
+  if (storage) {
+    persistChromeFromForm(storage, opts);
   }
   syncShareUrl(opts);
 }
@@ -1066,7 +1082,7 @@ export function startPage() {
     canvas,
     pad,
   });
-  const padStorage = typeof localStorage !== "undefined" ? localStorage : null;
+  const padStorage = pageStorage();
   let padVisible = setTouchPadVisible(
     pad,
     padToggle,
@@ -1140,7 +1156,7 @@ export function startPage() {
     demo: document.getElementById("demo"),
   };
   hydrateChromePrefs({
-    storage: typeof localStorage !== "undefined" ? localStorage : null,
+    storage: pageStorage(),
     search: location.search,
     els,
   });

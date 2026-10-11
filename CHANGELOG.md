@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Web: the console keeps running when `localStorage` is blocked, full, or throws; prefs just stop persisting (#169)
 - Web: `theme-color` meta follows the selected theme (browser toolbar / home-screen status bar no longer stays yellow)
 - Web Audio: create/resume `AudioContext` on Sound checkbox or a key (not page load); close it on Restart
 - Pixel/web status strip is two lines so INTERROGATE + LINK DOWN + help keys fit in 640px
