@@ -231,6 +231,20 @@ fn cycle_theme(state: &mut AppState) -> (&'static str, u32, u32) {
     (hint, theme.on_rgb_u32(), theme.off_rgb_u32())
 }
 
+/// Enter, keypad Enter and Space confirm/fire (web's `NumpadEnter` parity).
+const CONFIRM_KEYS: [Key; 3] = [Key::Enter, Key::NumPadEnter, Key::Space];
+
+/// Top-row and numpad 1–4 select a sentry (web's `Numpad1`–`Numpad4` parity).
+fn sentry_index_for(key: Key) -> Option<usize> {
+    match key {
+        Key::Key1 | Key::NumPad1 => Some(0),
+        Key::Key2 | Key::NumPad2 => Some(1),
+        Key::Key3 | Key::NumPad3 => Some(2),
+        Key::Key4 | Key::NumPad4 => Some(3),
+        _ => None,
+    }
+}
+
 fn handle_input(
     window: &Window,
     state: &mut AppState,
@@ -300,25 +314,21 @@ fn handle_input(
         state.reload();
         return true;
     }
-    if pressed(Key::Key1) {
-        state.stop_demo();
-        state.select_sentry(0);
-        return true;
-    }
-    if pressed(Key::Key2) {
-        state.stop_demo();
-        state.select_sentry(1);
-        return true;
-    }
-    if pressed(Key::Key3) {
-        state.stop_demo();
-        state.select_sentry(2);
-        return true;
-    }
-    if pressed(Key::Key4) {
-        state.stop_demo();
-        state.select_sentry(3);
-        return true;
+    for key in [
+        Key::Key1,
+        Key::Key2,
+        Key::Key3,
+        Key::Key4,
+        Key::NumPad1,
+        Key::NumPad2,
+        Key::NumPad3,
+        Key::NumPad4,
+    ] {
+        if let Some(i) = sentry_index_for(key).filter(|_| pressed(key)) {
+            state.stop_demo();
+            state.select_sentry(i);
+            return true;
+        }
     }
 
     if state.screen == Screen::Options {
@@ -348,8 +358,9 @@ fn handle_input(
     // (minifb tracks how long a key has been held independent of the
     // `KeyRepeat` mode used to query it, so this is safe to check with
     // `KeyRepeat::No` even while a hold-to-fire repeat is in progress.)
-    let confirm_fresh = window.is_key_pressed(Key::Enter, KeyRepeat::No)
-        || window.is_key_pressed(Key::Space, KeyRepeat::No);
+    let confirm_fresh = CONFIRM_KEYS
+        .iter()
+        .any(|&k| window.is_key_pressed(k, KeyRepeat::No));
     if confirm_fresh {
         // Record whether *this* press started on the Fire screen, before
         // acting on it — a confirm on Options moves to Fire below, and that
@@ -372,8 +383,9 @@ fn handle_input(
     // the Options → Fire confirm above would keep dumping rounds from the
     // very same press (#61).
     if confirm_hold.allows_repeat_fire(state.screen)
-        && (window.is_key_pressed(Key::Enter, KeyRepeat::Yes)
-            || window.is_key_pressed(Key::Space, KeyRepeat::Yes))
+        && CONFIRM_KEYS
+            .iter()
+            .any(|&k| window.is_key_pressed(k, KeyRepeat::Yes))
     {
         state.stop_demo();
         let (_fired, status) = fire_with_status(state);
@@ -588,5 +600,55 @@ mod tests {
             "Key::M must not call set_muted directly: {m_branch}"
         );
         assert!(m_branch.contains("toggle_sound"));
+    }
+
+    #[test]
+    fn sentry_index_for_maps_top_row_and_numpad() {
+        assert_eq!(sentry_index_for(Key::Key1), Some(0));
+        assert_eq!(sentry_index_for(Key::NumPad1), Some(0));
+        assert_eq!(sentry_index_for(Key::Key2), Some(1));
+        assert_eq!(sentry_index_for(Key::NumPad2), Some(1));
+        assert_eq!(sentry_index_for(Key::Key3), Some(2));
+        assert_eq!(sentry_index_for(Key::NumPad3), Some(2));
+        assert_eq!(sentry_index_for(Key::Key4), Some(3));
+        assert_eq!(sentry_index_for(Key::NumPad4), Some(3));
+        assert_eq!(sentry_index_for(Key::Key5), None);
+        assert_eq!(sentry_index_for(Key::NumPad5), None);
+    }
+
+    #[test]
+    fn confirm_keys_include_keypad_enter() {
+        assert!(CONFIRM_KEYS.contains(&Key::Enter));
+        assert!(CONFIRM_KEYS.contains(&Key::NumPadEnter));
+        assert!(CONFIRM_KEYS.contains(&Key::Space));
+    }
+
+    /// Non-test source of this file with all whitespace removed. It is cut at
+    /// the test module so a needle can only match real code, never a test's
+    /// own literal, and whitespace is dropped so rustfmt wrapping is ignored.
+    fn non_test_source_compact() -> String {
+        include_str!("main.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap_or_default()
+            .split_whitespace()
+            .collect()
+    }
+
+    #[test]
+    fn confirm_keys_wired_for_fresh_and_repeat_checks() {
+        let src = non_test_source_compact();
+        assert!(
+            src.contains("CONFIRM_KEYS.iter().any(|&k|window.is_key_pressed(k,KeyRepeat::No))"),
+            "fresh confirm must check every CONFIRM_KEYS entry"
+        );
+        assert!(
+            src.contains("CONFIRM_KEYS.iter().any(|&k|window.is_key_pressed(k,KeyRepeat::Yes))"),
+            "hold-to-fire repeat must check every CONFIRM_KEYS entry"
+        );
+        assert!(
+            src.contains("constCONFIRM_KEYS:[Key;3]=[Key::Enter,Key::NumPadEnter,Key::Space];"),
+            "keypad Enter must be wired into CONFIRM_KEYS in non-test code"
+        );
     }
 }
