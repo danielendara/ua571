@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web chrome: Demo checkbox stays in sync with `d`; Skip boot applies on change
 - Web Demo checkbox stays checked through POST when demo is requested (`?demo=1` / Restart); unchecking it during boot cancels the pending auto-play
 - Web chrome: POST status says DEMO (not MANUAL) when the Demo checkbox is checked
+- Pixel: numpad 1–4 select sentries 1–4 (like the top-row digits), and keypad Enter confirms on Options and fires on Fire (incl. hold-to-fire), matching the web console
 - Web keys no longer steal Space/arrows from checkboxes and selects; key-repeat does not dump rounds
 - Web: Space/Enter key-repeat hold-to-fires only if the original keydown was already on Fire (holding through POST or Options no longer leaves Options, stops Demo, or dumps rounds)
 - TUI (Unix): holding Space/Enter through POST no longer confirms Options or stops Demo (Press-repeats wait for key-up or a 1s gap)
