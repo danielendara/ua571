@@ -208,25 +208,25 @@ impl App {
                 self.state.stop_demo();
                 self.state.select_sentry(3);
             }
-            KeyCode::Left | KeyCode::Char('h') => {
+            KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('H') => {
                 if self.state.screen == Screen::Options {
                     self.state.stop_demo();
                     self.state.focus_prev_section();
                 }
             }
-            KeyCode::Right | KeyCode::Char('l') => {
+            KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => {
                 if self.state.screen == Screen::Options {
                     self.state.stop_demo();
                     self.state.focus_next_section();
                 }
             }
-            KeyCode::Up | KeyCode::Char('k') => {
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => {
                 if self.state.screen == Screen::Options {
                     self.state.stop_demo();
                     self.state.select_up();
                 }
             }
-            KeyCode::Down | KeyCode::Char('j') => {
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
                 if self.state.screen == Screen::Options {
                     self.state.stop_demo();
                     self.state.select_down();
@@ -381,6 +381,27 @@ mod tests {
         assert!(hold.is_held_press(t0 + Duration::from_millis(20)));
         assert!(!hold.is_held_press(t0 + Duration::from_millis(20) + CONFIRM_HOLD_GAP));
         assert!(!hold.is_active());
+    }
+
+    #[test]
+    fn uppercase_hjkl_navigate_options_like_lowercase() {
+        let mut app = options_app();
+        let start = app.state.active_sentry().options;
+        app.handle_key(key(KeyCode::Char('L'), KeyEventKind::Press));
+        let after_l = app.state.active_sentry().options;
+        assert_ne!(after_l.focus, start.focus, "L must move section focus");
+        app.handle_key(key(KeyCode::Char('H'), KeyEventKind::Press));
+        assert_eq!(app.state.active_sentry().options.focus, start.focus);
+
+        let before = app.state.active_sentry().options;
+        app.handle_key(key(KeyCode::Char('J'), KeyEventKind::Press));
+        assert_ne!(
+            app.state.active_sentry().options,
+            before,
+            "J must move selection"
+        );
+        app.handle_key(key(KeyCode::Char('K'), KeyEventKind::Press));
+        assert_eq!(app.state.active_sentry().options, before, "K undoes J");
     }
 
     #[test]
