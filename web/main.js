@@ -275,6 +275,11 @@ export function isChromeTarget(el) {
   );
 }
 
+/** Browser/OS shortcuts (Ctrl/Cmd/Alt + key) belong to the browser, not the console. */
+export function hasCommandModifier(e) {
+  return Boolean(e && (e.ctrlKey || e.metaKey || e.altKey));
+}
+
 /**
  * After `boot()` finishes, move focus to the canvas unless a chrome control
  * (e.g. a Theme/Scale select stepped with the keyboard) already has it.
@@ -328,6 +333,7 @@ export function handleThemeKeyDown(
   { select, storage, status, readOpts, location, history }
 ) {
   if (!e || e.code !== "KeyT" || e.repeat) return false;
+  if (hasCommandModifier(e)) return false;
   if (isChromeTarget(e.target)) return false;
   if (!select) return false;
 
@@ -573,6 +579,7 @@ export async function applySoundChoice(app, on, els) {
 export function handleGameKeyDown(app, e) {
   // Let the HTML chrome (checkboxes, selects, links) keep native keys.
   if (isChromeTarget(e.target)) return false;
+  if (hasCommandModifier(e)) return false;
   pendingThemeHint = null;
   switch (e.code) {
     case "ArrowUp":

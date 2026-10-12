@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Web: an unknown `?theme=` / `?scale=` value or stale saved pref no longer blanks the Theme/Scale select (#167)
+- TUI Options: `H`/`J`/`K`/`L` navigate like `h`/`j`/`k`/`l`, so Caps Lock or Shift no longer disables section and selection keys
 - Web: `theme-color` meta follows the selected theme (browser toolbar / home-screen status bar no longer stays yellow)
 - Web Audio: create/resume `AudioContext` on Sound checkbox or a key (not page load); close it on Restart
 - Pixel/web status strip is two lines so INTERROGATE + LINK DOWN + help keys fit in 640px
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web chrome: Demo checkbox stays in sync with `d`; Skip boot applies on change
 - Web Demo checkbox stays checked through POST when demo is requested (`?demo=1` / Restart); unchecking it during boot cancels the pending auto-play
 - Web chrome: POST status says DEMO (not MANUAL) when the Demo checkbox is checked
+- Pixel: numpad 1–4 select sentries 1–4 (like the top-row digits), and keypad Enter confirms on Options and fires on Fire (incl. hold-to-fire), matching the web console
 - Web keys no longer steal Space/arrows from checkboxes and selects; key-repeat does not dump rounds
 - Web: Space/Enter key-repeat hold-to-fires only if the original keydown was already on Fire (holding through POST or Options no longer leaves Options, stops Demo, or dumps rounds)
 - TUI (Unix): holding Space/Enter through POST no longer confirms Options or stops Demo (Press-repeats wait for key-up or a 1s gap)
@@ -38,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Secret-guard now applies `security/commit-denylist.txt` to tracked/staged paths
 - Web a11y: round count no longer re-announces on every shot; a hidden `#status-announce` live region announces state changes while `#status` keeps the full line
 - Web: sound and demo toggled with M / D are now saved to prefs / the share URL like the checkboxes
+- Web: Ctrl/Cmd/Alt + key (Find, bookmark, new tab, reload, etc.) is left to the browser; it no longer fires rounds, toggles demo, cycles theme, or sends Sound / Arm / Reload to the console
 
 ### Changed
 
