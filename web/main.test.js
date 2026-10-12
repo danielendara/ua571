@@ -27,6 +27,7 @@ import {
   handleGameKeyDown,
   handleSkipToPlaySurface,
   handleThemeKeyDown,
+  hasCommandModifier,
   nextThemeValue,
   themeStatusHint,
   themeValuesFromSelect,
@@ -379,6 +380,90 @@ test("KeyT cycles theme, persists, and shows THEME hint in #status (#107)", () =
     repeat: false,
     target: canvasTarget(),
   });
+});
+
+test("hasCommandModifier is true only for Ctrl, Cmd or Alt (#166)", () => {
+  assert.equal(hasCommandModifier({ code: "KeyF", ctrlKey: true }), true);
+  assert.equal(hasCommandModifier({ code: "KeyD", metaKey: true }), true);
+  assert.equal(hasCommandModifier({ code: "KeyA", altKey: true }), true);
+  assert.equal(hasCommandModifier({ code: "KeyF", shiftKey: true }), false);
+  assert.equal(hasCommandModifier({ code: "KeyF" }), false);
+  assert.equal(hasCommandModifier(null), false);
+});
+
+test("Ctrl/Cmd/Alt + game key is left to the browser (#166)", () => {
+  const calls = [];
+  let prevented = 0;
+  const app = { key_down: (code) => calls.push(code) };
+  const press = (init) =>
+    handleGameKeyDown(app, {
+      repeat: false,
+      target: canvasTarget(),
+      preventDefault() {
+        prevented += 1;
+      },
+      ...init,
+    });
+
+  assert.equal(press({ code: "KeyF", ctrlKey: true }), false);
+  assert.equal(press({ code: "KeyD", metaKey: true }), false);
+  assert.equal(press({ code: "KeyA", altKey: true }), false);
+  assert.equal(press({ code: "Space", ctrlKey: true }), false);
+  assert.equal(press({ code: "ArrowLeft", metaKey: true }), false);
+  assert.deepEqual(calls, []);
+  assert.equal(prevented, 0);
+
+  assert.equal(press({ code: "KeyF", shiftKey: true }), true);
+  assert.deepEqual(calls, ["KeyF"]);
+  assert.equal(press({ code: "KeyF" }), true);
+  assert.deepEqual(calls, ["KeyF", "KeyF"]);
+});
+
+test("Ctrl/Cmd+D does not toggle demo or touch the share URL (#166)", () => {
+  const app = mockApp();
+  const storage = memoryStorage();
+  const loc = mockLocation("", "/");
+  const history = mockHistory(loc);
+  const status = liveRegion("Loading WebAssembly…");
+  const demo = { checked: false };
+  const els = { status, demo, sound: { checked: false } };
+
+  assert.equal(
+    handleGameKeyDown(app, { code: "KeyD", metaKey: true, target: canvasTarget() }),
+    false
+  );
+  syncChromeFromApp(app, els);
+  assert.match(status.textContent, /MANUAL/);
+  assert.doesNotMatch(status.textContent, /Demo on/);
+  assert.equal(demo.checked, false);
+  assert.deepEqual(history.urls, []);
+  assert.equal(storage.getItem(PREFS_STORAGE_KEY), null);
+});
+
+test("Ctrl/Cmd/Alt + T leaves the theme, storage and history unchanged (#166)", () => {
+  const select = mockThemeSelect("yellow");
+  const storage = memoryStorage();
+  const status = liveRegion("OPTIONS · MANUAL");
+  const history = mockHistory(mockLocation());
+  const readOpts = () => ({ theme: select.value, scale: 3, sound: false, skipBoot: false });
+  const deps = { select, storage, status, readOpts, history, location: mockLocation() };
+
+  assert.equal(
+    handleThemeKeyDown({ code: "KeyT", ctrlKey: true, target: canvasTarget() }, deps),
+    false
+  );
+  assert.equal(
+    handleThemeKeyDown({ code: "KeyT", metaKey: true, target: canvasTarget() }, deps),
+    false
+  );
+  assert.equal(
+    handleThemeKeyDown({ code: "KeyT", altKey: true, target: canvasTarget() }, deps),
+    false
+  );
+  assert.equal(select.value, "yellow");
+  assert.deepEqual(storage.map, {});
+  assert.deepEqual(history.urls, []);
+  assert.equal(status.textContent, "OPTIONS · MANUAL");
 });
 
 test("applyThemeLive calls set_theme on the live app (#156)", () => {
