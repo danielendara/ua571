@@ -588,6 +588,7 @@ fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'stati
         "Enter" | "NumpadEnter" | "Space" => Command::Confirm,
         _ => return,
     };
+    let was_fire = state.screen == Screen::Fire;
     let status = apply_command(state, cmd);
     match cmd {
         Command::ToggleDemo => {
@@ -604,7 +605,10 @@ fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'stati
                 "Sound off"
             });
         }
-        Command::Confirm => *status_hint = status.map(ua571_core::FireDenyReason::message),
+        // Confirm on Options only moves to Fire; it leaves the hint alone.
+        Command::Confirm if was_fire => {
+            *status_hint = status.map(ua571_core::FireDenyReason::message)
+        }
         _ => {}
     }
 }
@@ -620,6 +624,19 @@ mod tests {
 
     fn apply_key(state: &mut AppState, gate: &mut ConfirmRepeatGate, code: &str, repeat: bool) {
         super::apply_key(state, gate, code, repeat, &mut None);
+    }
+
+    #[test]
+    fn confirm_on_options_moves_to_fire_without_setting_a_hint() {
+        let mut state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        state.set_screen(Screen::Options);
+        let mut hint = Some("stale");
+        super::handle_key(&mut state, "Enter", &mut hint);
+        assert_eq!(state.screen, Screen::Fire);
+        assert_eq!(hint, None);
     }
 
     fn chrome_status_line(state: &AppState) -> String {

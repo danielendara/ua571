@@ -338,8 +338,12 @@ fn handle_input(
         // acting on it — a confirm on Options moves to Fire below, and that
         // must not itself count as an origin-on-Fire press.
         confirm_hold.origin_fire = state.screen == Screen::Fire;
+        let was_fire = state.screen == Screen::Fire;
         let status = apply_command(state, Command::Confirm);
-        *status_hint = status.map(FireDenyReason::message);
+        // Confirm on Options only moves to Fire; it leaves the hint alone.
+        if was_fire {
+            *status_hint = status.map(FireDenyReason::message);
+        }
         return true;
     }
 
@@ -447,6 +451,13 @@ mod tests {
             !src.contains(&bare_fire_call),
             "fire() should not be called bare anymore — use fire_with_status"
         );
+    }
+
+    #[test]
+    fn options_confirm_does_not_touch_status_hint() {
+        let src = include_str!("main.rs");
+        assert!(src.contains("let was_fire = state.screen == Screen::Fire;"));
+        assert!(src.contains("if was_fire {"));
     }
 
     #[test]

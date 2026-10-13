@@ -58,9 +58,15 @@ pub fn apply_command(state: &mut AppState, cmd: Command) -> Option<FireDenyReaso
             state.toggle_sound();
             return None;
         }
+        // Navigation is Options-only and a no-op elsewhere: it must not
+        // stop the demo there either.
+        Command::SectionPrev | Command::SectionNext | Command::SelectUp | Command::SelectDown
+            if state.screen != Screen::Options =>
+        {
+            return None;
+        }
         _ => state.stop_demo(),
     }
-    let on_options = state.screen == Screen::Options;
     match cmd {
         Command::OpenFirePanel => state.set_screen(Screen::Fire),
         Command::OpenOptions => state.set_screen(Screen::Options),
@@ -68,10 +74,10 @@ pub fn apply_command(state: &mut AppState, cmd: Command) -> Option<FireDenyReaso
         Command::ToggleArm => state.toggle_arm(),
         Command::Reload => state.reload(),
         Command::SelectSentry(i) => state.select_sentry(i),
-        Command::SectionPrev if on_options => state.focus_prev_section(),
-        Command::SectionNext if on_options => state.focus_next_section(),
-        Command::SelectUp if on_options => state.select_up(),
-        Command::SelectDown if on_options => state.select_down(),
+        Command::SectionPrev => state.focus_prev_section(),
+        Command::SectionNext => state.focus_next_section(),
+        Command::SelectUp => state.select_up(),
+        Command::SelectDown => state.select_down(),
         Command::Confirm => match state.screen {
             Screen::Fire => return fire_with_status(state).1,
             Screen::Options => state.set_screen(Screen::Fire),
@@ -189,10 +195,6 @@ mod tests {
             Command::ToggleArm,
             Command::Reload,
             Command::SelectSentry(1),
-            Command::SectionPrev,
-            Command::SectionNext,
-            Command::SelectUp,
-            Command::SelectDown,
             Command::Confirm,
         ] {
             for screen in [Screen::Options, Screen::Fire] {
@@ -203,6 +205,28 @@ mod tests {
                 apply_command(&mut state, cmd);
                 assert!(!state.demo.is_active(), "{cmd:?} on {screen:?}");
             }
+        }
+    }
+
+    #[test]
+    fn nav_commands_stop_demo_only_on_options() {
+        for cmd in [
+            Command::SectionPrev,
+            Command::SectionNext,
+            Command::SelectUp,
+            Command::SelectDown,
+        ] {
+            let mut state = app();
+            state.set_screen(Screen::Options);
+            state.toggle_demo();
+            apply_command(&mut state, cmd);
+            assert!(!state.demo.is_active(), "{cmd:?} on Options");
+
+            let mut state = app();
+            state.set_screen(Screen::Fire);
+            state.toggle_demo();
+            apply_command(&mut state, cmd);
+            assert!(state.demo.is_active(), "{cmd:?} on Fire must not stop demo");
         }
     }
 
