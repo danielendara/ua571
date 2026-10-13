@@ -11,6 +11,12 @@ use ua571_core::{sentry_mark_char, AppState, Screen};
 
 use crate::theme::ConsoleTheme;
 
+/// Smallest terminal the Fire/Options console renders without clipping the
+/// header, sentry bar, or start of the help row. Deliberately below the
+/// ideal ~26 rows so a standard 80×24 terminal still gets the console.
+pub const MIN_COLS: u16 = 80;
+pub const MIN_ROWS: u16 = 20;
+
 /// Render the console. `fire_status_hint` is a one-shot fire-deny/critical
 /// suffix (CRITICAL / EMPTY / LINK DOWN / OFFLINE) for the sentry bar — the
 /// TUI's analog of web's `#status` hint and pixel's window-title hint
@@ -31,6 +37,11 @@ pub fn draw(
             return;
         }
         Screen::Options | Screen::Fire => {}
+    }
+
+    if area.width < MIN_COLS || area.height < MIN_ROWS {
+        draw_too_small(frame, theme, area);
+        return;
     }
 
     let chunks = Layout::default()
@@ -55,6 +66,31 @@ pub fn draw(
 
     draw_log(frame, state, theme, chunks[3]);
     draw_help(frame, state, theme, chunks[4]);
+}
+
+fn too_small_text(width: u16, height: u16) -> String {
+    format!(
+        "TERMINAL TOO SMALL — resize to at least {MIN_COLS}×{MIN_ROWS} (now {width}×{height}) · q quit"
+    )
+}
+
+fn draw_too_small(frame: &mut Frame, theme: &ConsoleTheme, area: Rect) {
+    let text = too_small_text(area.width, area.height);
+    let rows = (text.chars().count() as u16)
+        .div_ceil(area.width.max(1))
+        .min(area.height);
+    let centred = Rect {
+        y: area.y + (area.height - rows) / 2,
+        height: rows,
+        ..area
+    };
+    frame.render_widget(
+        Paragraph::new(text)
+            .style(theme.base())
+            .alignment(ratatui::layout::Alignment::Center)
+            .wrap(ratatui::widgets::Wrap { trim: true }),
+        centred,
+    );
 }
 
 fn draw_header(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rect) {
@@ -254,5 +290,71 @@ mod help_text_tests {
                 text.chars().count(),
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod render_tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    use ua571_core::Config;
+
+    fn render(screen: Screen, w: u16, h: u16) -> String {
+        let mut state = AppState::new(Config::default());
+        state.skip_boot();
+        state.set_screen(screen);
+        let theme = ConsoleTheme::from_kind(state.config.theme);
+        let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
+        term.draw(|f| draw(f, &state, &theme, None)).unwrap();
+        let buf = term.backend().buffer();
+        (0..h)
+            .map(|y| (0..w).map(|x| buf[(x, y)].symbol()).collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn small_terminal_shows_notice_only() {
+        for screen in [Screen::Fire, Screen::Options] {
+            let out = render(screen, 60, 18);
+            assert!(out.contains("TERMINAL TOO SMALL"), "{out}");
+            assert!(out.contains("60×18"), "{out}");
+            assert!(!out.contains("REMOTE SENTRY"), "{out}");
+            assert!(!out.contains("esc toggle"), "{out}");
+        }
+        assert!(render(Screen::Fire, MIN_COLS - 1, 30).contains("TERMINAL TOO SMALL"));
+        assert!(render(Screen::Fire, 120, MIN_ROWS - 1).contains("TERMINAL TOO SMALL"));
+    }
+
+    #[test]
+    fn standard_80x24_renders_console() {
+        for screen in [Screen::Fire, Screen::Options] {
+            let out = render(screen, 80, 24);
+            assert!(!out.contains("TERMINAL TOO SMALL"), "{out}");
+            assert!(out.contains("REMOTE SENTRY"), "{out}");
+        }
+    }
+
+    #[test]
+    fn min_size_renders_header_sentry_bar_and_help_start() {
+        for screen in [Screen::Fire, Screen::Options] {
+            let out = render(screen, MIN_COLS, MIN_ROWS);
+            assert!(!out.contains("TERMINAL TOO SMALL"), "{out}");
+            assert!(out.contains("REMOTE SENTRY"), "{out}");
+            assert!(out.contains("S1:"), "{out}");
+            let start: String = help_text(screen).chars().take(12).collect();
+            assert!(out.contains(&start), "{out}");
+        }
+    }
+
+    #[test]
+    fn boot_screen_ignores_size_guard() {
+        let state = AppState::new(Config::default());
+        let theme = ConsoleTheme::from_kind(state.config.theme);
+        let mut term = Terminal::new(TestBackend::new(40, 10)).unwrap();
+        term.draw(|f| draw(f, &state, &theme, None)).unwrap();
+        let buf = format!("{:?}", term.backend().buffer());
+        assert!(!buf.contains("TERMINAL TOO SMALL"));
     }
 }
