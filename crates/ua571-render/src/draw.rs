@@ -1,6 +1,6 @@
 //! Scene drawing ported from the GRiD Pascal UA571C layout coordinates.
 
-use ua571_core::{sentry_mark_char, AppState, MenuSection, Screen, WeaponStatus};
+use ua571_core::{sentry_mark_char, AppState, MenuSection, OptionsState, Screen};
 
 use crate::fb::{Framebuffer, WIDTH};
 
@@ -44,6 +44,71 @@ fn draw_header(state: &AppState, fb: &mut Framebuffer) {
     fb.line(0, 35, WIDTH as i32 - 1, 35);
 }
 
+/// Per-column layout for option value rows (MAINDISP.PAS coordinates).
+struct OptionsValueColumn {
+    section: MenuSection,
+    x: i32,
+    first_y: i32,
+    row_stride: i32,
+}
+
+const OPTIONS_VALUE_COLUMNS: [OptionsValueColumn; 7] = [
+    OptionsValueColumn {
+        section: MenuSection::SystemMode,
+        x: 14,
+        first_y: 69,
+        row_stride: 14,
+    },
+    OptionsValueColumn {
+        section: MenuSection::WeaponStatus,
+        x: 216,
+        first_y: 69,
+        row_stride: 14,
+    },
+    OptionsValueColumn {
+        section: MenuSection::IffStatus,
+        x: 348,
+        first_y: 69,
+        row_stride: 14,
+    },
+    OptionsValueColumn {
+        section: MenuSection::TestRoutine,
+        x: 504,
+        first_y: 69,
+        row_stride: 14,
+    },
+    OptionsValueColumn {
+        section: MenuSection::TargetProfile,
+        x: 72,
+        first_y: 145,
+        row_stride: 14,
+    },
+    OptionsValueColumn {
+        section: MenuSection::SpectralProfile,
+        x: 291,
+        first_y: 145,
+        row_stride: 14,
+    },
+    OptionsValueColumn {
+        section: MenuSection::TargetSelect,
+        x: 483,
+        first_y: 145,
+        row_stride: 14,
+    },
+];
+
+/// Draw every selectable option label using canonical `label()` strings from core.
+fn draw_options_value_columns(fb: &mut Framebuffer) {
+    let opts = OptionsState::default();
+    for col in OPTIONS_VALUE_COLUMNS {
+        let (labels, _) = opts.section_options(col.section);
+        for (i, label) in labels.iter().enumerate() {
+            let y = col.first_y + i as i32 * col.row_stride;
+            fb.draw_text(label, col.x, y, SECTION_SCALE);
+        }
+    }
+}
+
 /// Draw `ch` centered inside a circle at (`cx`, `cy`).
 fn draw_circled_letter(fb: &mut Framebuffer, ch: char, cx: i32, cy: i32) {
     let scale = 2;
@@ -78,21 +143,8 @@ fn draw_options(state: &AppState, fb: &mut Framebuffer) {
     fb.line(320, 66, 320, 124);
     fb.line(480, 66, 480, 124);
 
-    // Options text (original spacing).
-    fb.draw_text("AUTO-REMOTE", 14, 69, SECTION_SCALE);
-    fb.draw_text("MAN-OVERRIDE", 14, 83, SECTION_SCALE);
-    fb.draw_text("SEMI-AUTO", 14, 97, SECTION_SCALE);
-
-    fb.draw_text("SAFE", 216, 69, SECTION_SCALE);
-    fb.draw_text("ARMED", 216, 83, SECTION_SCALE);
-
-    fb.draw_text("SEARCH", 348, 69, SECTION_SCALE);
-    fb.draw_text("TEST", 348, 83, SECTION_SCALE);
-    fb.draw_text("ENGAGED", 348, 97, SECTION_SCALE);
-    fb.draw_text("INTERROGATE", 348, 111, SECTION_SCALE);
-
-    fb.draw_text("AUTO", 504, 69, SECTION_SCALE);
-    fb.draw_text("SELECTIVE", 504, 83, SECTION_SCALE);
+    // Options text (original spacing) — labels from `ua571-core` option enums.
+    draw_options_value_columns(fb);
 
     fb.line(0, 124, WIDTH as i32 - 1, 124);
     fb.line(213, 124, 213, 142);
@@ -102,17 +154,6 @@ fn draw_options(state: &AppState, fb: &mut Framebuffer) {
     fb.draw_text("TARGET PROFILE", 40, 128, SECTION_SCALE);
     fb.draw_text("SPECTRAL PROFILE", 240, 128, SECTION_SCALE);
     fb.draw_text("TARGET SELECT", 466, 128, SECTION_SCALE);
-
-    fb.draw_text("SOFT", 72, 145, SECTION_SCALE);
-    fb.draw_text("SEMI", 72, 159, SECTION_SCALE);
-    fb.draw_text("HARD", 72, 173, SECTION_SCALE);
-
-    fb.draw_text("BIO", 291, 145, SECTION_SCALE);
-    fb.draw_text("INERT", 291, 159, SECTION_SCALE);
-
-    fb.draw_text("MULTI SPEC", 483, 145, SECTION_SCALE);
-    fb.draw_text("INFRA RED", 483, 159, SECTION_SCALE);
-    fb.draw_text("UV", 483, 173, SECTION_SCALE);
 
     fb.line(0, 212, WIDTH as i32 - 1, 212);
     fb.line(213, 142, 213, 212);
@@ -244,10 +285,7 @@ fn draw_fire(state: &AppState, fb: &mut Framebuffer) {
     }
 
     // Weapon status cue under gauges
-    let armed = match s.options.weapon_status {
-        WeaponStatus::Safe => "SAFE",
-        WeaponStatus::Armed => "ARMED",
-    };
+    let armed = s.options.weapon_status.label();
     fb.draw_text(&format!("{}  {}", s.label(), armed), 20, 200, SECTION_SCALE);
 }
 
@@ -335,7 +373,7 @@ fn status_strip_lines(state: &AppState) -> [String; 2] {
         s.fire.rounds,
         s.options.system_mode.label(),
         s.options.iff_status.label(),
-        if s.is_armed() { "ARMED" } else { "SAFE" },
+        s.options.weapon_status.label(),
         link,
         demo
     );
@@ -424,7 +462,7 @@ mod tests {
             s.options.system_mode = ua571_core::SystemMode::ManOverride;
             s.options.iff_status = ua571_core::IffStatus::Interrogate;
             s.link_ok = false;
-            s.options.weapon_status = WeaponStatus::Armed;
+            s.options.weapon_status = ua571_core::WeaponStatus::Armed;
         }
         let [status, keys] = status_strip_lines(&state);
         let max = WIDTH as i32 - 4;
@@ -463,6 +501,76 @@ mod tests {
             Framebuffer::text_width(&keys, SECTION_SCALE) <= WIDTH as i32 - 4,
             "updated help must still fit: {keys:?}"
         );
+    }
+
+    /// Strings previously hard-coded in `draw_options` — must match core `label()` or we stop.
+    const LEGACY_RENDERED_OPTION_LABELS: [(MenuSection, &[&str]); 7] = [
+        (
+            MenuSection::SystemMode,
+            &["AUTO-REMOTE", "MAN-OVERRIDE", "SEMI-AUTO"],
+        ),
+        (MenuSection::WeaponStatus, &["SAFE", "ARMED"]),
+        (
+            MenuSection::IffStatus,
+            &["SEARCH", "TEST", "ENGAGED", "INTERROGATE"],
+        ),
+        (MenuSection::TestRoutine, &["AUTO", "SELECTIVE"]),
+        (MenuSection::TargetProfile, &["SOFT", "SEMI", "HARD"]),
+        (MenuSection::SpectralProfile, &["BIO", "INERT"]),
+        (
+            MenuSection::TargetSelect,
+            &["MULTI SPEC", "INFRA RED", "UV"],
+        ),
+    ];
+
+    #[test]
+    fn options_panel_drawn_labels_match_core_label_fn() {
+        let opts = OptionsState::default();
+        for (section, legacy) in LEGACY_RENDERED_OPTION_LABELS {
+            let (from_core, _) = opts.section_options(section);
+            let core_labels: Vec<&str> = from_core.to_vec();
+            assert_eq!(
+                core_labels.as_slice(),
+                legacy,
+                "render legacy strings diverged from core for {section:?}; fix core or keep render as-is"
+            );
+        }
+        for col in OPTIONS_VALUE_COLUMNS {
+            let (labels, _) = opts.section_options(col.section);
+            for label in labels {
+                assert!(!label.is_empty());
+            }
+        }
+    }
+
+    fn pixel_digest(fb: &Framebuffer) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        fb.pixels.hash(&mut h);
+        h.finish()
+    }
+
+    #[test]
+    fn options_and_fire_scenes_pixel_stable() {
+        let mut state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        for screen in [Screen::Options, Screen::Fire] {
+            state.set_screen(screen);
+            let mut fb = Framebuffer::new();
+            render(&state, &mut fb);
+            let digest = pixel_digest(&fb);
+            let expected = match screen {
+                Screen::Options => 0xd930_117a_2e7f_955f_u64,
+                Screen::Fire => 0x4c92_42d5_cf44_ea4b_u64,
+                _ => unreachable!(),
+            };
+            assert_eq!(
+                digest, expected,
+                "{screen:?} framebuffer changed (digest {digest:#x} != {expected:#x})"
+            );
+        }
     }
 
     #[test]
