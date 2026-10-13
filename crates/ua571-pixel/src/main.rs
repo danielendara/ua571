@@ -555,7 +555,9 @@ mod tests {
 
     #[test]
     fn mute_key_only_toggles_the_preference() {
-        let src = include_str!("main.rs");
+        // Windows checkouts may have CRLF line endings; the "\n}\n" split
+        // below must not depend on them.
+        let src = include_str!("main.rs").replace("\r\n", "\n");
         // M is routed as a pure preference flip via the shared dispatcher;
         // the audio mute itself is recomputed per frame from `idle_runtime`.
         assert!(src.contains("(Key::M, Command::ToggleSound)"));
