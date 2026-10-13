@@ -2717,7 +2717,6 @@ dependencies = [
  "dirs",
  "serde",
  "toml",
- "web-time",
 ]
 
 [[package]]

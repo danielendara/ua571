@@ -19,8 +19,8 @@ pub const MIN_ROWS: u16 = 20;
 
 /// Render the console. `fire_status_hint` is a one-shot fire-deny/critical
 /// suffix (CRITICAL / EMPTY / LINK DOWN / OFFLINE) for the sentry bar — the
-/// TUI's analog of web's `#status` hint and pixel's window-title hint
-/// (#82/#86/#88). `None` for no recent fire attempt, or an ordinary
+/// TUI's analog of web's `#status` hint and pixel's window-title hint.
+/// `None` for no recent fire attempt, or an ordinary
 /// successful non-critical fire.
 pub fn draw(
     frame: &mut Frame,
@@ -197,7 +197,7 @@ fn draw_log(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rec
 /// Help-row text per screen. Fire and Options both mention `esc toggle`
 /// (Esc already toggles Fire ↔ Options via the shared `apply_panel_key` —
 /// see `ua571-core::keys` — this only adds discoverability, no binding
-/// change), matching web's footer legend (#94) and pixel's HUD line
+/// change), matching web's footer legend and pixel's HUD line
 /// (`ua571-render::draw`) in spirit, not verbatim wording/casing — TUI's
 /// existing labels are already lowercase and terser than either. Boot skips
 /// POST via any key rather than routing through `apply_panel_key`'s toggle,
@@ -251,14 +251,6 @@ mod help_text_tests {
             .contains("toggle"));
     }
 
-    /// No established rendering-width test harness exists in this crate yet
-    /// (no `TestBackend` usage anywhere), so this is a plain character-count
-    /// proxy for "fits without wrapping/clipping" rather than a real render
-    /// assertion. 120 columns is a conservative, widely-supported terminal
-    /// width — comfortably above the longest line here (Fire, ~102 chars)
-    /// and above the pre-existing Fire line this replaces (90 chars), so
-    /// this also guards against the row silently growing past a reasonable
-    /// console width in the future.
     #[test]
     fn tui_help_and_web_footer_share_command_tokens() {
         const TOKENS: &[&str] = &[

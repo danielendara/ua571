@@ -59,7 +59,7 @@ struct Cli {
 fn main() -> Result<()> {
     color_eyre::install()?;
     let cli = Cli::parse();
-    // CLI → saved session → config file → defaults (#109).
+    // CLI → saved session → config file → defaults.
     let startup = load_native_startup(&NativeCli {
         theme: cli.theme,
         rounds: cli.rounds,

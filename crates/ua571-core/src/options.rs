@@ -97,10 +97,6 @@ macro_rules! option_enum {
                 Self::ALL.iter().position(|&v| v == self).unwrap_or(0)
             }
 
-            pub fn from_index(i: usize) -> Option<Self> {
-                Self::ALL.get(i).copied()
-            }
-
             /// Stable wire name — the variant name, matching what `ua571-web`
             /// writes to localStorage (`format!("{:?}", value)`). Used for saved
             /// session prefs so one value means one thing in every frontend.

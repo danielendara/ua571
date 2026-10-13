@@ -37,7 +37,7 @@ impl FireAudio {
     }
 
     /// Play one burst (non-blocking).
-    pub fn play_fire(&self) {
+    fn play_fire(&self) {
         if self.muted {
             return;
         }
