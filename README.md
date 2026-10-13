@@ -131,8 +131,8 @@ demo progress) is never saved.
 
 | Key | Action |
 |-----|--------|
-| `←` `→` / `h` `l` | Previous / next options section |
-| `↑` `↓` / `k` `j` | Change selection in section |
+| `←` `→` / `h` `l` (`H` `L` in TUI) | Previous / next options section |
+| `↑` `↓` / `k` `j` (`J` `K` in TUI) | Change selection in section |
 | `f` | Firing panel |
 | `o` | Options panel (stays on Options) |
 | `Esc` | Toggle Fire ↔ Options |
@@ -143,7 +143,7 @@ demo progress) is never saved.
 | `d` | Toggle demo auto-play |
 | `m` | Toggle fire SFX (starts muted) |
 | `t` | Cycle theme (TUI) |
-| `q` | Quit |
+| `q` | Quit (TUI/pixel exit). On web, `q` sets quit and the status line shows **QUIT (Restart)**; use the header **Restart** button to reboot WASM |
 | any (on boot) | Skip POST |
 
 ## Architecture
