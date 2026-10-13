@@ -4,11 +4,11 @@
 //! UA571_DUMP_DIR=/tmp/ua571-dump cargo test -p ua571-render --test export_scene_dump -- --ignored --nocapture
 //! ```
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use ua571_core::{AppState, Config, Screen};
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 
-fn dump_scene(out_dir: &PathBuf, tag: &str, screen: Screen) {
+fn dump_scene(out_dir: &Path, tag: &str, screen: Screen) {
     let mut state = AppState::new(Config {
         show_boot: false,
         ..Config::default()
