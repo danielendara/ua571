@@ -129,10 +129,12 @@ demo progress) is never saved.
 
 ## Keys
 
+Uppercase `H` `J` `K` `L` work the same as lowercase in all three versions (terminal, pixel, web).
+
 | Key | Action |
 |-----|--------|
-| `←` `→` / `h` `l` (`H` `L` in TUI) | Previous / next options section |
-| `↑` `↓` / `k` `j` (`J` `K` in TUI) | Change selection in section |
+| `←` `→` / `h` `l` (case-insensitive: `H` `L` work too) | Previous / next options section |
+| `↑` `↓` / `k` `j` (case-insensitive: `K` `J` work too) | Change selection in section |
 | `f` | Firing panel |
 | `o` | Options panel (stays on Options) |
 | `Esc` | Toggle Fire ↔ Options |
