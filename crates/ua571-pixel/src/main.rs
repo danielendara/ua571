@@ -11,8 +11,8 @@ use color_eyre::eyre::{eyre, Result};
 use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
 use ua571_audio::FireAudio;
 use ua571_core::{
-    apply_panel_key, fire_with_status, idle_runtime, load_native_startup, AppState, FireDenyReason,
-    NativeCli, PanelKey, Screen,
+    apply_command, idle_runtime, load_native_startup, AppState, Command, FireDenyReason, NativeCli,
+    Screen,
 };
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 
@@ -269,50 +269,31 @@ fn handle_input(
         *status_hint = None;
     }
 
-    if pressed(Key::Q) {
-        state.quit();
-        return true;
-    }
-
-    if pressed(Key::D) {
-        state.toggle_demo();
-        return true;
-    }
-    if pressed(Key::M) {
-        // Mute state itself is recomputed every frame in `main` from
-        // `state.config.sound` + focus via `idle_runtime`, so this only
-        // needs to flip the preference.
-        state.toggle_sound();
-        return true;
-    }
+    // Simple one-key commands; stop-demo and gating live in `apply_command`.
+    // Mute state itself is recomputed every frame in `main` from
+    // `state.config.sound` + focus via `idle_runtime`, so M only flips the
+    // preference.
+    let simple = [
+        (Key::Q, Command::Quit),
+        (Key::D, Command::ToggleDemo),
+        (Key::M, Command::ToggleSound),
+        (Key::F, Command::OpenFirePanel),
+        (Key::O, Command::OpenOptions),
+        (Key::Escape, Command::ToggleFirePanel),
+        (Key::A, Command::ToggleArm),
+        (Key::R, Command::Reload),
+    ];
     if pressed(Key::T) {
         let (hint, on, off) = cycle_theme(state);
         *colors = (on, off);
         *status_hint = Some(hint);
         return true;
     }
-    if pressed(Key::F) {
-        state.stop_demo();
-        state.set_screen(Screen::Fire);
-        return true;
-    }
-    if pressed(Key::O) {
-        apply_panel_key(state, PanelKey::OpenOptions);
-        return true;
-    }
-    if pressed(Key::Escape) {
-        apply_panel_key(state, PanelKey::ToggleFirePanel);
-        return true;
-    }
-    if pressed(Key::A) {
-        state.stop_demo();
-        state.toggle_arm();
-        return true;
-    }
-    if pressed(Key::R) {
-        state.stop_demo();
-        state.reload();
-        return true;
+    for (key, cmd) in simple {
+        if pressed(key) {
+            apply_command(state, cmd);
+            return true;
+        }
     }
     for key in [
         Key::Key1,
@@ -325,32 +306,23 @@ fn handle_input(
         Key::NumPad4,
     ] {
         if let Some(i) = sentry_index_for(key).filter(|_| pressed(key)) {
-            state.stop_demo();
-            state.select_sentry(i);
+            apply_command(state, Command::SelectSentry(i));
             return true;
         }
     }
 
     if state.screen == Screen::Options {
-        if pressed(Key::Left) || pressed(Key::H) {
-            state.stop_demo();
-            state.focus_prev_section();
-            return true;
-        }
-        if pressed(Key::Right) || pressed(Key::L) {
-            state.stop_demo();
-            state.focus_next_section();
-            return true;
-        }
-        if pressed(Key::Up) || pressed(Key::K) {
-            state.stop_demo();
-            state.select_up();
-            return true;
-        }
-        if pressed(Key::Down) || pressed(Key::J) {
-            state.stop_demo();
-            state.select_down();
-            return true;
+        let nav = [
+            (Key::Left, Key::H, Command::SectionPrev),
+            (Key::Right, Key::L, Command::SectionNext),
+            (Key::Up, Key::K, Command::SelectUp),
+            (Key::Down, Key::J, Command::SelectDown),
+        ];
+        for (arrow, vi, cmd) in nav {
+            if pressed(arrow) || pressed(vi) {
+                apply_command(state, cmd);
+                return true;
+            }
         }
     }
 
@@ -366,14 +338,11 @@ fn handle_input(
         // acting on it — a confirm on Options moves to Fire below, and that
         // must not itself count as an origin-on-Fire press.
         confirm_hold.origin_fire = state.screen == Screen::Fire;
-        state.stop_demo();
-        match state.screen {
-            Screen::Fire => {
-                let (_fired, status) = fire_with_status(state);
-                *status_hint = status.map(FireDenyReason::message);
-            }
-            Screen::Options => state.set_screen(Screen::Fire),
-            Screen::Boot => {}
+        let was_fire = state.screen == Screen::Fire;
+        let status = apply_command(state, Command::Confirm);
+        // Confirm on Options only moves to Fire; it leaves the hint alone.
+        if was_fire {
+            *status_hint = status.map(FireDenyReason::message);
         }
         return true;
     }
@@ -387,8 +356,7 @@ fn handle_input(
             .iter()
             .any(|&k| window.is_key_pressed(k, KeyRepeat::Yes))
     {
-        state.stop_demo();
-        let (_fired, status) = fire_with_status(state);
+        let status = apply_command(state, Command::Confirm);
         *status_hint = status.map(FireDenyReason::message);
         return true;
     }
@@ -472,7 +440,9 @@ mod tests {
         // >= 2, not ==, because this assertion's own source line also
         // contains the literal string it is searching for.
         assert!(
-            src.matches("fire_with_status(state)").count() >= 2,
+            src.matches("apply_command(state, Command::Confirm)")
+                .count()
+                >= 2,
             "both fire call sites should use the shared core helper"
         );
         // Built at runtime so this assertion's own source doesn't match itself.
@@ -484,18 +454,25 @@ mod tests {
     }
 
     #[test]
-    fn uses_shared_panel_key_helper() {
+    fn options_confirm_does_not_touch_status_hint() {
         let src = include_str!("main.rs");
-        assert!(src.contains("apply_panel_key"));
-        assert!(src.contains("PanelKey::OpenOptions"));
-        assert!(src.contains("PanelKey::ToggleFirePanel"));
+        assert!(src.contains("let was_fire = state.screen == Screen::Fire;"));
+        assert!(src.contains("if was_fire {"));
+    }
+
+    #[test]
+    fn routes_through_apply_command() {
+        let src = include_str!("main.rs");
+        assert!(src.contains("apply_command"));
+        assert!(src.contains("Command::OpenOptions"));
+        assert!(src.contains("Command::ToggleFirePanel"));
         assert!(
-            src.contains("apply_panel_key(state, PanelKey::OpenOptions)"),
-            "O must go through apply_panel_key"
+            src.contains("(Key::O, Command::OpenOptions)"),
+            "O must go through apply_command"
         );
         assert!(
-            src.contains("apply_panel_key(state, PanelKey::ToggleFirePanel)"),
-            "Esc must go through apply_panel_key"
+            src.contains("(Key::Escape, Command::ToggleFirePanel)"),
+            "Esc must go through apply_command"
         );
     }
 
@@ -589,17 +566,21 @@ mod tests {
 
     #[test]
     fn mute_key_only_toggles_the_preference() {
-        let src = include_str!("main.rs");
-        let m_branch = src
-            .split("if pressed(Key::M) {")
+        // Windows checkouts may have CRLF line endings; the "\n}\n" split
+        // below must not depend on them.
+        let src = include_str!("main.rs").replace("\r\n", "\n");
+        // M is routed as a pure preference flip via the shared dispatcher;
+        // the audio mute itself is recomputed per frame from `idle_runtime`.
+        assert!(src.contains("(Key::M, Command::ToggleSound)"));
+        let handler = src
+            .split("fn handle_input(")
             .nth(1)
-            .and_then(|s| s.split("return true;").next())
-            .expect("Key::M branch");
+            .and_then(|s| s.split("\n}\n").next())
+            .expect("handle_input body");
         assert!(
-            !m_branch.contains("set_muted"),
-            "Key::M must not call set_muted directly: {m_branch}"
+            !handler.contains("set_muted"),
+            "Key::M must not call set_muted directly"
         );
-        assert!(m_branch.contains("toggle_sound"));
     }
 
     #[test]
