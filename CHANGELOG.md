@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Web: the console keeps running when `localStorage` is blocked, full, or throws; prefs just stop persisting (#169)
+- Web: an unknown `?theme=` / `?scale=` value or stale saved pref no longer blanks the Theme/Scale select (#167)
 - TUI Options: `H`/`J`/`K`/`L` navigate like `h`/`j`/`k`/`l`, so Caps Lock or Shift no longer disables section and selection keys
 - Web: `theme-color` meta follows the selected theme (browser toolbar / home-screen status bar no longer stays yellow)
 - Web Audio: create/resume `AudioContext` on Sound checkbox or a key (not page load); close it on Restart
@@ -44,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- TUI: terminals smaller than 80×20 show a centred "TERMINAL TOO SMALL" notice (current size + `q quit`) instead of a squeezed, clipped console; 80×24 is unaffected and the console returns on the next frame after a resize (#168)
 - Web footer lists reload / Space; status shows `QUIT (Restart)` after `q`
 - Web: the Touch pad show/hide choice is remembered per device (localStorage); default still follows `(pointer: coarse)`
 - CI: cancel superseded PRs, timeouts, Linux-only release build, locked WASM build, CDK `tsc` (`types: ["node"]`), shared wasm cache
