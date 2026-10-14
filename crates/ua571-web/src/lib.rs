@@ -4,8 +4,8 @@
 
 use ua571_core::sfx::{fire_burst_pcm, FIRE_CYCLIC_HZ};
 use ua571_core::{
-    apply_panel_key, idle_runtime, AppState, Config, IffStatus, PanelKey, Screen, SystemMode,
-    Theme, WeaponStatus, MAX_FIRE_SFX_BURST,
+    apply_command, idle_runtime, AppState, Command, Config, IffStatus, Screen, SystemMode, Theme,
+    WeaponStatus, MAX_FIRE_SFX_BURST,
 };
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
@@ -568,82 +568,46 @@ fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'stati
         return;
     }
 
-    match code {
-        "KeyQ" => {
-            state.quit();
-        }
-        "KeyD" => {
-            state.toggle_demo();
+    let cmd = match code {
+        "KeyQ" => Command::Quit,
+        "KeyD" => Command::ToggleDemo,
+        "KeyM" => Command::ToggleSound,
+        "KeyF" => Command::OpenFirePanel,
+        "KeyO" => Command::OpenOptions,
+        "Escape" => Command::ToggleFirePanel,
+        "KeyA" => Command::ToggleArm,
+        "KeyR" => Command::Reload,
+        "Digit1" | "Numpad1" => Command::SelectSentry(0),
+        "Digit2" | "Numpad2" => Command::SelectSentry(1),
+        "Digit3" | "Numpad3" => Command::SelectSentry(2),
+        "Digit4" | "Numpad4" => Command::SelectSentry(3),
+        "ArrowLeft" | "KeyH" => Command::SectionPrev,
+        "ArrowRight" | "KeyL" => Command::SectionNext,
+        "ArrowUp" | "KeyK" => Command::SelectUp,
+        "ArrowDown" | "KeyJ" => Command::SelectDown,
+        "Enter" | "NumpadEnter" | "Space" => Command::Confirm,
+        _ => return,
+    };
+    let was_fire = state.screen == Screen::Fire;
+    let status = apply_command(state, cmd);
+    match cmd {
+        Command::ToggleDemo => {
             *status_hint = Some(if demo_checkbox_on(state) {
                 "Demo on"
             } else {
                 "Demo off"
             });
         }
-        "KeyM" => {
-            state.toggle_sound();
+        Command::ToggleSound => {
             *status_hint = Some(if state.config.sound {
                 "Sound on"
             } else {
                 "Sound off"
             });
         }
-        "KeyF" => {
-            state.stop_demo();
-            state.set_screen(Screen::Fire);
-        }
-        "KeyO" => apply_panel_key(state, PanelKey::OpenOptions),
-        "Escape" => apply_panel_key(state, PanelKey::ToggleFirePanel),
-        "KeyA" => {
-            state.stop_demo();
-            state.toggle_arm();
-        }
-        "KeyR" => {
-            state.stop_demo();
-            state.reload();
-        }
-        "Digit1" | "Numpad1" => {
-            state.stop_demo();
-            state.select_sentry(0);
-        }
-        "Digit2" | "Numpad2" => {
-            state.stop_demo();
-            state.select_sentry(1);
-        }
-        "Digit3" | "Numpad3" => {
-            state.stop_demo();
-            state.select_sentry(2);
-        }
-        "Digit4" | "Numpad4" => {
-            state.stop_demo();
-            state.select_sentry(3);
-        }
-        "ArrowLeft" | "KeyH" if state.screen == Screen::Options => {
-            state.stop_demo();
-            state.focus_prev_section();
-        }
-        "ArrowRight" | "KeyL" if state.screen == Screen::Options => {
-            state.stop_demo();
-            state.focus_next_section();
-        }
-        "ArrowUp" | "KeyK" if state.screen == Screen::Options => {
-            state.stop_demo();
-            state.select_up();
-        }
-        "ArrowDown" | "KeyJ" if state.screen == Screen::Options => {
-            state.stop_demo();
-            state.select_down();
-        }
-        "Enter" | "NumpadEnter" | "Space" => {
-            state.stop_demo();
-            match state.screen {
-                Screen::Fire => {
-                    let (_fired, status) = ua571_core::fire_with_status(state);
-                    *status_hint = status.map(ua571_core::FireDenyReason::message);
-                }
-                Screen::Options => state.set_screen(Screen::Fire),
-                Screen::Boot => {}
-            }
+        // Confirm on Options only moves to Fire; it leaves the hint alone.
+        Command::Confirm if was_fire => {
+            *status_hint = status.map(ua571_core::FireDenyReason::message)
         }
         _ => {}
     }
@@ -660,6 +624,19 @@ mod tests {
 
     fn apply_key(state: &mut AppState, gate: &mut ConfirmRepeatGate, code: &str, repeat: bool) {
         super::apply_key(state, gate, code, repeat, &mut None);
+    }
+
+    #[test]
+    fn confirm_on_options_moves_to_fire_without_setting_a_hint() {
+        let mut state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        state.set_screen(Screen::Options);
+        let mut hint = Some("stale");
+        super::handle_key(&mut state, "Enter", &mut hint);
+        assert_eq!(state.screen, Screen::Fire);
+        assert_eq!(hint, None);
     }
 
     fn chrome_status_line(state: &AppState) -> String {
@@ -847,11 +824,11 @@ mod tests {
     }
 
     #[test]
-    fn uses_shared_panel_key_helper() {
+    fn routes_through_apply_command() {
         let src = include_str!("lib.rs");
-        assert!(src.contains("apply_panel_key"));
-        assert!(src.contains("PanelKey::OpenOptions"));
-        assert!(src.contains("PanelKey::ToggleFirePanel"));
+        assert!(src.contains("apply_command"));
+        assert!(src.contains("Command::OpenOptions"));
+        assert!(src.contains("Command::ToggleFirePanel"));
     }
 
     #[test]

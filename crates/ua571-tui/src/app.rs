@@ -12,9 +12,7 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use ua571_audio::FireAudio;
-use ua571_core::{
-    apply_panel_key, fire_with_status, AppState, Config, FireDenyReason, PanelKey, Screen,
-};
+use ua571_core::{apply_command, AppState, Command, Config, FireDenyReason, Screen};
 
 use crate::theme::ConsoleTheme;
 use crate::views;
@@ -154,98 +152,47 @@ impl App {
         // new hint, so a denied fire's reason is what survives.
         self.fire_status_hint = None;
 
-        // Demo: most keys stop auto-play so the operator can take over,
-        // except pure navigation that we still allow.
-        match key.code {
-            KeyCode::Char('q') | KeyCode::Char('Q') => {
-                self.state.quit();
-            }
-            KeyCode::Char('d') | KeyCode::Char('D') => {
-                self.state.toggle_demo();
-            }
-            KeyCode::Char('m') | KeyCode::Char('M') => {
-                self.state.toggle_sound();
-                if let Some(audio) = self.audio.as_mut() {
-                    audio.set_muted(!self.state.config.sound);
-                }
-            }
+        // Key → Command mapping; stop-demo and Options-only gating live in
+        // `apply_command`. T (theme) stays frontend-owned.
+        let cmd = match key.code {
+            KeyCode::Char('q') | KeyCode::Char('Q') => Command::Quit,
+            KeyCode::Char('d') | KeyCode::Char('D') => Command::ToggleDemo,
+            KeyCode::Char('m') | KeyCode::Char('M') => Command::ToggleSound,
             KeyCode::Char('t') | KeyCode::Char('T') => {
                 let hint = self.state.config.theme.cycle_with_hint();
                 self.theme = ConsoleTheme::from_kind(self.state.config.theme);
                 self.state.log.push_info(hint);
+                return;
             }
-            KeyCode::Char('f') | KeyCode::Char('F') => {
-                self.state.stop_demo();
-                self.state.set_screen(Screen::Fire);
-            }
-            KeyCode::Char('o') | KeyCode::Char('O') => {
-                apply_panel_key(&mut self.state, PanelKey::OpenOptions);
-            }
-            KeyCode::Esc => {
-                apply_panel_key(&mut self.state, PanelKey::ToggleFirePanel);
-            }
-            KeyCode::Char('a') | KeyCode::Char('A') => {
-                self.state.stop_demo();
-                self.state.toggle_arm();
-            }
-            KeyCode::Char('r') | KeyCode::Char('R') => {
-                self.state.stop_demo();
-                self.state.reload();
-            }
-            KeyCode::Char('1') => {
-                self.state.stop_demo();
-                self.state.select_sentry(0);
-            }
-            KeyCode::Char('2') => {
-                self.state.stop_demo();
-                self.state.select_sentry(1);
-            }
-            KeyCode::Char('3') => {
-                self.state.stop_demo();
-                self.state.select_sentry(2);
-            }
-            KeyCode::Char('4') => {
-                self.state.stop_demo();
-                self.state.select_sentry(3);
-            }
-            KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('H') => {
-                if self.state.screen == Screen::Options {
-                    self.state.stop_demo();
-                    self.state.focus_prev_section();
+            KeyCode::Char('f') | KeyCode::Char('F') => Command::OpenFirePanel,
+            KeyCode::Char('o') | KeyCode::Char('O') => Command::OpenOptions,
+            KeyCode::Esc => Command::ToggleFirePanel,
+            KeyCode::Char('a') | KeyCode::Char('A') => Command::ToggleArm,
+            KeyCode::Char('r') | KeyCode::Char('R') => Command::Reload,
+            KeyCode::Char('1') => Command::SelectSentry(0),
+            KeyCode::Char('2') => Command::SelectSentry(1),
+            KeyCode::Char('3') => Command::SelectSentry(2),
+            KeyCode::Char('4') => Command::SelectSentry(3),
+            KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('H') => Command::SectionPrev,
+            KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => Command::SectionNext,
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => Command::SelectUp,
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => Command::SelectDown,
+            KeyCode::Enter | KeyCode::Char(' ') => Command::Confirm,
+            _ => return,
+        };
+        let was_options = self.state.screen == Screen::Options;
+        let status = apply_command(&mut self.state, cmd);
+        match cmd {
+            Command::ToggleSound => {
+                if let Some(audio) = self.audio.as_mut() {
+                    audio.set_muted(!self.state.config.sound);
                 }
             }
-            KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => {
-                if self.state.screen == Screen::Options {
-                    self.state.stop_demo();
-                    self.state.focus_next_section();
-                }
-            }
-            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => {
-                if self.state.screen == Screen::Options {
-                    self.state.stop_demo();
-                    self.state.select_up();
-                }
-            }
-            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
-                if self.state.screen == Screen::Options {
-                    self.state.stop_demo();
-                    self.state.select_down();
-                }
-            }
-            KeyCode::Enter | KeyCode::Char(' ') => {
-                self.state.stop_demo();
-                match self.state.screen {
-                    Screen::Fire => {
-                        let (_fired, status) = fire_with_status(&mut self.state);
-                        self.fire_status_hint = status.map(FireDenyReason::message);
-                    }
-                    Screen::Options => {
-                        // Confirm → fire panel (original CONFIRM behavior).
-                        self.state.set_screen(Screen::Fire);
-                        // Remaining Press-repeats of this hold must not dump rounds.
-                        self.confirm_hold.begin(now);
-                    }
-                    Screen::Boot => {}
+            Command::Confirm => {
+                self.fire_status_hint = status.map(FireDenyReason::message);
+                // Remaining Press-repeats of this hold must not dump rounds.
+                if was_options {
+                    self.confirm_hold.begin(now);
                 }
             }
             _ => {}
@@ -459,11 +406,11 @@ mod tests {
     }
 
     #[test]
-    fn uses_shared_panel_key_helper() {
+    fn routes_through_apply_command() {
         let src = include_str!("app.rs");
-        assert!(src.contains("apply_panel_key"));
-        assert!(src.contains("PanelKey::OpenOptions"));
-        assert!(src.contains("PanelKey::ToggleFirePanel"));
+        assert!(src.contains("apply_command"));
+        assert!(src.contains("Command::OpenOptions"));
+        assert!(src.contains("Command::ToggleFirePanel"));
     }
 
     #[test]
