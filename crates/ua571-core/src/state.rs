@@ -658,9 +658,9 @@ mod tests {
     #[test]
     fn set_screen_logs_once() {
         let mut app = fresh();
-        let before = app.log.len();
+        let before = app.log.iter().count();
         app.set_screen(Screen::Options);
-        assert_eq!(app.log.len(), before);
+        assert_eq!(app.log.iter().count(), before);
         app.set_screen(Screen::Fire);
         assert_eq!(app.screen, Screen::Fire);
         assert!(app

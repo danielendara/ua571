@@ -121,14 +121,6 @@ impl EventLog {
         self.events.iter()
     }
 
-    pub fn len(&self) -> usize {
-        self.events.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.events.is_empty()
-    }
-
     /// Newest-first slice for UI.
     pub fn recent(&self, n: usize) -> Vec<&LogEvent> {
         self.events.iter().rev().take(n).collect()
@@ -146,7 +138,7 @@ mod tests {
         log.push_info("b");
         log.push_info("c");
         log.push_info("d");
-        assert_eq!(log.len(), 3);
+        assert_eq!(log.iter().count(), 3);
         let msgs: Vec<_> = log.iter().map(|e| e.kind.to_string()).collect();
         assert!(msgs[0].contains('b'));
         assert!(msgs[2].contains('d'));
@@ -159,7 +151,7 @@ mod tests {
         log.push_info("new");
         let recent = log.recent(1);
         assert!(recent[0].kind.to_string().contains("new"));
-        assert_eq!(log.len(), 2);
+        assert_eq!(log.iter().count(), 2);
     }
 
     #[test]

@@ -50,7 +50,7 @@ pub enum DemoStep {
 }
 
 /// Built-in perimeter defense demo (inspired by Hadley's Hope corridor scene).
-pub fn default_script() -> Vec<DemoStep> {
+pub(crate) fn default_script() -> Vec<DemoStep> {
     vec![
         DemoStep::Log {
             message: "PERIMETER DEFENSE SEQUENCE INIT",

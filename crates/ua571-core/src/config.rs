@@ -137,7 +137,7 @@ impl Config {
 /// CLI overrides for native frontends (TUI / pixel).
 ///
 /// `theme` is `None` unless `-t/--theme` was passed, so a config-file theme is
-/// not overwritten by clap's yellow default (#17).
+/// not overwritten by clap's implicit default when the flag is omitted.
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Clone, Default)]
 pub struct NativeCli {
@@ -217,7 +217,7 @@ pub fn load_toml_config(path: &std::path::Path) -> Result<Config, ConfigLoadErro
 /// Load TOML (explicit path, else `~/.config/ua571/config.toml`), then apply CLI overrides.
 ///
 /// See `load_native_startup` for the full precedence chain including the saved
-/// session (#109).
+/// session.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn load_native_config(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
     let mut config = load_config_file(cli)?;
@@ -242,7 +242,7 @@ pub fn load_config_file(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
     })
 }
 
-/// The CLI rung: only flags that were actually passed override anything (#17).
+/// The CLI rung: only flags that were actually passed override anything.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn apply_cli_overrides(config: &mut Config, cli: &NativeCli) -> Result<(), ConfigLoadError> {
     if let Some(theme) = &cli.theme {
