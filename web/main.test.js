@@ -4,9 +4,10 @@
  */
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   announcementFromStatus,
   applyDocumentVisibility,
@@ -20,8 +21,6 @@ import {
   isFullscreenSupported,
   isStandaloneDisplay,
   syncFullscreenButton,
-  PREFS_STORAGE_KEY,
-  applyPrefsToElements,
   bindPlaySurfaceRefocus,
   cycleThemeSelect,
   handleGameKeyDown,
@@ -31,22 +30,12 @@ import {
   nextThemeValue,
   themeStatusHint,
   themeValuesFromSelect,
-  hydrateChromePrefs,
-  persistChromeFromForm,
-  persistOptionsIfChanged,
-  pageStorage,
-  persistKeyTogglesIfChanged,
-  prefsFromSearch,
-  searchFromPrefs,
-  syncShareUrl,
-  readStoredPrefs,
   initialTouchPadVisible,
   refocusPlaySurface,
   shouldAdvanceFrame,
   shouldRefocusAfterBoot,
   syncChromeFromApp,
   writeLiveRegion,
-  writeStoredPrefs,
   wasmLoadFailureStatus,
   startPage,
   applySoundChoice,
@@ -61,8 +50,24 @@ import {
   setTouchPadVisible,
   syncTouchPad,
   touchPadFireHold,
-  selectHasValue,
+  PREFS_STORAGE_KEY as mainPrefsKey,
+  pageStorage as mainPageStorage,
 } from "./main.js";
+import {
+  PREFS_STORAGE_KEY,
+  applyPrefsToElements,
+  hydrateChromePrefs,
+  persistChromeFromForm,
+  persistOptionsIfChanged,
+  pageStorage,
+  persistKeyTogglesIfChanged,
+  prefsFromSearch,
+  searchFromPrefs,
+  syncShareUrl,
+  readStoredPrefs,
+  writeStoredPrefs,
+  selectHasValue,
+} from "./prefs.js";
 
 const html = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "index.html"),
@@ -2304,4 +2309,23 @@ test("selectHasValue", () => {
   assert.equal(selectHasValue(sel, "b"), false);
   assert.equal(selectHasValue({}, "x"), true);
   assert.equal(selectHasValue(null, "x"), false);
+});
+
+test("prefs.js imports with no DOM globals and main.js re-exports it", () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const prefsUrl = pathToFileURL(join(here, "prefs.js")).href;
+  // Fresh process: no window/document exist, so any module-level DOM access throws.
+  execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `if (typeof window !== "undefined" || typeof document !== "undefined") process.exit(2);
+       await import(${JSON.stringify(prefsUrl)});`,
+    ],
+    { stdio: "pipe" }
+  );
+  const main = { PREFS_STORAGE_KEY: mainPrefsKey, pageStorage: mainPageStorage };
+  assert.equal(main.PREFS_STORAGE_KEY, PREFS_STORAGE_KEY);
+  assert.equal(main.pageStorage, pageStorage);
 });
