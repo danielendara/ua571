@@ -129,10 +129,12 @@ demo progress) is never saved.
 
 ## Keys
 
+Uppercase `H` `J` `K` `L` work the same as lowercase in all three versions (terminal, pixel, web).
+
 | Key | Action |
 |-----|--------|
-| `←` `→` / `h` `l` | Previous / next options section |
-| `↑` `↓` / `k` `j` | Change selection in section |
+| `←` `→` / `h` `l` (case-insensitive: `H` `L` work too) | Previous / next options section |
+| `↑` `↓` / `k` `j` (case-insensitive: `K` `J` work too) | Change selection in section |
 | `f` | Firing panel |
 | `o` | Options panel (stays on Options) |
 | `Esc` | Toggle Fire ↔ Options |
@@ -143,7 +145,7 @@ demo progress) is never saved.
 | `d` | Toggle demo auto-play |
 | `m` | Toggle fire SFX (starts muted) |
 | `t` | Cycle theme (TUI) |
-| `q` | Quit |
+| `q` | Quit (TUI/pixel exit). On web, `q` sets quit and the status line shows **QUIT (Restart)**; use the header **Restart** button to reboot WASM |
 | any (on boot) | Skip POST |
 
 ## Architecture

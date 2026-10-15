@@ -34,6 +34,7 @@ import {
   hydrateChromePrefs,
   persistChromeFromForm,
   persistOptionsIfChanged,
+  pageStorage,
   persistKeyTogglesIfChanged,
   prefsFromSearch,
   searchFromPrefs,
@@ -2228,6 +2229,49 @@ test("index.html: Fullscreen button in .controls, stage wraps canvas + pad, Esc 
   assert.match(html, /browser takes the first <kbd>Esc<\/kbd> to exit/);
 });
 
+
+function throwingStorage() {
+  return {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error("QuotaExceededError");
+    },
+  };
+}
+
+test("writeStoredPrefs returns false instead of throwing when setItem throws", () => {
+  assert.equal(writeStoredPrefs(throwingStorage(), { theme: "amber" }), false);
+  assert.equal(writeStoredPrefs(null, { theme: "amber" }), false);
+  assert.equal(writeStoredPrefs(memoryStorage(), { theme: "amber" }), true);
+});
+
+test("persistOptionsIfChanged still returns next when storage throws", () => {
+  const app = { system_mode: "ManOverride", weapon_status: "Safe", iff_status: "Search" };
+  const last = { systemMode: null, weaponStatus: null, iffStatus: null };
+  assert.deepEqual(persistOptionsIfChanged(app, throwingStorage(), last), {
+    systemMode: "ManOverride",
+    weaponStatus: "Safe",
+    iffStatus: "Search",
+  });
+});
+
+test("persistKeyTogglesIfChanged still returns next when storage throws", () => {
+  const loc = mockLocation("");
+  const app = { sound_enabled: true, demo_active: false };
+  const next = persistKeyTogglesIfChanged(app, throwingStorage(), { sound: false, demo: false }, {
+    location: loc,
+    history: mockHistory(loc),
+    readOpts: () => ({ theme: "yellow", scale: 3, sound: true, skipBoot: false, demo: false }),
+  });
+  assert.deepEqual(next, { sound: true, demo: false });
+});
+
+test("pageStorage returns null when the localStorage getter throws or is missing", () => {
+  const fake = memoryStorage();
+  assert.equal(pageStorage({ get localStorage() { throw new Error("SecurityError"); } }), null);
+  assert.equal(pageStorage({ localStorage: fake }), fake);
+  assert.equal(pageStorage({}), null);
+});
 
 test("hydrateChromePrefs ignores unknown theme/scale values", () => {
   const els = {
