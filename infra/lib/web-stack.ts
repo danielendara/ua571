@@ -176,7 +176,7 @@ function handler(event) {
         },
       },
       // No distribution-wide 403/404 → index.html rewrite: that hid missing
-      // pkg/* assets behind a 200 HTML page (see GitHub issue #20).
+      // pkg/* assets behind a 200 HTML page.
     });
 
     // ── Route53 alias ──

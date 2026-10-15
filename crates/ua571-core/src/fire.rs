@@ -89,12 +89,12 @@ impl FireTelemetry {
     }
 
     /// Integer part of time display (seconds).
-    pub fn time_secs(&self) -> u32 {
+    fn time_secs(&self) -> u32 {
         self.time_centisecs / 100
     }
 
     /// Fractional hundredths for time display.
-    pub fn time_frac(&self) -> u32 {
+    fn time_frac(&self) -> u32 {
         self.time_centisecs % 100
     }
 
