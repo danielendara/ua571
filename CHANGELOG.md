@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Web: the console keeps running when `localStorage` is blocked, full, or throws; prefs just stop persisting (#169)
 - Web: an unknown `?theme=` / `?scale=` value or stale saved pref no longer blanks the Theme/Scale select (#167)
 - TUI Options: `H`/`J`/`K`/`L` navigate like `h`/`j`/`k`/`l`, so Caps Lock or Shift no longer disables section and selection keys
 - Web: `theme-color` meta follows the selected theme (browser toolbar / home-screen status bar no longer stays yellow)
