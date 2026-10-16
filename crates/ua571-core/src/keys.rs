@@ -31,6 +31,18 @@ pub enum Command {
     Confirm,
 }
 
+impl Command {
+    /// Whether [`apply_command`] ignores this command on `screen`: Options-only
+    /// navigation anywhere else. Frontends can skip such a key without
+    /// treating it as handled, so a later key in the same frame still acts.
+    pub fn is_noop_on(self, screen: Screen) -> bool {
+        matches!(
+            self,
+            Command::SectionPrev | Command::SectionNext | Command::SelectUp | Command::SelectDown
+        ) && screen != Screen::Options
+    }
+}
+
 /// Apply one operator command. Every command except
 /// Quit/ToggleDemo/ToggleSound stops demo first; Options-only navigation is a
 /// no-op elsewhere. Returns the deny reason when a Confirm on Fire was denied.
@@ -51,11 +63,7 @@ pub fn apply_command(state: &mut AppState, cmd: Command) -> Option<FireDenyReaso
         }
         // Navigation is Options-only and a no-op elsewhere: it must not
         // stop the demo there either.
-        Command::SectionPrev | Command::SectionNext | Command::SelectUp | Command::SelectDown
-            if state.screen != Screen::Options =>
-        {
-            return None;
-        }
+        _ if cmd.is_noop_on(state.screen) => return None,
         _ => state.stop_demo(),
     }
     match cmd {
@@ -357,6 +365,45 @@ mod tests {
             apply_command(&mut state, Command::Confirm),
             Some(FireDenyReason::Critical)
         );
+    }
+
+    #[test]
+    fn navigation_is_noop_off_options_only() {
+        let nav = [
+            Command::SectionPrev,
+            Command::SectionNext,
+            Command::SelectUp,
+            Command::SelectDown,
+        ];
+        for cmd in nav {
+            assert!(cmd.is_noop_on(Screen::Fire), "{cmd:?} on Fire");
+            assert!(cmd.is_noop_on(Screen::Boot), "{cmd:?} on Boot");
+            assert!(!cmd.is_noop_on(Screen::Options), "{cmd:?} on Options");
+        }
+        for cmd in [Command::Confirm, Command::ToggleArm, Command::Quit] {
+            assert!(!cmd.is_noop_on(Screen::Fire), "{cmd:?}");
+        }
+    }
+
+    #[test]
+    fn nav_key_before_confirm_does_not_shadow_fire() {
+        // Mirrors a frontend frame loop: skip no-op keys, act on the first rest.
+        let mut state = app();
+        state.set_screen(Screen::Fire);
+        let mut handled = None;
+        for key in [
+            OperatorKey::Down,
+            OperatorKey::Letter('h'),
+            OperatorKey::Space,
+        ] {
+            let cmd = command_for(key).unwrap();
+            if cmd.is_noop_on(state.screen) {
+                continue;
+            }
+            handled = Some(cmd);
+            break;
+        }
+        assert_eq!(handled, Some(Command::Confirm));
     }
 
     #[test]

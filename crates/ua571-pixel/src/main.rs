@@ -331,6 +331,11 @@ fn handle_input(
             continue;
         }
         if let Some(cmd) = operator_key(key).and_then(command_for) {
+            // Nav is a no-op off Options: skip it so a Space/Enter later in
+            // the same frame still fires instead of being shadowed.
+            if cmd.is_noop_on(state.screen) {
+                continue;
+            }
             apply_command(state, cmd);
             return true;
         }
