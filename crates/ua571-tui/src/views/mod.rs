@@ -195,12 +195,12 @@ fn draw_log(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rec
 }
 
 /// Help-row text per screen. Fire and Options both mention `esc toggle`
-/// (Esc already toggles Fire ↔ Options via the shared `apply_panel_key` —
-/// see `ua571-core::keys` — this only adds discoverability, no binding
+/// (Esc already toggles Fire ↔ Options via the shared `Command::ToggleFirePanel` —
+/// see `ua571-core::keys::apply_command` — this only adds discoverability, no binding
 /// change), matching web's footer legend and pixel's HUD line
 /// (`ua571-render::draw`) in spirit, not verbatim wording/casing — TUI's
 /// existing labels are already lowercase and terser than either. Boot skips
-/// POST via any key rather than routing through `apply_panel_key`'s toggle,
+/// POST via any key rather than routing through `Command::ToggleFirePanel`,
 /// so its line is unchanged: mentioning "toggle" there would be inaccurate.
 fn help_text(screen: Screen) -> &'static str {
     match screen {
@@ -225,7 +225,7 @@ fn draw_help(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Re
 mod help_text_tests {
     use super::*;
 
-    /// Esc already toggles Fire ↔ Options (`ua571-core::keys::apply_panel_key`)
+    /// Esc already toggles Fire ↔ Options (`ua571-core::keys::Command::ToggleFirePanel`)
     /// — this only checks the help row *mentions* it, not the binding itself.
     #[test]
     fn fire_and_options_help_mention_esc_toggle() {
@@ -245,7 +245,7 @@ mod help_text_tests {
     #[test]
     fn boot_help_is_unchanged_and_does_not_claim_a_toggle() {
         // Boot skips POST on any key rather than routing through
-        // apply_panel_key's Fire/Options toggle, so it shouldn't claim one.
+        // Command::ToggleFirePanel's Fire/Options toggle, so it shouldn't claim one.
         assert!(!help_text(Screen::Boot)
             .to_ascii_lowercase()
             .contains("toggle"));

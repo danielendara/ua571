@@ -11,8 +11,8 @@ use color_eyre::eyre::{eyre, Result};
 use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
 use ua571_audio::FireAudio;
 use ua571_core::{
-    apply_command, idle_runtime, load_native_startup, AppState, Command, FireDenyReason, NativeCli,
-    Screen,
+    apply_command, command_for, idle_runtime, load_native_startup, AppState, Command,
+    FireDenyReason, NativeCli, OperatorKey, Screen,
 };
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 
@@ -234,15 +234,89 @@ fn cycle_theme(state: &mut AppState) -> (&'static str, u32, u32) {
 /// Enter, keypad Enter and Space confirm/fire (web's `NumpadEnter` parity).
 const CONFIRM_KEYS: [Key; 3] = [Key::Enter, Key::NumPadEnter, Key::Space];
 
-/// Top-row and numpad 1–4 select a sentry (web's `Numpad1`–`Numpad4` parity).
-fn sentry_index_for(key: Key) -> Option<usize> {
-    match key {
-        Key::Key1 | Key::NumPad1 => Some(0),
-        Key::Key2 | Key::NumPad2 => Some(1),
-        Key::Key3 | Key::NumPad3 => Some(2),
-        Key::Key4 | Key::NumPad4 => Some(3),
-        _ => None,
+/// Translate a minifb key into the frontend-neutral [`OperatorKey`]; the
+/// key → [`Command`] table itself lives in `ua571_core::command_for`.
+fn operator_key(key: Key) -> Option<OperatorKey> {
+    let letter = match key {
+        Key::A => 'a',
+        Key::B => 'b',
+        Key::C => 'c',
+        Key::D => 'd',
+        Key::E => 'e',
+        Key::F => 'f',
+        Key::G => 'g',
+        Key::H => 'h',
+        Key::I => 'i',
+        Key::J => 'j',
+        Key::K => 'k',
+        Key::L => 'l',
+        Key::M => 'm',
+        Key::N => 'n',
+        Key::O => 'o',
+        Key::P => 'p',
+        Key::Q => 'q',
+        Key::R => 'r',
+        Key::S => 's',
+        Key::T => 't',
+        Key::U => 'u',
+        Key::V => 'v',
+        Key::W => 'w',
+        Key::X => 'x',
+        Key::Y => 'y',
+        Key::Z => 'z',
+        _ => {
+            return Some(match key {
+                Key::Key0 | Key::NumPad0 => OperatorKey::Digit(0),
+                Key::Key1 | Key::NumPad1 => OperatorKey::Digit(1),
+                Key::Key2 | Key::NumPad2 => OperatorKey::Digit(2),
+                Key::Key3 | Key::NumPad3 => OperatorKey::Digit(3),
+                Key::Key4 | Key::NumPad4 => OperatorKey::Digit(4),
+                Key::Key5 | Key::NumPad5 => OperatorKey::Digit(5),
+                Key::Key6 | Key::NumPad6 => OperatorKey::Digit(6),
+                Key::Key7 | Key::NumPad7 => OperatorKey::Digit(7),
+                Key::Key8 | Key::NumPad8 => OperatorKey::Digit(8),
+                Key::Key9 | Key::NumPad9 => OperatorKey::Digit(9),
+                Key::Left => OperatorKey::Left,
+                Key::Right => OperatorKey::Right,
+                Key::Up => OperatorKey::Up,
+                Key::Down => OperatorKey::Down,
+                Key::Enter | Key::NumPadEnter => OperatorKey::Enter,
+                Key::Space => OperatorKey::Space,
+                Key::Escape => OperatorKey::Escape,
+                _ => return None,
+            })
+        }
+    };
+    Some(OperatorKey::Letter(letter))
+}
+
+/// What the fresh-key pass picked for this frame.
+#[derive(Debug, PartialEq, Eq)]
+enum FreshAction {
+    CycleTheme,
+    Command(Command),
+}
+
+/// One pass over this frame's fresh keys, first bound key wins. Confirm keys
+/// are skipped (they keep the edge/repeat logic in `handle_input`), and so is
+/// a command that is a no-op on `screen`, so a Space/Enter later in the same
+/// frame still fires instead of being shadowed by e.g. a stray Down.
+fn choose_fresh_action(keys: &[Key], screen: Screen) -> Option<FreshAction> {
+    for &key in keys {
+        if key == Key::T {
+            return Some(FreshAction::CycleTheme);
+        }
+        if CONFIRM_KEYS.contains(&key) {
+            continue;
+        }
+        if let Some(cmd) = operator_key(key).and_then(command_for) {
+            if cmd.is_noop_on(screen) {
+                continue;
+            }
+            return Some(FreshAction::Command(cmd));
+        }
     }
+    None
 }
 
 fn handle_input(
@@ -260,70 +334,33 @@ fn handle_input(
         return false;
     }
 
-    let pressed = |k: Key| window.is_key_pressed(k, KeyRepeat::No);
+    let fresh = window.get_keys_pressed(KeyRepeat::No);
 
     // Any fresh (non-repeat) key clears a previous fire-status hint; only
     // the Fire confirm below may set a new one. A held Enter/Space
     // repeat-fire pulse (further down) recomputes it on every pulse instead.
-    if !window.get_keys_pressed(KeyRepeat::No).is_empty() {
+    if !fresh.is_empty() {
         *status_hint = None;
     }
 
-    // Simple one-key commands; stop-demo and gating live in `apply_command`.
-    // Mute state itself is recomputed every frame in `main` from
-    // `state.config.sound` + focus via `idle_runtime`, so M only flips the
-    // preference.
-    let simple = [
-        (Key::Q, Command::Quit),
-        (Key::D, Command::ToggleDemo),
-        (Key::M, Command::ToggleSound),
-        (Key::F, Command::OpenFirePanel),
-        (Key::O, Command::OpenOptions),
-        (Key::Escape, Command::ToggleFirePanel),
-        (Key::A, Command::ToggleArm),
-        (Key::R, Command::Reload),
-    ];
-    if pressed(Key::T) {
-        let (hint, on, off) = cycle_theme(state);
-        *colors = (on, off);
-        *status_hint = Some(hint);
-        return true;
-    }
-    for (key, cmd) in simple {
-        if pressed(key) {
+    // One pass over the fresh keys, first bound key wins. Theme stays
+    // frontend-owned, confirm keys keep the edge/repeat logic below, and
+    // everything else goes through the shared table; stop-demo and screen
+    // gating live in `apply_command`. Mute state itself is recomputed every
+    // frame in `main` from `state.config.sound` + focus via `idle_runtime`,
+    // so M only flips the preference.
+    match choose_fresh_action(&fresh, state.screen) {
+        Some(FreshAction::CycleTheme) => {
+            let (hint, on, off) = cycle_theme(state);
+            *colors = (on, off);
+            *status_hint = Some(hint);
+            return true;
+        }
+        Some(FreshAction::Command(cmd)) => {
             apply_command(state, cmd);
             return true;
         }
-    }
-    for key in [
-        Key::Key1,
-        Key::Key2,
-        Key::Key3,
-        Key::Key4,
-        Key::NumPad1,
-        Key::NumPad2,
-        Key::NumPad3,
-        Key::NumPad4,
-    ] {
-        if let Some(i) = sentry_index_for(key).filter(|_| pressed(key)) {
-            apply_command(state, Command::SelectSentry(i));
-            return true;
-        }
-    }
-
-    if state.screen == Screen::Options {
-        let nav = [
-            (Key::Left, Key::H, Command::SectionPrev),
-            (Key::Right, Key::L, Command::SectionNext),
-            (Key::Up, Key::K, Command::SelectUp),
-            (Key::Down, Key::J, Command::SelectDown),
-        ];
-        for (arrow, vi, cmd) in nav {
-            if pressed(arrow) || pressed(vi) {
-                apply_command(state, cmd);
-                return true;
-            }
-        }
+        None => {}
     }
 
     // Edge-triggered: true only on the frame Enter/Space first goes down.
@@ -461,18 +498,12 @@ mod tests {
     }
 
     #[test]
-    fn routes_through_apply_command() {
-        let src = include_str!("main.rs");
-        assert!(src.contains("apply_command"));
-        assert!(src.contains("Command::OpenOptions"));
-        assert!(src.contains("Command::ToggleFirePanel"));
+    fn routes_through_shared_command_table() {
+        let src = non_test_source_compact();
+        assert!(src.contains("operator_key(key).and_then(command_for)"));
         assert!(
-            src.contains("(Key::O, Command::OpenOptions)"),
-            "O must go through apply_command"
-        );
-        assert!(
-            src.contains("(Key::Escape, Command::ToggleFirePanel)"),
-            "Esc must go through apply_command"
+            !src.contains("(Key::"),
+            "pixel must not keep its own (Key::X, Command::..) table"
         );
     }
 
@@ -550,10 +581,10 @@ mod tests {
     fn theme_key_wired_in_input_handler() {
         let src = include_str!("main.rs");
         let t_branch = src
-            .split("if pressed(Key::T) {")
+            .split("Some(FreshAction::CycleTheme) => {")
             .nth(1)
             .and_then(|s| s.split("return true;").next())
-            .expect("Key::T branch");
+            .expect("CycleTheme branch");
         assert!(
             t_branch.contains("cycle_theme(state)"),
             "Key::T must cycle theme: {t_branch}"
@@ -569,9 +600,12 @@ mod tests {
         // Windows checkouts may have CRLF line endings; the "\n}\n" split
         // below must not depend on them.
         let src = include_str!("main.rs").replace("\r\n", "\n");
-        // M is routed as a pure preference flip via the shared dispatcher;
-        // the audio mute itself is recomputed per frame from `idle_runtime`.
-        assert!(src.contains("(Key::M, Command::ToggleSound)"));
+        // M is routed as a pure preference flip via the shared table; the
+        // audio mute itself is recomputed per frame from `idle_runtime`.
+        assert_eq!(
+            operator_key(Key::M).and_then(command_for),
+            Some(Command::ToggleSound)
+        );
         let handler = src
             .split("fn handle_input(")
             .nth(1)
@@ -583,18 +617,96 @@ mod tests {
         );
     }
 
+    /// Parity with the hand-written table pixel carried before it moved to
+    /// `ua571_core::command_for`.
     #[test]
-    fn sentry_index_for_maps_top_row_and_numpad() {
-        assert_eq!(sentry_index_for(Key::Key1), Some(0));
-        assert_eq!(sentry_index_for(Key::NumPad1), Some(0));
-        assert_eq!(sentry_index_for(Key::Key2), Some(1));
-        assert_eq!(sentry_index_for(Key::NumPad2), Some(1));
-        assert_eq!(sentry_index_for(Key::Key3), Some(2));
-        assert_eq!(sentry_index_for(Key::NumPad3), Some(2));
-        assert_eq!(sentry_index_for(Key::Key4), Some(3));
-        assert_eq!(sentry_index_for(Key::NumPad4), Some(3));
-        assert_eq!(sentry_index_for(Key::Key5), None);
-        assert_eq!(sentry_index_for(Key::NumPad5), None);
+    fn key_mapping_matches_the_previous_hand_written_table() {
+        let bound = |k: Key| operator_key(k).and_then(command_for);
+        let table = [
+            (Key::Q, Command::Quit),
+            (Key::D, Command::ToggleDemo),
+            (Key::M, Command::ToggleSound),
+            (Key::F, Command::OpenFirePanel),
+            (Key::O, Command::OpenOptions),
+            (Key::Escape, Command::ToggleFirePanel),
+            (Key::A, Command::ToggleArm),
+            (Key::R, Command::Reload),
+            (Key::Key1, Command::SelectSentry(0)),
+            (Key::NumPad1, Command::SelectSentry(0)),
+            (Key::Key2, Command::SelectSentry(1)),
+            (Key::NumPad2, Command::SelectSentry(1)),
+            (Key::Key3, Command::SelectSentry(2)),
+            (Key::NumPad3, Command::SelectSentry(2)),
+            (Key::Key4, Command::SelectSentry(3)),
+            (Key::NumPad4, Command::SelectSentry(3)),
+            (Key::Left, Command::SectionPrev),
+            (Key::H, Command::SectionPrev),
+            (Key::Right, Command::SectionNext),
+            (Key::L, Command::SectionNext),
+            (Key::Up, Command::SelectUp),
+            (Key::K, Command::SelectUp),
+            (Key::Down, Command::SelectDown),
+            (Key::J, Command::SelectDown),
+            (Key::Enter, Command::Confirm),
+            (Key::NumPadEnter, Command::Confirm),
+            (Key::Space, Command::Confirm),
+        ];
+        for (key, cmd) in table {
+            assert_eq!(bound(key), Some(cmd), "{key:?}");
+        }
+        // T is frontend-owned; the rest are simply unbound.
+        for key in [
+            Key::T,
+            Key::Z,
+            Key::Key0,
+            Key::NumPad0,
+            Key::Key5,
+            Key::NumPad5,
+            Key::Key9,
+            Key::Tab,
+            Key::F1,
+        ] {
+            assert_eq!(bound(key), None, "{key:?}");
+        }
+    }
+
+    /// Down then Space in one frame on Fire: Down is a no-op there, so the
+    /// pass must not stop on it — nothing is chosen and the fresh Space
+    /// reaches the confirm path and fires.
+    #[test]
+    fn nav_key_before_space_on_fire_does_not_shadow_fire() {
+        let mut state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        state.toggle_arm();
+        state.set_screen(Screen::Fire);
+        let keys = [Key::Down, Key::Space];
+
+        let chosen = choose_fresh_action(&keys, state.screen);
+        assert_eq!(chosen, None, "Down must not shadow the confirm key");
+
+        // handle_input's confirm path: a fresh confirm key applies Confirm.
+        let rounds = state.fire_telemetry().rounds;
+        assert!(keys.iter().any(|k| CONFIRM_KEYS.contains(k)));
+        assert_eq!(apply_command(&mut state, Command::Confirm), None);
+        assert_eq!(state.fire_telemetry().rounds, rounds - 1, "Space must fire");
+    }
+
+    #[test]
+    fn fresh_action_picks_first_bound_key_and_nav_on_options() {
+        assert_eq!(
+            choose_fresh_action(&[Key::Down], Screen::Options),
+            Some(FreshAction::Command(Command::SelectDown))
+        );
+        assert_eq!(
+            choose_fresh_action(&[Key::Down, Key::T], Screen::Fire),
+            Some(FreshAction::CycleTheme)
+        );
+        assert_eq!(
+            choose_fresh_action(&[Key::Space, Key::A], Screen::Fire),
+            Some(FreshAction::Command(Command::ToggleArm))
+        );
     }
 
     #[test]

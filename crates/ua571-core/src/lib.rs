@@ -30,7 +30,7 @@ pub use fire::{
 };
 pub use fire_deny::{fire_deny_reason, fire_with_status, FireDenyReason};
 pub use idle::{idle_runtime, IdleRuntime};
-pub use keys::{apply_command, apply_panel_key, command_for, Command, OperatorKey, PanelKey};
+pub use keys::{apply_command, command_for, Command, OperatorKey};
 pub use log::{EventLog, LogEvent, LogKind};
 pub use options::{
     IffStatus, MenuSection, OptionsState, SpectralProfile, SystemMode, TargetProfile, TargetSelect,

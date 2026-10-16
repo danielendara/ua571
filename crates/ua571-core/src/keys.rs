@@ -6,15 +6,6 @@
 use crate::fire_deny::{fire_with_status, FireDenyReason};
 use crate::state::{AppState, Screen};
 
-/// Operator keys that switch between Options and the firing panel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PanelKey {
-    /// Letter O — always open Options (stays on Options if already there).
-    OpenOptions,
-    /// Escape — toggle Fire ↔ Options via [`AppState::toggle_fire_panel`].
-    ToggleFirePanel,
-}
-
 /// Frontend-neutral operator action. Each frontend maps its own raw keys to a
 /// [`Command`] and calls [`apply_command`]; theme (T) stays frontend-owned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,6 +31,18 @@ pub enum Command {
     Confirm,
 }
 
+impl Command {
+    /// Whether [`apply_command`] ignores this command on `screen`: Options-only
+    /// navigation anywhere else. Frontends can skip such a key without
+    /// treating it as handled, so a later key in the same frame still acts.
+    pub fn is_noop_on(self, screen: Screen) -> bool {
+        matches!(
+            self,
+            Command::SectionPrev | Command::SectionNext | Command::SelectUp | Command::SelectDown
+        ) && screen != Screen::Options
+    }
+}
+
 /// Apply one operator command. Every command except
 /// Quit/ToggleDemo/ToggleSound stops demo first; Options-only navigation is a
 /// no-op elsewhere. Returns the deny reason when a Confirm on Fire was denied.
@@ -60,11 +63,7 @@ pub fn apply_command(state: &mut AppState, cmd: Command) -> Option<FireDenyReaso
         }
         // Navigation is Options-only and a no-op elsewhere: it must not
         // stop the demo there either.
-        Command::SectionPrev | Command::SectionNext | Command::SelectUp | Command::SelectDown
-            if state.screen != Screen::Options =>
-        {
-            return None;
-        }
+        _ if cmd.is_noop_on(state.screen) => return None,
         _ => state.stop_demo(),
     }
     match cmd {
@@ -88,19 +87,8 @@ pub fn apply_command(state: &mut AppState, cmd: Command) -> Option<FireDenyReaso
     None
 }
 
-/// Stop demo and apply Esc vs O. Thin wrapper over [`apply_command`].
-pub fn apply_panel_key(state: &mut AppState, key: PanelKey) {
-    apply_command(
-        state,
-        match key {
-            PanelKey::OpenOptions => Command::OpenOptions,
-            PanelKey::ToggleFirePanel => Command::ToggleFirePanel,
-        },
-    );
-}
-
 /// Frontend-neutral physical operator key. Each frontend translates its raw
-/// key (crossterm `KeyCode`, DOM `KeyboardEvent.code`) into this and asks
+/// key (crossterm `KeyCode`, DOM `KeyboardEvent.code`, minifb `Key`) into this and asks
 /// [`command_for`], so the key → [`Command`] table lives in one place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperatorKey {
@@ -163,12 +151,12 @@ mod tests {
     fn o_opens_options_and_does_not_leave() {
         let mut state = app();
         assert_eq!(state.screen, Screen::Options);
-        apply_panel_key(&mut state, PanelKey::OpenOptions);
+        apply_command(&mut state, Command::OpenOptions);
         assert_eq!(state.screen, Screen::Options);
         state.set_screen(Screen::Fire);
-        apply_panel_key(&mut state, PanelKey::OpenOptions);
+        apply_command(&mut state, Command::OpenOptions);
         assert_eq!(state.screen, Screen::Options);
-        apply_panel_key(&mut state, PanelKey::OpenOptions);
+        apply_command(&mut state, Command::OpenOptions);
         assert_eq!(state.screen, Screen::Options);
     }
 
@@ -176,9 +164,9 @@ mod tests {
     fn esc_toggles_fire_and_options() {
         let mut state = app();
         assert_eq!(state.screen, Screen::Options);
-        apply_panel_key(&mut state, PanelKey::ToggleFirePanel);
+        apply_command(&mut state, Command::ToggleFirePanel);
         assert_eq!(state.screen, Screen::Fire);
-        apply_panel_key(&mut state, PanelKey::ToggleFirePanel);
+        apply_command(&mut state, Command::ToggleFirePanel);
         assert_eq!(state.screen, Screen::Options);
     }
 
@@ -187,12 +175,12 @@ mod tests {
         let mut state = app();
         state.toggle_demo();
         assert!(state.demo.is_active());
-        apply_panel_key(&mut state, PanelKey::OpenOptions);
+        apply_command(&mut state, Command::OpenOptions);
         assert!(!state.demo.is_active());
 
         state.toggle_demo();
         assert!(state.demo.is_active());
-        apply_panel_key(&mut state, PanelKey::ToggleFirePanel);
+        apply_command(&mut state, Command::ToggleFirePanel);
         assert!(!state.demo.is_active());
         assert_eq!(state.screen, Screen::Fire);
     }
@@ -377,6 +365,24 @@ mod tests {
             apply_command(&mut state, Command::Confirm),
             Some(FireDenyReason::Critical)
         );
+    }
+
+    #[test]
+    fn navigation_is_noop_off_options_only() {
+        let nav = [
+            Command::SectionPrev,
+            Command::SectionNext,
+            Command::SelectUp,
+            Command::SelectDown,
+        ];
+        for cmd in nav {
+            assert!(cmd.is_noop_on(Screen::Fire), "{cmd:?} on Fire");
+            assert!(cmd.is_noop_on(Screen::Boot), "{cmd:?} on Boot");
+            assert!(!cmd.is_noop_on(Screen::Options), "{cmd:?} on Options");
+        }
+        for cmd in [Command::Confirm, Command::ToggleArm, Command::Quit] {
+            assert!(!cmd.is_noop_on(Screen::Fire), "{cmd:?}");
+        }
     }
 
     #[test]
