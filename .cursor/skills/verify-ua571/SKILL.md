@@ -16,6 +16,7 @@ Evidence dir (outside the repo): `/workspace/verify-2026-10-16/ua571-evidence/` 
 TUI (build once, each drive in its own tmux session; isolated config/data via temp HOME):
 
 ```bash
+EVIDENCE=/workspace/verify-2026-10-16/ua571-evidence; mkdir -p "$EVIDENCE"
 cargo build -p ua571-tui --release --locked        # binary: target/release/ua571
 CFG=$(mktemp -d); S=ua571-verify-$$
 tmux new-session -d -s $S -x 100 -y 30 \
@@ -27,14 +28,14 @@ Web:
 
 ```bash
 ./scripts/build-web.sh        # needs rustup, wasm32 target, wasm-bindgen-cli 0.2.100; writes gitignored web/pkg, web/build-id.js
-python3 -m http.server 18571 --bind 127.0.0.1 --directory web & SP=$!
+setsid python3 -m http.server 18571 --bind 127.0.0.1 --directory web >/dev/null 2>&1 & SP=$!; sleep 1; PGID=$(ps -o pgid= -p $SP | tr -d ' ')
 ```
-Ready: `curl -sI http://127.0.0.1:18571/pkg/ua571_web_bg.wasm` returns 200. Pick another port if 18571 is busy.
+Skip the boot animation in the web console with `?boot=0` (e.g. `http://127.0.0.1:18571/?boot=0`; parsed in `web/prefs.js`). Ready: `curl -sI http://127.0.0.1:18571/pkg/ua571_web_bg.wasm` returns 200. Pick another port if 18571 is busy.
 
 ## Doctor
 
 - TUI: `test -x target/release/ua571 && target/release/ua571 --version`; `tmux ls` shows only sessions you started.
-- Web: `./scripts/verify-web-artifacts.sh` (exit 0) and the curl above; `ss -ltnp | grep 18571` must be your server.
+- Web: `./scripts/verify-web-artifacts.sh` (exit 0) and the curl above; `ss -ltnp | grep 18571` must be your server (pid = `$SP`).
 
 ## Drive
 
@@ -48,8 +49,10 @@ Web (no Playwright in repo; Chrome is at `google-chrome`):
 ```bash
 google-chrome --headless=new --no-sandbox --disable-gpu --window-size=1280,900 \
   --virtual-time-budget=8000 --screenshot="$EVIDENCE/web-console.png" http://127.0.0.1:18571/
+google-chrome --headless=new --no-sandbox --disable-gpu --window-size=1280,900 \
+  --virtual-time-budget=8000 --screenshot="$EVIDENCE/web-console-boot0.png" "http://127.0.0.1:18571/?boot=0"
 ```
-The canvas is `#ua571` (aria-label "UA 571-C display"); controls `#theme #scale #demo #sound #skipBoot #restart #touchPadToggle #fullscreenToggle`; touch pad buttons `[data-pad-action=fire|arm|reload|panel|up|down|left|right]`. For key interaction beyond a static screenshot use CDP/Playwright against the same URL (not installed in-repo; do not add it as a dependency).
+The canvas is `#ua571` (aria-label "UA 571-C display"); controls (the `#skipBoot` checkbox is the "Skip boot" toggle; the URL param is `?boot=0`) `#theme #scale #demo #sound #skipBoot #restart #touchPadToggle #fullscreenToggle`; touch pad buttons `[data-pad-action=fire|arm|reload|panel|up|down|left|right]`. For key interaction beyond a static screenshot use CDP/Playwright against the same URL (not installed in-repo; do not add it as a dependency).
 
 ## Evidence
 
@@ -62,10 +65,12 @@ TUI instances are isolated by tmux session + temp HOME and can run side by side.
 ## Cleanup
 
 ```bash
-tmux kill-session -t $S 2>/dev/null; rm -rf "$CFG"; kill $SP 2>/dev/null
+tmux kill-session -t $S 2>/dev/null; rm -rf "$CFG"
+kill -- -$PGID 2>/dev/null; sleep 1
+! ss -ltn | grep -q ':18571 ' && ! curl -sf -m 2 http://127.0.0.1:18571/ >/dev/null && echo "port 18571 free" || { echo "CLEANUP FAILED: port 18571 still in use" >&2; false; }
 ```
-Kill only what you started (by session name / saved PID), never by process name. Evidence stays.
+Kill only what you started (tmux session name / saved process group), never by process name. The last line must print `port 18571 free` (nothing listening, health check fails); otherwise cleanup failed. Evidence stays.
 
 ## Helpers
 
-None; the commands above are the recipe. Feature map: `features/README.md`.
+None; the commands above are the recipe.
