@@ -4,8 +4,8 @@
 
 use ua571_core::sfx::{fire_burst_pcm, FIRE_CYCLIC_HZ};
 use ua571_core::{
-    apply_command, idle_runtime, AppState, Command, Config, IffStatus, Screen, SystemMode, Theme,
-    WeaponStatus, MAX_FIRE_SFX_BURST,
+    apply_command, command_for, idle_runtime, AppState, Command, Config, IffStatus, OperatorKey,
+    Screen, SystemMode, Theme, WeaponStatus, MAX_FIRE_SFX_BURST,
 };
 use ua571_render::{render, Framebuffer, HEIGHT, WIDTH};
 use wasm_bindgen::prelude::*;
@@ -561,6 +561,40 @@ fn apply_key(
     true
 }
 
+/// Translate a DOM `KeyboardEvent.code` into the shared [`OperatorKey`].
+fn operator_key(code: &str) -> Option<OperatorKey> {
+    match code {
+        "Escape" => return Some(OperatorKey::Escape),
+        "Enter" | "NumpadEnter" => return Some(OperatorKey::Enter),
+        "Space" => return Some(OperatorKey::Space),
+        "ArrowLeft" => return Some(OperatorKey::Left),
+        "ArrowRight" => return Some(OperatorKey::Right),
+        "ArrowUp" => return Some(OperatorKey::Up),
+        "ArrowDown" => return Some(OperatorKey::Down),
+        _ => {}
+    }
+    if let Some(rest) = code.strip_prefix("Key") {
+        let mut chars = rest.chars();
+        return match (chars.next(), chars.next()) {
+            (Some(c), None) => Some(OperatorKey::Letter(c)),
+            _ => None,
+        };
+    }
+    let rest = code
+        .strip_prefix("Digit")
+        .or_else(|| code.strip_prefix("Numpad"))?;
+    let mut chars = rest.chars();
+    match (chars.next(), chars.next()) {
+        (Some(c), None) if c.is_ascii_digit() => Some(OperatorKey::Digit(c as u8 - b'0')),
+        _ => None,
+    }
+}
+
+/// The shared [`Command`] for a DOM key code; `None` for unbound keys.
+fn command_for_code(code: &str) -> Option<Command> {
+    operator_key(code).and_then(command_for)
+}
+
 fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'static str>) {
     *status_hint = None;
     if state.screen == Screen::Boot {
@@ -568,25 +602,8 @@ fn handle_key(state: &mut AppState, code: &str, status_hint: &mut Option<&'stati
         return;
     }
 
-    let cmd = match code {
-        "KeyQ" => Command::Quit,
-        "KeyD" => Command::ToggleDemo,
-        "KeyM" => Command::ToggleSound,
-        "KeyF" => Command::OpenFirePanel,
-        "KeyO" => Command::OpenOptions,
-        "Escape" => Command::ToggleFirePanel,
-        "KeyA" => Command::ToggleArm,
-        "KeyR" => Command::Reload,
-        "Digit1" | "Numpad1" => Command::SelectSentry(0),
-        "Digit2" | "Numpad2" => Command::SelectSentry(1),
-        "Digit3" | "Numpad3" => Command::SelectSentry(2),
-        "Digit4" | "Numpad4" => Command::SelectSentry(3),
-        "ArrowLeft" | "KeyH" => Command::SectionPrev,
-        "ArrowRight" | "KeyL" => Command::SectionNext,
-        "ArrowUp" | "KeyK" => Command::SelectUp,
-        "ArrowDown" | "KeyJ" => Command::SelectDown,
-        "Enter" | "NumpadEnter" | "Space" => Command::Confirm,
-        _ => return,
+    let Some(cmd) = command_for_code(code) else {
+        return;
     };
     let was_fire = state.screen == Screen::Fire;
     let status = apply_command(state, cmd);
@@ -1350,5 +1367,54 @@ mod tests {
             output.status.success(),
             "node --test web/main.test.js failed\nstdout:\n{stdout}\nstderr:\n{stderr}"
         );
+    }
+
+    #[test]
+    fn key_code_mapping_matches_the_previous_hand_written_table() {
+        let table: &[(&str, Option<Command>)] = &[
+            ("KeyQ", Some(Command::Quit)),
+            ("KeyD", Some(Command::ToggleDemo)),
+            ("KeyM", Some(Command::ToggleSound)),
+            ("KeyF", Some(Command::OpenFirePanel)),
+            ("KeyO", Some(Command::OpenOptions)),
+            ("Escape", Some(Command::ToggleFirePanel)),
+            ("KeyA", Some(Command::ToggleArm)),
+            ("KeyR", Some(Command::Reload)),
+            ("Digit1", Some(Command::SelectSentry(0))),
+            ("Numpad1", Some(Command::SelectSentry(0))),
+            ("Digit2", Some(Command::SelectSentry(1))),
+            ("Numpad2", Some(Command::SelectSentry(1))),
+            ("Digit3", Some(Command::SelectSentry(2))),
+            ("Numpad3", Some(Command::SelectSentry(2))),
+            ("Digit4", Some(Command::SelectSentry(3))),
+            ("Numpad4", Some(Command::SelectSentry(3))),
+            ("ArrowLeft", Some(Command::SectionPrev)),
+            ("KeyH", Some(Command::SectionPrev)),
+            ("ArrowRight", Some(Command::SectionNext)),
+            ("KeyL", Some(Command::SectionNext)),
+            ("ArrowUp", Some(Command::SelectUp)),
+            ("KeyK", Some(Command::SelectUp)),
+            ("ArrowDown", Some(Command::SelectDown)),
+            ("KeyJ", Some(Command::SelectDown)),
+            ("Enter", Some(Command::Confirm)),
+            ("NumpadEnter", Some(Command::Confirm)),
+            ("Space", Some(Command::Confirm)),
+            // Unbound, including T (theme is frontend-owned).
+            ("KeyT", None),
+            ("KeyZ", None),
+            ("Digit0", None),
+            ("Digit5", None),
+            ("Numpad0", None),
+            ("Numpad5", None),
+            ("Tab", None),
+            ("Backspace", None),
+            ("ShiftLeft", None),
+            ("NumpadAdd", None),
+            ("Key", None),
+            ("", None),
+        ];
+        for (code, expected) in table {
+            assert_eq!(command_for_code(code), *expected, "{code}");
+        }
     }
 }

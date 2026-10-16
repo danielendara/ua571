@@ -99,6 +99,54 @@ pub fn apply_panel_key(state: &mut AppState, key: PanelKey) {
     );
 }
 
+/// Frontend-neutral physical operator key. Each frontend translates its raw
+/// key (crossterm `KeyCode`, DOM `KeyboardEvent.code`) into this and asks
+/// [`command_for`], so the key → [`Command`] table lives in one place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperatorKey {
+    /// A letter key; matching is ASCII case-insensitive.
+    Letter(char),
+    /// A digit key (top row or numpad), `0..=9`.
+    Digit(u8),
+    Left,
+    Right,
+    Up,
+    Down,
+    /// Enter, including the numpad one.
+    Enter,
+    Space,
+    Escape,
+}
+
+/// The [`Command`] for an operator key, or `None` when the key is unbound.
+/// T (theme) is frontend-owned and returns `None` here.
+pub fn command_for(key: OperatorKey) -> Option<Command> {
+    Some(match key {
+        OperatorKey::Letter(c) => match c.to_ascii_lowercase() {
+            'q' => Command::Quit,
+            'd' => Command::ToggleDemo,
+            'm' => Command::ToggleSound,
+            'f' => Command::OpenFirePanel,
+            'o' => Command::OpenOptions,
+            'a' => Command::ToggleArm,
+            'r' => Command::Reload,
+            'h' => Command::SectionPrev,
+            'l' => Command::SectionNext,
+            'k' => Command::SelectUp,
+            'j' => Command::SelectDown,
+            _ => return None,
+        },
+        OperatorKey::Digit(d @ 1..=4) => Command::SelectSentry(usize::from(d) - 1),
+        OperatorKey::Digit(_) => return None,
+        OperatorKey::Left => Command::SectionPrev,
+        OperatorKey::Right => Command::SectionNext,
+        OperatorKey::Up => Command::SelectUp,
+        OperatorKey::Down => Command::SelectDown,
+        OperatorKey::Enter | OperatorKey::Space => Command::Confirm,
+        OperatorKey::Escape => Command::ToggleFirePanel,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,5 +377,56 @@ mod tests {
             apply_command(&mut state, Command::Confirm),
             Some(FireDenyReason::Critical)
         );
+    }
+
+    #[test]
+    fn command_for_maps_every_bound_key() {
+        use OperatorKey::*;
+        let table: &[(OperatorKey, Option<Command>)] = &[
+            (Letter('q'), Some(Command::Quit)),
+            (Letter('d'), Some(Command::ToggleDemo)),
+            (Letter('m'), Some(Command::ToggleSound)),
+            (Letter('f'), Some(Command::OpenFirePanel)),
+            (Letter('o'), Some(Command::OpenOptions)),
+            (Letter('a'), Some(Command::ToggleArm)),
+            (Letter('r'), Some(Command::Reload)),
+            (Letter('h'), Some(Command::SectionPrev)),
+            (Letter('l'), Some(Command::SectionNext)),
+            (Letter('k'), Some(Command::SelectUp)),
+            (Letter('j'), Some(Command::SelectDown)),
+            (Digit(1), Some(Command::SelectSentry(0))),
+            (Digit(2), Some(Command::SelectSentry(1))),
+            (Digit(3), Some(Command::SelectSentry(2))),
+            (Digit(4), Some(Command::SelectSentry(3))),
+            (Left, Some(Command::SectionPrev)),
+            (Right, Some(Command::SectionNext)),
+            (Up, Some(Command::SelectUp)),
+            (Down, Some(Command::SelectDown)),
+            (Enter, Some(Command::Confirm)),
+            (Space, Some(Command::Confirm)),
+            (Escape, Some(Command::ToggleFirePanel)),
+        ];
+        for (key, expected) in table {
+            assert_eq!(command_for(*key), *expected, "{key:?}");
+            if let Letter(c) = key {
+                assert_eq!(
+                    command_for(Letter(c.to_ascii_uppercase())),
+                    *expected,
+                    "uppercase {key:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn command_for_leaves_theme_and_unbound_keys_to_the_frontend() {
+        use OperatorKey::*;
+        // T is frontend-owned; the rest are simply unbound.
+        for c in ['t', 'T', 'z', 'Z', 'b', 'é', ' ', '1'] {
+            assert_eq!(command_for(Letter(c)), None, "{c:?}");
+        }
+        for d in [0u8, 5, 6, 7, 8, 9, 10, 255] {
+            assert_eq!(command_for(Digit(d)), None, "Digit({d})");
+        }
     }
 }

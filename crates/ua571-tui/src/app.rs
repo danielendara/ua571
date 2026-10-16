@@ -12,7 +12,9 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use ua571_audio::FireAudio;
-use ua571_core::{apply_command, AppState, Command, Config, FireDenyReason, Screen};
+use ua571_core::{
+    apply_command, command_for, AppState, Command, Config, FireDenyReason, OperatorKey, Screen,
+};
 
 use crate::theme::ConsoleTheme;
 use crate::views;
@@ -152,33 +154,17 @@ impl App {
         // new hint, so a denied fire's reason is what survives.
         self.fire_status_hint = None;
 
-        // Key → Command mapping; stop-demo and Options-only gating live in
-        // `apply_command`. T (theme) stays frontend-owned.
-        let cmd = match key.code {
-            KeyCode::Char('q') | KeyCode::Char('Q') => Command::Quit,
-            KeyCode::Char('d') | KeyCode::Char('D') => Command::ToggleDemo,
-            KeyCode::Char('m') | KeyCode::Char('M') => Command::ToggleSound,
-            KeyCode::Char('t') | KeyCode::Char('T') => {
-                let hint = self.state.config.theme.cycle_with_hint();
-                self.theme = ConsoleTheme::from_kind(self.state.config.theme);
-                self.state.log.push_info(hint);
-                return;
-            }
-            KeyCode::Char('f') | KeyCode::Char('F') => Command::OpenFirePanel,
-            KeyCode::Char('o') | KeyCode::Char('O') => Command::OpenOptions,
-            KeyCode::Esc => Command::ToggleFirePanel,
-            KeyCode::Char('a') | KeyCode::Char('A') => Command::ToggleArm,
-            KeyCode::Char('r') | KeyCode::Char('R') => Command::Reload,
-            KeyCode::Char('1') => Command::SelectSentry(0),
-            KeyCode::Char('2') => Command::SelectSentry(1),
-            KeyCode::Char('3') => Command::SelectSentry(2),
-            KeyCode::Char('4') => Command::SelectSentry(3),
-            KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('H') => Command::SectionPrev,
-            KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => Command::SectionNext,
-            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => Command::SelectUp,
-            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => Command::SelectDown,
-            KeyCode::Enter | KeyCode::Char(' ') => Command::Confirm,
-            _ => return,
+        // Key → Command mapping lives in `ua571_core::command_for`; stop-demo
+        // and Options-only gating live in `apply_command`. T (theme) stays
+        // frontend-owned.
+        if matches!(key.code, KeyCode::Char('t') | KeyCode::Char('T')) {
+            let hint = self.state.config.theme.cycle_with_hint();
+            self.theme = ConsoleTheme::from_kind(self.state.config.theme);
+            self.state.log.push_info(hint);
+            return;
+        }
+        let Some(cmd) = command_for_key_code(key.code) else {
+            return;
         };
         let was_options = self.state.screen == Screen::Options;
         let status = apply_command(&mut self.state, cmd);
@@ -198,6 +184,28 @@ impl App {
             _ => {}
         }
     }
+}
+
+/// Translate a crossterm key into the shared [`OperatorKey`] vocabulary.
+fn operator_key(code: KeyCode) -> Option<OperatorKey> {
+    Some(match code {
+        KeyCode::Char(' ') => OperatorKey::Space,
+        KeyCode::Char(c) if c.is_ascii_digit() => OperatorKey::Digit(c as u8 - b'0'),
+        KeyCode::Char(c) => OperatorKey::Letter(c),
+        KeyCode::Left => OperatorKey::Left,
+        KeyCode::Right => OperatorKey::Right,
+        KeyCode::Up => OperatorKey::Up,
+        KeyCode::Down => OperatorKey::Down,
+        KeyCode::Enter => OperatorKey::Enter,
+        KeyCode::Esc => OperatorKey::Escape,
+        _ => return None,
+    })
+}
+
+/// The shared [`Command`] for a crossterm key; `None` for unbound keys and for
+/// T (theme), which this frontend handles itself.
+fn command_for_key_code(code: KeyCode) -> Option<Command> {
+    operator_key(code).and_then(command_for)
 }
 
 /// Gap after the last Space/Enter event beyond which Unix Press-repeats
@@ -557,5 +565,56 @@ mod tests {
             !src.contains(&bare_fire_call),
             "fire() should not be called bare anymore — use fire_with_status"
         );
+    }
+
+    #[test]
+    fn key_code_mapping_matches_the_previous_hand_written_table() {
+        let c = KeyCode::Char;
+        let table: Vec<(KeyCode, Option<Command>)> = vec![
+            (c('q'), Some(Command::Quit)),
+            (c('Q'), Some(Command::Quit)),
+            (c('d'), Some(Command::ToggleDemo)),
+            (c('D'), Some(Command::ToggleDemo)),
+            (c('m'), Some(Command::ToggleSound)),
+            (c('M'), Some(Command::ToggleSound)),
+            (c('f'), Some(Command::OpenFirePanel)),
+            (c('F'), Some(Command::OpenFirePanel)),
+            (c('o'), Some(Command::OpenOptions)),
+            (c('O'), Some(Command::OpenOptions)),
+            (KeyCode::Esc, Some(Command::ToggleFirePanel)),
+            (c('a'), Some(Command::ToggleArm)),
+            (c('A'), Some(Command::ToggleArm)),
+            (c('r'), Some(Command::Reload)),
+            (c('R'), Some(Command::Reload)),
+            (c('1'), Some(Command::SelectSentry(0))),
+            (c('2'), Some(Command::SelectSentry(1))),
+            (c('3'), Some(Command::SelectSentry(2))),
+            (c('4'), Some(Command::SelectSentry(3))),
+            (KeyCode::Left, Some(Command::SectionPrev)),
+            (c('h'), Some(Command::SectionPrev)),
+            (c('H'), Some(Command::SectionPrev)),
+            (KeyCode::Right, Some(Command::SectionNext)),
+            (c('l'), Some(Command::SectionNext)),
+            (c('L'), Some(Command::SectionNext)),
+            (KeyCode::Up, Some(Command::SelectUp)),
+            (c('k'), Some(Command::SelectUp)),
+            (c('K'), Some(Command::SelectUp)),
+            (KeyCode::Down, Some(Command::SelectDown)),
+            (c('j'), Some(Command::SelectDown)),
+            (c('J'), Some(Command::SelectDown)),
+            (KeyCode::Enter, Some(Command::Confirm)),
+            (c(' '), Some(Command::Confirm)),
+            // Unbound, including T (theme is handled before the lookup).
+            (c('t'), None),
+            (c('T'), None),
+            (c('0'), None),
+            (c('5'), None),
+            (c('z'), None),
+            (KeyCode::Tab, None),
+            (KeyCode::Backspace, None),
+        ];
+        for (code, expected) in table {
+            assert_eq!(command_for_key_code(code), expected, "{code:?}");
+        }
     }
 }
