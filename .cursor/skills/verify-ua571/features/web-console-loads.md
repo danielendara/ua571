@@ -10,4 +10,4 @@ Open the served `web/` directory in a browser; POST/boot screen shows "PRESS ANY
 Build + serve per SKILL.md and screenshot. Proof: header shows `v0.2.0`, canvas renders the `UA 571-C` boot screen, `pkg/ua571_web_bg.wasm` returns 200.
 
 ## Gotchas
-Needs `scripts/build-web.sh` first (web/pkg is gitignored). Headless CLI cannot send keys; use CDP/Playwright for interaction. `?skipBoot=1` did not skip boot in the run observed; use the Skip boot checkbox.
+Needs `scripts/build-web.sh` first (web/pkg is gitignored). Headless CLI cannot send keys; use CDP/Playwright for interaction. Use `?boot=0` (or the Skip boot checkbox) to skip boot.
