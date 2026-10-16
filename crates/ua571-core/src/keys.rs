@@ -6,15 +6,6 @@
 use crate::fire_deny::{fire_with_status, FireDenyReason};
 use crate::state::{AppState, Screen};
 
-/// Operator keys that switch between Options and the firing panel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PanelKey {
-    /// Letter O — always open Options (stays on Options if already there).
-    OpenOptions,
-    /// Escape — toggle Fire ↔ Options via [`AppState::toggle_fire_panel`].
-    ToggleFirePanel,
-}
-
 /// Frontend-neutral operator action. Each frontend maps its own raw keys to a
 /// [`Command`] and calls [`apply_command`]; theme (T) stays frontend-owned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,19 +79,8 @@ pub fn apply_command(state: &mut AppState, cmd: Command) -> Option<FireDenyReaso
     None
 }
 
-/// Stop demo and apply Esc vs O. Thin wrapper over [`apply_command`].
-pub fn apply_panel_key(state: &mut AppState, key: PanelKey) {
-    apply_command(
-        state,
-        match key {
-            PanelKey::OpenOptions => Command::OpenOptions,
-            PanelKey::ToggleFirePanel => Command::ToggleFirePanel,
-        },
-    );
-}
-
 /// Frontend-neutral physical operator key. Each frontend translates its raw
-/// key (crossterm `KeyCode`, DOM `KeyboardEvent.code`) into this and asks
+/// key (crossterm `KeyCode`, DOM `KeyboardEvent.code`, minifb `Key`) into this and asks
 /// [`command_for`], so the key → [`Command`] table lives in one place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperatorKey {
@@ -163,12 +143,12 @@ mod tests {
     fn o_opens_options_and_does_not_leave() {
         let mut state = app();
         assert_eq!(state.screen, Screen::Options);
-        apply_panel_key(&mut state, PanelKey::OpenOptions);
+        apply_command(&mut state, Command::OpenOptions);
         assert_eq!(state.screen, Screen::Options);
         state.set_screen(Screen::Fire);
-        apply_panel_key(&mut state, PanelKey::OpenOptions);
+        apply_command(&mut state, Command::OpenOptions);
         assert_eq!(state.screen, Screen::Options);
-        apply_panel_key(&mut state, PanelKey::OpenOptions);
+        apply_command(&mut state, Command::OpenOptions);
         assert_eq!(state.screen, Screen::Options);
     }
 
@@ -176,9 +156,9 @@ mod tests {
     fn esc_toggles_fire_and_options() {
         let mut state = app();
         assert_eq!(state.screen, Screen::Options);
-        apply_panel_key(&mut state, PanelKey::ToggleFirePanel);
+        apply_command(&mut state, Command::ToggleFirePanel);
         assert_eq!(state.screen, Screen::Fire);
-        apply_panel_key(&mut state, PanelKey::ToggleFirePanel);
+        apply_command(&mut state, Command::ToggleFirePanel);
         assert_eq!(state.screen, Screen::Options);
     }
 
@@ -187,12 +167,12 @@ mod tests {
         let mut state = app();
         state.toggle_demo();
         assert!(state.demo.is_active());
-        apply_panel_key(&mut state, PanelKey::OpenOptions);
+        apply_command(&mut state, Command::OpenOptions);
         assert!(!state.demo.is_active());
 
         state.toggle_demo();
         assert!(state.demo.is_active());
-        apply_panel_key(&mut state, PanelKey::ToggleFirePanel);
+        apply_command(&mut state, Command::ToggleFirePanel);
         assert!(!state.demo.is_active());
         assert_eq!(state.screen, Screen::Fire);
     }
