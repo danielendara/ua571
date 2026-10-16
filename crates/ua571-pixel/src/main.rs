@@ -290,6 +290,35 @@ fn operator_key(key: Key) -> Option<OperatorKey> {
     Some(OperatorKey::Letter(letter))
 }
 
+/// What the fresh-key pass picked for this frame.
+#[derive(Debug, PartialEq, Eq)]
+enum FreshAction {
+    CycleTheme,
+    Command(Command),
+}
+
+/// One pass over this frame's fresh keys, first bound key wins. Confirm keys
+/// are skipped (they keep the edge/repeat logic in `handle_input`), and so is
+/// a command that is a no-op on `screen`, so a Space/Enter later in the same
+/// frame still fires instead of being shadowed by e.g. a stray Down.
+fn choose_fresh_action(keys: &[Key], screen: Screen) -> Option<FreshAction> {
+    for &key in keys {
+        if key == Key::T {
+            return Some(FreshAction::CycleTheme);
+        }
+        if CONFIRM_KEYS.contains(&key) {
+            continue;
+        }
+        if let Some(cmd) = operator_key(key).and_then(command_for) {
+            if cmd.is_noop_on(screen) {
+                continue;
+            }
+            return Some(FreshAction::Command(cmd));
+        }
+    }
+    None
+}
+
 fn handle_input(
     window: &Window,
     state: &mut AppState,
@@ -320,25 +349,18 @@ fn handle_input(
     // gating live in `apply_command`. Mute state itself is recomputed every
     // frame in `main` from `state.config.sound` + focus via `idle_runtime`,
     // so M only flips the preference.
-    for key in fresh {
-        if key == Key::T {
+    match choose_fresh_action(&fresh, state.screen) {
+        Some(FreshAction::CycleTheme) => {
             let (hint, on, off) = cycle_theme(state);
             *colors = (on, off);
             *status_hint = Some(hint);
             return true;
         }
-        if CONFIRM_KEYS.contains(&key) {
-            continue;
-        }
-        if let Some(cmd) = operator_key(key).and_then(command_for) {
-            // Nav is a no-op off Options: skip it so a Space/Enter later in
-            // the same frame still fires instead of being shadowed.
-            if cmd.is_noop_on(state.screen) {
-                continue;
-            }
+        Some(FreshAction::Command(cmd)) => {
             apply_command(state, cmd);
             return true;
         }
+        None => {}
     }
 
     // Edge-triggered: true only on the frame Enter/Space first goes down.
@@ -559,10 +581,10 @@ mod tests {
     fn theme_key_wired_in_input_handler() {
         let src = include_str!("main.rs");
         let t_branch = src
-            .split("if key == Key::T {")
+            .split("Some(FreshAction::CycleTheme) => {")
             .nth(1)
             .and_then(|s| s.split("return true;").next())
-            .expect("Key::T branch");
+            .expect("CycleTheme branch");
         assert!(
             t_branch.contains("cycle_theme(state)"),
             "Key::T must cycle theme: {t_branch}"
@@ -646,6 +668,45 @@ mod tests {
         ] {
             assert_eq!(bound(key), None, "{key:?}");
         }
+    }
+
+    /// Down then Space in one frame on Fire: Down is a no-op there, so the
+    /// pass must not stop on it — nothing is chosen and the fresh Space
+    /// reaches the confirm path and fires.
+    #[test]
+    fn nav_key_before_space_on_fire_does_not_shadow_fire() {
+        let mut state = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        state.toggle_arm();
+        state.set_screen(Screen::Fire);
+        let keys = [Key::Down, Key::Space];
+
+        let chosen = choose_fresh_action(&keys, state.screen);
+        assert_eq!(chosen, None, "Down must not shadow the confirm key");
+
+        // handle_input's confirm path: a fresh confirm key applies Confirm.
+        let rounds = state.fire_telemetry().rounds;
+        assert!(keys.iter().any(|k| CONFIRM_KEYS.contains(k)));
+        assert_eq!(apply_command(&mut state, Command::Confirm), None);
+        assert_eq!(state.fire_telemetry().rounds, rounds - 1, "Space must fire");
+    }
+
+    #[test]
+    fn fresh_action_picks_first_bound_key_and_nav_on_options() {
+        assert_eq!(
+            choose_fresh_action(&[Key::Down], Screen::Options),
+            Some(FreshAction::Command(Command::SelectDown))
+        );
+        assert_eq!(
+            choose_fresh_action(&[Key::Down, Key::T], Screen::Fire),
+            Some(FreshAction::CycleTheme)
+        );
+        assert_eq!(
+            choose_fresh_action(&[Key::Space, Key::A], Screen::Fire),
+            Some(FreshAction::Command(Command::ToggleArm))
+        );
     }
 
     #[test]

@@ -386,27 +386,6 @@ mod tests {
     }
 
     #[test]
-    fn nav_key_before_confirm_does_not_shadow_fire() {
-        // Mirrors a frontend frame loop: skip no-op keys, act on the first rest.
-        let mut state = app();
-        state.set_screen(Screen::Fire);
-        let mut handled = None;
-        for key in [
-            OperatorKey::Down,
-            OperatorKey::Letter('h'),
-            OperatorKey::Space,
-        ] {
-            let cmd = command_for(key).unwrap();
-            if cmd.is_noop_on(state.screen) {
-                continue;
-            }
-            handled = Some(cmd);
-            break;
-        }
-        assert_eq!(handled, Some(Command::Confirm));
-    }
-
-    #[test]
     fn command_for_maps_every_bound_key() {
         use OperatorKey::*;
         let table: &[(OperatorKey, Option<Command>)] = &[
