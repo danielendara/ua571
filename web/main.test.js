@@ -57,12 +57,12 @@ import {
   PREFS_STORAGE_KEY,
   applyPrefsToElements,
   hydrateChromePrefs,
-  persistChromeFromForm,
-  persistOptionsIfChanged,
+  PREFS,
   pageStorage,
-  persistKeyTogglesIfChanged,
   prefsFromSearch,
   searchFromPrefs,
+  snapshotPrefs,
+  syncPrefs,
   syncShareUrl,
   readStoredPrefs,
   writeStoredPrefs,
@@ -332,16 +332,11 @@ test("KeyT cycles theme, persists, and shows THEME hint in #status (#107)", () =
   const select = mockThemeSelect("yellow");
   const storage = memoryStorage();
   const status = liveRegion("OPTIONS · MANUAL");
-  const readOpts = () => ({
-    theme: select.value,
-    scale: 3,
-    sound: false,
-    skipBoot: false,
-  });
+  const sync = themeSync(select, storage);
 
   const first = handleThemeKeyDown(
     { code: "KeyT", repeat: false, target: canvasTarget() },
-    { select, storage, status, readOpts }
+    { select, status, sync }
   );
   assert.deepEqual(first, { theme: "phosphor", hint: "THEME PHOSPHOR" });
   assert.equal(select.value, "phosphor");
@@ -350,7 +345,7 @@ test("KeyT cycles theme, persists, and shows THEME hint in #status (#107)", () =
 
   const second = handleThemeKeyDown(
     { code: "KeyT", repeat: false, target: canvasTarget() },
-    { select, storage, status, readOpts }
+    { select, status, sync }
   );
   assert.deepEqual(second, { theme: "amber", hint: "THEME AMBER" });
   assert.equal(status.textContent, "THEME AMBER");
@@ -358,7 +353,7 @@ test("KeyT cycles theme, persists, and shows THEME hint in #status (#107)", () =
   assert.equal(
     handleThemeKeyDown(
       { code: "KeyT", repeat: true, target: canvasTarget() },
-      { select, storage, status, readOpts }
+      { select, status, sync }
     ),
     false
   );
@@ -367,7 +362,7 @@ test("KeyT cycles theme, persists, and shows THEME hint in #status (#107)", () =
   assert.equal(
     handleThemeKeyDown(
       { code: "KeyT", repeat: false, target: { closest: () => ({}) } },
-      { select, storage, status, readOpts }
+      { select, status, sync }
     ),
     false
   );
@@ -376,7 +371,7 @@ test("KeyT cycles theme, persists, and shows THEME hint in #status (#107)", () =
   assert.equal(
     handleThemeKeyDown(
       { code: "KeyD", repeat: false, target: canvasTarget() },
-      { select, storage, status, readOpts }
+      { select, status, sync }
     ),
     false
   );
@@ -452,8 +447,8 @@ test("Ctrl/Cmd/Alt + T leaves the theme, storage and history unchanged (#166)", 
   const storage = memoryStorage();
   const status = liveRegion("OPTIONS · MANUAL");
   const history = mockHistory(mockLocation());
-  const readOpts = () => ({ theme: select.value, scale: 3, sound: false, skipBoot: false });
-  const deps = { select, storage, status, readOpts, history, location: mockLocation() };
+  const loc = mockLocation();
+  const deps = { select, status, sync: themeSync(select, storage, loc, history) };
 
   assert.equal(
     handleThemeKeyDown({ code: "KeyT", ctrlKey: true, target: canvasTarget() }, deps),
@@ -707,6 +702,14 @@ function mockHistory(loc) {
   return hist;
 }
 
+/** A `sync` callback for handleThemeKeyDown: one syncPrefs over a theme-only form. */
+function themeSync(select, storage, location, history) {
+  let last = snapshotPrefs({ els: { theme: select } });
+  return () => {
+    last = syncPrefs({ els: { theme: select }, storage, location, history }, last);
+  };
+}
+
 function mockThemeSelect(current = "yellow") {
   const values = ["yellow", "phosphor", "amber", "mono"];
   let value = current;
@@ -721,15 +724,16 @@ function mockThemeSelect(current = "yellow") {
   };
 }
 
-test("persistChromeFromForm round-trips theme/scale/sound/skipBoot", () => {
+test("syncPrefs round-trips theme/scale/sound/skipBoot", () => {
   const storage = memoryStorage();
-  persistChromeFromForm(storage, {
+  const els = chromeEls({
     theme: "amber",
-    scale: 4,
+    scale: "4",
     sound: true,
     skipBoot: true,
     demo: true,
   });
+  syncPrefs({ els, storage }, {});
   const stored = readStoredPrefs(storage);
   assert.equal(stored.theme, "amber");
   assert.equal(stored.scale, "4");
@@ -788,38 +792,36 @@ test("searchFromPrefs never emits a touch pad key", () => {
   assert.equal(searchFromPrefs({ touchPad: true }), "");
 });
 
-test("persistOptionsIfChanged writes only when a value actually changes", () => {
+test("syncPrefs writes options only when a value actually changes", () => {
   const storage = memoryStorage();
-  let last = { systemMode: null, weaponStatus: null, iffStatus: null };
   const app = { system_mode: "AutoRemote", weapon_status: "Safe", iff_status: "Search" };
+  let last = {};
 
-  last = persistOptionsIfChanged(app, storage, last);
+  last = syncPrefs({ app, storage }, last);
   assert.deepEqual(readStoredPrefs(storage), {
     systemMode: "AutoRemote",
     weaponStatus: "Safe",
     iffStatus: "Search",
   });
 
-  // No change — re-running must not re-serialize (nothing to assert on the
-  // write itself here, but `last` must stay referentially the same object
-  // the caller already has, matching the "only on actual change" contract).
-  const unchanged = persistOptionsIfChanged(app, storage, last);
+  // No change: `last` stays the same object the caller already has.
+  const unchanged = syncPrefs({ app, storage }, last);
   assert.equal(unchanged, last);
 
   app.weapon_status = "Armed";
-  last = persistOptionsIfChanged(app, storage, last);
+  last = syncPrefs({ app, storage }, last);
   assert.equal(readStoredPrefs(storage).weaponStatus, "Armed");
   assert.equal(readStoredPrefs(storage).systemMode, "AutoRemote");
 });
 
-test("persistOptionsIfChanged is a no-op without an app", () => {
+test("syncPrefs options are a no-op without an app", () => {
   const storage = memoryStorage();
-  const last = { systemMode: null, weaponStatus: null, iffStatus: null };
-  assert.equal(persistOptionsIfChanged(null, storage, last), last);
+  const last = {};
+  assert.equal(syncPrefs({ storage }, last), last);
   assert.equal(storage.map[PREFS_STORAGE_KEY], undefined);
 });
 
-test("persistKeyTogglesIfChanged does nothing when sound and demo are unchanged", () => {
+test("syncPrefs does nothing when sound and demo are unchanged", () => {
   const storage = memoryStorage();
   let sets = 0;
   const counting = { ...storage, setItem: (k, v) => { sets++; storage.setItem(k, v); } };
@@ -827,53 +829,47 @@ test("persistKeyTogglesIfChanged does nothing when sound and demo are unchanged"
   const hist = mockHistory(loc);
   const last = { sound: true, demo: false };
   const app = { sound_enabled: true, demo_active: false };
-  assert.equal(persistKeyTogglesIfChanged(app, counting, last, { location: loc, history: hist }), last);
-  assert.equal(persistKeyTogglesIfChanged(null, counting, last), last);
+  assert.equal(syncPrefs({ app, storage: counting, location: loc, history: hist }, last), last);
+  assert.equal(syncPrefs({ storage: counting }, last), last);
   assert.equal(sets, 0);
   assert.deepEqual(hist.urls, []);
 });
 
-test("persistKeyTogglesIfChanged stores sound on and adds ?sound=1", () => {
+test("syncPrefs stores sound on and adds ?sound=1", () => {
   const storage = memoryStorage();
   const loc = mockLocation("");
   const hist = mockHistory(loc);
   const app = { sound_enabled: true, demo_active: false };
-  const next = persistKeyTogglesIfChanged(app, storage, { sound: false, demo: false }, {
-    location: loc,
-    history: hist,
-    readOpts: () => ({ theme: "yellow", scale: 3, sound: true, skipBoot: false, demo: false }),
-  });
-  assert.deepEqual(next, { sound: true, demo: false });
+  const next = syncPrefs(
+    { app, storage, location: loc, history: hist },
+    { sound: false, demo: false }
+  );
+  assert.deepEqual([next.sound, next.demo], [true, false]);
   assert.equal(readStoredPrefs(storage).sound, true);
   assert.match(loc.search, /sound=1/);
 });
 
-test("persistKeyTogglesIfChanged drops sound from the URL when muted with M", () => {
+test("syncPrefs drops sound from the URL when muted with M", () => {
   const storage = memoryStorage();
   const loc = mockLocation("?sound=1");
   const hist = mockHistory(loc);
   const app = { sound_enabled: false, demo_active: false };
-  persistKeyTogglesIfChanged(app, storage, { sound: true, demo: false }, {
-    location: loc,
-    history: hist,
-    readOpts: () => ({ theme: "yellow", scale: 3, sound: false, skipBoot: false, demo: false }),
-  });
+  syncPrefs({ app, storage, location: loc, history: hist }, { sound: true, demo: false });
   assert.equal(readStoredPrefs(storage).sound, false);
   assert.doesNotMatch(loc.search, /sound/);
   assert.equal(loc.search, "");
 });
 
-test("persistKeyTogglesIfChanged drops demo from the URL and never stores it", () => {
+test("syncPrefs drops demo from the URL and never stores it", () => {
   const storage = memoryStorage();
   const loc = mockLocation("?demo=1");
   const hist = mockHistory(loc);
   const app = { sound_enabled: false, demo_active: false };
-  const next = persistKeyTogglesIfChanged(app, storage, { sound: false, demo: true }, {
-    location: loc,
-    history: hist,
-    readOpts: () => ({ theme: "yellow", scale: 3, sound: false, skipBoot: false, demo: false }),
-  });
-  assert.deepEqual(next, { sound: false, demo: false });
+  const next = syncPrefs(
+    { app, storage, location: loc, history: hist },
+    { sound: false, demo: true }
+  );
+  assert.deepEqual([next.sound, next.demo], [false, false]);
   assert.equal(loc.search, "");
   assert.equal(storage.map[PREFS_STORAGE_KEY], undefined);
 });
@@ -881,7 +877,7 @@ test("persistKeyTogglesIfChanged drops demo from the URL and never stores it", (
 test("failed unlock leaves sound:false stored after the checkbox pref is re-persisted", async () => {
   const storage = memoryStorage();
   const els = chromeEls({ sound: true });
-  persistChromeFromForm(storage, { theme: "yellow", scale: 3, sound: true, skipBoot: false });
+  let last = syncPrefs({ els, storage }, {});
   assert.equal(readStoredPrefs(storage).sound, true);
   const app = {
     sound_enabled: false,
@@ -890,7 +886,7 @@ test("failed unlock leaves sound:false stored after the checkbox pref is re-pers
   };
   await applySoundChoice(app, true, { sound: els.sound });
   assert.equal(els.sound.checked, false);
-  persistChromeFromForm(storage, { theme: "yellow", scale: 3, sound: els.sound.checked, skipBoot: false });
+  syncPrefs({ app, els, storage }, last);
   assert.equal(readStoredPrefs(storage).sound, false);
 });
 
@@ -985,17 +981,10 @@ test("KeyT writeback puts theme in the URL and still persists LS (#110)", () => 
   const status = liveRegion("OPTIONS · MANUAL");
   const loc = mockLocation("");
   const hist = mockHistory(loc);
-  const readOpts = () => ({
-    theme: select.value,
-    scale: 3,
-    sound: false,
-    skipBoot: false,
-    demo: false,
-  });
 
   handleThemeKeyDown(
     { code: "KeyT", repeat: false, target: canvasTarget() },
-    { select, storage, status, readOpts, location: loc, history: hist }
+    { select, status, sync: themeSync(select, storage, loc, hist) }
   );
   assert.equal(select.value, "phosphor");
   assert.equal(readStoredPrefs(storage).theme, "phosphor");
@@ -1011,13 +1000,7 @@ test("KeyT writeback puts theme in the URL and still persists LS (#110)", () => 
 
 test("syncShareUrl writes sound/demo/boot snapshot without rAF or LS demo (#110)", () => {
   const storage = memoryStorage();
-  persistChromeFromForm(storage, {
-    theme: "yellow",
-    scale: 3,
-    sound: true,
-    skipBoot: false,
-    demo: true,
-  });
+  syncPrefs({ els: chromeEls({ sound: true, demo: true }), storage }, {});
   assert.equal(readStoredPrefs(storage).demo, undefined);
   assert.doesNotMatch(storage.map[PREFS_STORAGE_KEY], /demo/);
   assert.equal(readStoredPrefs(storage).sound, true);
@@ -1072,18 +1055,14 @@ test("URL chrome still wins over LS; later writeback is the new snapshot (#110)"
 
   const loc = mockLocation("?theme=mono&scale=4");
   const hist = mockHistory(loc);
-  const next = {
-    theme: els.theme.value,
-    scale: els.scale.value,
-    sound: false,
-    skipBoot: els.skipBoot.checked,
-    demo: false,
-  };
-  persistChromeFromForm(storage, next);
-  syncShareUrl(next, loc, hist);
+  // Hydrated values are the baseline; only the change (sound off) is written.
+  const ctx = { els, storage, location: loc, history: hist };
+  const seeded = snapshotPrefs(ctx);
+  els.sound.checked = false;
+  syncPrefs(ctx, seeded);
   assert.equal(loc.search, "?theme=mono&scale=4&boot=0");
   assert.doesNotMatch(loc.search, /sound=/);
-  assert.equal(readStoredPrefs(storage).theme, "mono");
+  assert.equal(readStoredPrefs(storage).theme, "phosphor");
   assert.equal(readStoredPrefs(storage).sound, false);
   assert.equal(readStoredPrefs(storage).demo, undefined);
 });
@@ -2250,25 +2229,23 @@ test("writeStoredPrefs returns false instead of throwing when setItem throws", (
   assert.equal(writeStoredPrefs(memoryStorage(), { theme: "amber" }), true);
 });
 
-test("persistOptionsIfChanged still returns next when storage throws", () => {
+test("syncPrefs options still return next when storage throws", () => {
   const app = { system_mode: "ManOverride", weapon_status: "Safe", iff_status: "Search" };
-  const last = { systemMode: null, weaponStatus: null, iffStatus: null };
-  assert.deepEqual(persistOptionsIfChanged(app, throwingStorage(), last), {
-    systemMode: "ManOverride",
-    weaponStatus: "Safe",
-    iffStatus: "Search",
-  });
+  const next = syncPrefs({ app, storage: throwingStorage() }, {});
+  assert.deepEqual(
+    [next.systemMode, next.weaponStatus, next.iffStatus],
+    ["ManOverride", "Safe", "Search"]
+  );
 });
 
-test("persistKeyTogglesIfChanged still returns next when storage throws", () => {
+test("syncPrefs toggles still return next when storage throws", () => {
   const loc = mockLocation("");
   const app = { sound_enabled: true, demo_active: false };
-  const next = persistKeyTogglesIfChanged(app, throwingStorage(), { sound: false, demo: false }, {
-    location: loc,
-    history: mockHistory(loc),
-    readOpts: () => ({ theme: "yellow", scale: 3, sound: true, skipBoot: false, demo: false }),
-  });
-  assert.deepEqual(next, { sound: true, demo: false });
+  const next = syncPrefs(
+    { app, storage: throwingStorage(), location: loc, history: mockHistory(loc) },
+    { sound: false, demo: false }
+  );
+  assert.deepEqual([next.sound, next.demo], [true, false]);
 });
 
 test("pageStorage returns null when the localStorage getter throws or is missing", () => {
@@ -2329,3 +2306,163 @@ test("prefs.js imports with no DOM globals and main.js re-exports it", () => {
   assert.equal(main.PREFS_STORAGE_KEY, PREFS_STORAGE_KEY);
   assert.equal(main.pageStorage, pageStorage);
 });
+
+// ---- PREFS table guardrails (#194) ----
+
+/**
+ * Per PREFS key: a non-default form/app state to drive through `read`, and where
+ * it must persist. Declared here too (not derived from PREFS) so flipping a
+ * `store`/`url` flag in PREFS fails instead of silently skipping the check.
+ */
+const EXPECTED = {
+  theme: { ctx: { els: { theme: { value: "amber" } } }, store: true, url: true },
+  scale: { ctx: { els: { scale: { value: "4" } } }, store: true, url: true },
+  sound: { ctx: { app: { sound_enabled: true } }, store: true, url: true },
+  skipBoot: { ctx: { els: { skipBoot: { checked: true } } }, store: true, url: true },
+  demo: { ctx: { app: { demo_active: true } }, store: false, url: true },
+  touchPad: { ctx: { touchPad: true }, store: true, url: false },
+  systemMode: { ctx: { app: { system_mode: "ManOverride" } }, store: true, url: false },
+  weaponStatus: { ctx: { app: { weapon_status: "Armed" } }, store: true, url: false },
+  iffStatus: { ctx: { app: { iff_status: "Off" } }, store: true, url: false },
+};
+
+test("every PREFS key round-trips through syncPrefs to its storage and URL", () => {
+  for (const [key, def] of Object.entries(PREFS)) {
+    const want = EXPECTED[key];
+    assert.ok(want, `pref "${key}" has no EXPECTED entry in web/main.test.js; add one`);
+    const storage = memoryStorage();
+    const loc = mockLocation("");
+    const ctx = { ...want.ctx, storage, location: loc, history: mockHistory(loc) };
+    const value = def.read(ctx);
+    assert.notEqual(value, undefined, `pref "${key}" sample reads undefined`);
+    assert.notEqual(value, def.default, `pref "${key}" sample is its default`);
+    const next = syncPrefs(ctx, {});
+    assert.equal(next[key], value);
+    if (want.store) {
+      assert.equal(
+        readStoredPrefs(storage)[key],
+        value,
+        `pref "${key}" did not round-trip through storage; wire it in PREFS in web/prefs.js`
+      );
+    }
+    if (want.url) {
+      assert.equal(
+        prefsFromSearch(searchFromPrefs(next))[key],
+        value,
+        `pref "${key}" did not round-trip through url; wire it in PREFS in web/prefs.js`
+      );
+    }
+  }
+  assert.deepEqual(Object.keys(EXPECTED), Object.keys(PREFS));
+});
+
+test("no side doors: prefs are persisted only via syncPrefs()", async () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const prefs = await import(pathToFileURL(join(here, "prefs.js")).href);
+  const msg = "persist prefs only via syncPrefs() in web/prefs.js";
+  assert.deepEqual(
+    Object.keys(prefs).filter((k) => /^persist/.test(k)),
+    [],
+    msg
+  );
+  const main = readFileSync(join(here, "main.js"), "utf8");
+  assert.doesNotMatch(main, /writeStoredPrefs\(/, msg);
+});
+
+test("syncPrefs seeded from a shared link writes nothing and leaves the URL alone", () => {
+  const storage = memoryStorage();
+  const loc = mockLocation("?theme=green");
+  const hist = mockHistory(loc);
+  const els = chromeEls();
+  hydrateChromePrefs({ storage, search: loc.search, els });
+  const ctx = { els, storage, location: loc, history: hist };
+  const seeded = snapshotPrefs(ctx);
+  assert.equal(syncPrefs(ctx, seeded), seeded);
+  assert.deepEqual(storage.map, {});
+  assert.deepEqual(hist.urls, []);
+
+  hydrateChromePrefs({ storage, search: "?theme=amber&sound=1", els: (ctx.els = chromeEls({ theme: "yellow" })) });
+  const shared = snapshotPrefs(ctx);
+  assert.equal(shared.theme, "amber");
+  assert.equal(syncPrefs(ctx, shared), shared);
+  assert.deepEqual(storage.map, {});
+  assert.deepEqual(hist.urls, []);
+});
+
+test("syncPrefs never writes an unchosen touchPad", () => {
+  const storage = memoryStorage();
+  const els = chromeEls();
+  let last = snapshotPrefs({ els });
+  els.theme.value = "amber";
+  last = syncPrefs({ els, storage }, last);
+  assert.equal(readStoredPrefs(storage).theme, "amber");
+  assert.equal("touchPad" in readStoredPrefs(storage), false);
+  syncPrefs({ els, storage, touchPad: false }, last);
+  assert.equal(readStoredPrefs(storage).touchPad, false);
+});
+
+test("syncPrefs reads sound/demo from the checkboxes when there is no app", () => {
+  const storage = memoryStorage();
+  const loc = mockLocation("");
+  const els = chromeEls();
+  const last = snapshotPrefs({ els });
+  els.sound.checked = true;
+  els.demo.checked = true;
+  syncPrefs({ els, storage, location: loc, history: mockHistory(loc) }, last);
+  assert.equal(readStoredPrefs(storage).sound, true);
+  assert.equal(loc.search, "?sound=1&demo=1");
+});
+
+// Golden strings captured from main (d2a88fa) with persistChromeFromForm +
+// persistOptionsIfChanged + the M/D toggle path, before those were deleted.
+const GOLDEN = [
+  {
+    name: "defaults",
+    els: chromeEls(),
+    app: { system_mode: "ManOverride", weapon_status: "Safe", iff_status: "Search" },
+    stored:
+      '{"theme":"yellow","scale":"3","sound":false,"skipBoot":false,"systemMode":"ManOverride","weaponStatus":"Safe","iffStatus":"Search"}',
+    search: "",
+  },
+  {
+    name: "everything non-default",
+    els: chromeEls({ theme: "amber", scale: "4", sound: true, skipBoot: true, demo: true }),
+    app: {
+      system_mode: "AutoRemote",
+      weapon_status: "Armed",
+      iff_status: "Off",
+      sound_enabled: true,
+      demo_active: true,
+    },
+    stored:
+      '{"theme":"amber","scale":"4","sound":true,"skipBoot":true,"systemMode":"AutoRemote","weaponStatus":"Armed","iffStatus":"Off"}',
+    search: "?theme=amber&scale=4&sound=1&boot=0&demo=1",
+  },
+  {
+    name: "M and D toggles",
+    els: chromeEls(),
+    app: {
+      system_mode: "ManOverride",
+      weapon_status: "Safe",
+      iff_status: "Search",
+      sound_enabled: true,
+      demo_active: true,
+    },
+    stored:
+      '{"theme":"yellow","scale":"3","sound":true,"skipBoot":false,"systemMode":"ManOverride","weaponStatus":"Safe","iffStatus":"Search"}',
+    search: "?sound=1&demo=1",
+  },
+];
+
+for (const g of GOLDEN) {
+  test(`stored JSON and share URL are byte-identical to main: ${g.name}`, () => {
+    const storage = memoryStorage();
+    const loc = mockLocation("");
+    const hist = mockHistory(loc);
+    // Form-owned values first, then the live app, like boot -> frame loop.
+    const last = syncPrefs({ els: g.els, storage, location: loc, history: hist }, {});
+    syncPrefs({ app: g.app, els: g.els, storage, location: loc, history: hist }, last);
+    assert.equal(storage.map[PREFS_STORAGE_KEY], g.stored);
+    assert.equal(loc.search, g.search);
+  });
+}

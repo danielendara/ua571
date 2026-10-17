@@ -17,11 +17,10 @@ let bootGeneration = 0;
  * @type {null | ((opts: object) => Promise<object>)}
  */
 let bootInstanceLoader = null;
-/** Last values written to localStorage, so persistOptionsIfChanged only
- * writes on an actual change (reset on every (re)boot). */
-let lastPersistedOptions = { systemMode: null, weaponStatus: null, iffStatus: null };
-/** Last sound/demo values persisted by persistKeyTogglesIfChanged (reset on boot). */
-let lastKeyToggles = { sound: null, demo: null };
+/** Last PREFS snapshot syncPrefs saw; reseeded (no write) on every (re)boot. */
+let lastPrefs = {};
+/** The user's Touch pad show/hide choice; undefined until they toggle it. */
+let touchPadChoice;
 /** One-shot status after T cycles theme (cleared on the next game key). */
 let pendingThemeHint = null;
 /** On-screen pad hold-to-fire controller; stopped on teardown and when hidden. */
@@ -122,9 +121,8 @@ import {
   selectHasValue,
   applyPrefsToElements,
   hydrateChromePrefs,
-  persistChromeFromForm,
-  persistOptionsIfChanged,
-  persistKeyTogglesIfChanged,
+  snapshotPrefs,
+  syncPrefs,
 } from "./prefs.js";
 
 // Re-exported so existing importers of main.js keep working.
@@ -139,9 +137,8 @@ export {
   selectHasValue,
   applyPrefsToElements,
   hydrateChromePrefs,
-  persistChromeFromForm,
-  persistOptionsIfChanged,
-  persistKeyTogglesIfChanged,
+  snapshotPrefs,
+  syncPrefs,
 };
 export function isChromeTarget(el) {
   return Boolean(
@@ -201,12 +198,12 @@ export function cycleThemeSelect(select) {
 }
 
 /**
- * T key: cycle theme, persist chrome prefs, repaint page chrome, show hint.
+ * T key: cycle theme, `sync` prefs, repaint page chrome, show hint.
  * Returns `{ theme, hint }` when handled, else `false`.
  */
 export function handleThemeKeyDown(
   e,
-  { select, storage, status, readOpts, location, history }
+  { select, status, sync }
 ) {
   if (!e || e.code !== "KeyT" || e.repeat) return false;
   if (hasCommandModifier(e)) return false;
@@ -214,11 +211,7 @@ export function handleThemeKeyDown(
   if (!select) return false;
 
   const theme = cycleThemeSelect(select);
-  const opts = readOpts ? readOpts() : { theme };
-  if (storage && readOpts) {
-    persistChromeFromForm(storage, opts);
-  }
-  syncShareUrl(opts, location, history);
+  if (sync) sync();
   applyPageTheme(theme);
   const hint = themeStatusHint(theme);
   pendingThemeHint = hint;
@@ -796,17 +789,14 @@ export async function boot() {
     }
 
     app = created;
-    lastPersistedOptions = { systemMode: null, weaponStatus: null, iffStatus: null };
-    lastKeyToggles = { sound: Boolean(opts.sound), demo: Boolean(opts.demo) };
+    lastPrefs = snapshotPrefs(prefsContext());
 
     onKey = (e) => {
       if (
         handleThemeKeyDown(e, {
           select: document.getElementById("theme"),
-          storage:
-            pageStorage(),
           status,
-          readOpts: readOptions,
+          sync: syncPagePrefs,
         })
       ) {
         if (!applyThemeLive(app, document.getElementById("theme").value)) boot();
@@ -840,20 +830,7 @@ export async function boot() {
         sound: document.getElementById("sound"),
       });
       syncTouchPad(app, document.getElementById("touch-pad"));
-      const storage = pageStorage();
-      if (storage) {
-        lastPersistedOptions = persistOptionsIfChanged(
-          app,
-          storage,
-          lastPersistedOptions
-        );
-        lastKeyToggles = persistKeyTogglesIfChanged(
-          app,
-          storage,
-          lastKeyToggles,
-          { readOpts: readOptions }
-        );
-      }
+      syncPagePrefs();
       raf = requestAnimationFrame(loop);
     };
     const loopCtl = {
@@ -886,17 +863,26 @@ export async function boot() {
   }
 }
 
-function persistPagePrefs() {
-  const opts = readOptions();
-  const storage = pageStorage();
-  if (storage) {
-    persistChromeFromForm(storage, opts);
-  }
-  syncShareUrl(opts);
+/** Everything `syncPrefs` reads from: live app, page form, storage (URL defaults to the window's). */
+function prefsContext() {
+  const el = (id) => document.getElementById(id);
+  return {
+    app,
+    els: {
+      theme: el("theme"),
+      scale: el("scale"),
+      sound: el("sound"),
+      skipBoot: el("skipBoot"),
+      demo: el("demo"),
+    },
+    storage: pageStorage(),
+    touchPad: touchPadChoice,
+  };
 }
 
-function sharePagePrefs() {
-  syncShareUrl(readOptions());
+/** The only prefs write: every chrome listener, hotkey and frame calls this. */
+function syncPagePrefs() {
+  lastPrefs = syncPrefs(prefsContext(), lastPrefs);
 }
 
 export function startPage() {
@@ -921,12 +907,12 @@ export function startPage() {
     canvas,
     pad,
   });
-  const padStorage = pageStorage();
+  touchPadChoice = readStoredPrefs(pageStorage()).touchPad;
   let padVisible = setTouchPadVisible(
     pad,
     padToggle,
     initialTouchPadVisible(
-      readStoredPrefs(padStorage),
+      { touchPad: touchPadChoice },
       typeof window.matchMedia === "function" &&
         window.matchMedia(TOUCH_PAD_DEFAULT_QUERY).matches
     )
@@ -934,7 +920,8 @@ export function startPage() {
   if (padToggle) {
     padToggle.addEventListener("click", () => {
       padVisible = setTouchPadVisible(pad, padToggle, !padVisible);
-      writeStoredPrefs(padStorage, { touchPad: padVisible });
+      touchPadChoice = padVisible;
+      syncPagePrefs();
       // Opening/closing the pad in fullscreen changes the room left for the canvas.
       fullscreen.refit();
     });
@@ -947,43 +934,37 @@ export function startPage() {
   // Scale still re-creates the WASM app (canvas pixels are not CSS); theme is
   // applied live when the app is available.
   document.getElementById("theme").addEventListener("change", (e) => {
-    persistPagePrefs();
+    syncPagePrefs();
     applyPageTheme(e.target.value);
     if (!applyThemeLive(app, e.target.value)) boot();
   });
   document.getElementById("scale").addEventListener("change", () => {
-    persistPagePrefs();
+    syncPagePrefs();
     boot();
   });
 
   document.getElementById("sound").addEventListener("change", async (e) => {
-    persistPagePrefs();
-    if (app) {
+    if (!app) syncPagePrefs();
+    else {
       await applySoundChoice(app, e.target.checked, {
         sound: e.target,
         status: document.getElementById("status"),
         announce: document.getElementById("status-announce"),
       });
-      // A failed unlock turned sound back off; store that, not the ticked box.
-      persistPagePrefs();
-      lastKeyToggles = {
-        sound: Boolean(app.sound_enabled),
-        demo: Boolean(app.demo_active),
-      };
+      // Sync after the unlock: a failed one turned sound back off, store that.
+      syncPagePrefs();
       refocusPlaySurface(document.getElementById("ua571"));
     }
   });
 
   document.getElementById("demo").addEventListener("change", (e) => {
-    sharePagePrefs();
-    if (app) {
-      app.set_demo(e.target.checked);
-      refocusPlaySurface(document.getElementById("ua571"));
-    }
+    if (app) app.set_demo(e.target.checked);
+    syncPagePrefs();
+    if (app) refocusPlaySurface(document.getElementById("ua571"));
   });
 
   document.getElementById("skipBoot").addEventListener("change", () => {
-    persistPagePrefs();
+    syncPagePrefs();
     boot();
   });
 
@@ -1000,6 +981,9 @@ export function startPage() {
     els,
   });
   applyPageTheme(document.getElementById("theme").value);
+  // Hydrated (possibly shared-link) values are the baseline: nothing is written
+  // until the user changes something.
+  lastPrefs = snapshotPrefs(prefsContext());
 
   boot();
 }
