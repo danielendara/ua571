@@ -1124,6 +1124,9 @@ function installBootDom({ page = false } = {}) {
         if (!page) return;
         for (const h of handlers) if (h.type === "click") h.fn();
       },
+      fire(type) {
+        for (const h of handlers) if (h.type === type) h.fn({ target: node });
+      },
     };
     els[id] = node;
     return node;
@@ -1587,6 +1590,52 @@ test("Restart after a failed load calls boot again and success replaces the fail
   } finally {
     console.error = orig;
     setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
+test("startPage + boot: a shared ?theme= link writes nothing on the first frame (#194)", async () => {
+  const dom = installBootDom({ page: true });
+  dom.setHost("ua571.danielendara.com");
+  globalThis.location.search = "?theme=green";
+  const prevStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  const store = new Map();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => store.set(k, String(v)),
+      removeItem: (k) => store.delete(k),
+    },
+  });
+  const replaced = [];
+  globalThis.window.history.replaceState = (...args) => replaced.push(args);
+  let release;
+  const gate = new Promise((resolve) => (release = resolve));
+  setBootInstanceLoaderForTests(async () => {
+    await gate;
+    return bootStandIn();
+  });
+  try {
+    startPage();
+    // Before the wasm app exists only startPage's seed guards the baseline.
+    dom.els.sound.fire("change");
+    assert.equal(store.has("ua571.chrome"), false, "nothing stored before boot");
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(dom.els.theme.value, "green");
+    assert.ok(dom.rafs.length >= 1);
+    dom.rafs[dom.rafs.length - 1].cb();
+    assert.equal(store.has("ua571.chrome"), false, "nothing stored");
+    assert.deepEqual(replaced, [], "URL not rewritten");
+    assert.equal(
+      [...store.values()].some((v) => v.includes("touchPad")),
+      false
+    );
+  } finally {
+    setBootInstanceLoaderForTests(null);
+    if (prevStorage) Object.defineProperty(globalThis, "localStorage", prevStorage);
+    else delete globalThis.localStorage;
     dom.restore();
   }
 });
