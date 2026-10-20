@@ -1,5 +1,7 @@
 # Deploying ua571.danielendara.com
 
+CI is unavailable
+
 This project is designed so the **source can be public** while production hosting stays in the maintainer’s AWS account. Contributors never need AWS credentials.
 
 ## Architecture
