@@ -47,6 +47,10 @@ jobs:
           }
           grep -q 'agent.config.json' security/commit-denylist.txt
           echo "secret-guard OK"
+      - name: Docs self-check
+        run: |
+          ./scripts/check-docs.sh
+          ./scripts/check-docs.test.sh
 
   check:
     name: ${{ matrix.os }}
