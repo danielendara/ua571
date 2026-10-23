@@ -743,6 +743,15 @@ export function bindFullscreen({ doc, win, nav, button, stage, canvas, pad, gap 
   };
 }
 
+/** Glue and wasm URLs carrying the same `?v=` so a deploy never pairs new glue with an old binary. */
+export function wasmAssetUrls(buildId, base) {
+  const v = encodeURIComponent(buildId);
+  return {
+    glue: new URL(`./pkg/ua571_web.js?v=${v}`, base).href,
+    wasm: new URL(`./pkg/ua571_web_bg.wasm?v=${v}`, base).href,
+  };
+}
+
 export async function boot() {
   const generation = ++bootGeneration;
   const status = document.getElementById("status");
@@ -761,12 +770,15 @@ export async function boot() {
     if (bootInstanceLoader) {
       created = await bootInstanceLoader(opts);
     } else {
-      // Cache-bust JS (and relative wasm URL via import.meta.url) after each deploy.
+      // Cache-bust glue and wasm with the same BUILD_ID; fetch the wasm in parallel with the glue import.
       const { BUILD_ID } = await import(`./build-id.js?v=${Date.now()}`);
       if (stale()) return;
-      const wasm = await import(`./pkg/ua571_web.js?v=${BUILD_ID}`);
+      const urls = wasmAssetUrls(BUILD_ID, import.meta.url);
+      const wasmFetch = fetch(urls.wasm);
+      wasmFetch.catch(() => {});
+      const wasm = await import(urls.glue);
       if (stale()) return;
-      await wasm.default();
+      await wasm.default({ module_or_path: wasmFetch });
       if (stale()) return;
       showVersion(wasm.pkg_version());
       created = new wasm.Ua571Web(

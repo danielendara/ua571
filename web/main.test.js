@@ -10,6 +10,7 @@ import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   announcementFromStatus,
+  wasmAssetUrls,
   applyDocumentVisibility,
   applyThemeLive,
   THEME_COLORS,
@@ -2515,3 +2516,9 @@ for (const g of GOLDEN) {
     assert.equal(loc.search, g.search);
   });
 }
+
+test("wasmAssetUrls puts the same v= on glue and wasm URLs", () => {
+  const u = wasmAssetUrls("abc123", "https://example.test/app/main.js");
+  assert.equal(u.glue, "https://example.test/app/pkg/ua571_web.js?v=abc123");
+  assert.equal(u.wasm, "https://example.test/app/pkg/ua571_web_bg.wasm?v=abc123");
+});
