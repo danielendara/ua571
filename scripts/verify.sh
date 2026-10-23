@@ -38,7 +38,7 @@ step 6/8 "wasm build + artifact check"
 step 7/8 "web chrome tests: npm --prefix web test"
 npm --prefix web test
 
-step 8/8 "infra typecheck (CDK)"
-(cd infra && npm ci --no-audit --no-fund && npx tsc --noEmit)
+step 8/8 "infra typecheck + CDK tests"
+(cd infra && npm ci --no-audit --no-fund && npx tsc && node --test dist/test/*.test.js)
 
 printf '\nVERIFY PASSED\n'
