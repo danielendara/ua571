@@ -1,0 +1,176 @@
+{
+ "label": "after",
+ "url": "http://127.0.0.1:18602/?boot=0",
+ "results": [
+  {
+   "run": 1,
+   "errors": [
+    "error: Failed to load resource: the server responded with a status of 404 (File not found)"
+   ],
+   "status": "OPTIONS · S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · LINK OK · MANUAL · MUTE",
+   "ver": "v0.2.0",
+   "rows": [
+    {
+     "url": "/pkg/ua571_web_bg.wasm?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0,
+     "ttfbMs": 1.42,
+     "endMs": 1.76,
+     "bytes": 93907
+    },
+    {
+     "url": "/pkg/ua571_web.js?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0.09,
+     "ttfbMs": 2.71,
+     "endMs": 1.9,
+     "bytes": 33408
+    }
+   ]
+  },
+  {
+   "run": 2,
+   "errors": [],
+   "status": "OPTIONS · S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · LINK OK · MANUAL · MUTE",
+   "ver": "v0.2.0",
+   "rows": [
+    {
+     "url": "/pkg/ua571_web_bg.wasm?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0,
+     "ttfbMs": 1.39,
+     "endMs": 1.58,
+     "bytes": 93907
+    },
+    {
+     "url": "/pkg/ua571_web.js?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0.1,
+     "ttfbMs": 2.66,
+     "endMs": 1.88,
+     "bytes": 33408
+    }
+   ]
+  },
+  {
+   "run": 3,
+   "errors": [],
+   "status": "OPTIONS · S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · LINK OK · MANUAL · MUTE",
+   "ver": "v0.2.0",
+   "rows": [
+    {
+     "url": "/pkg/ua571_web_bg.wasm?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0,
+     "ttfbMs": 1.43,
+     "endMs": 1.51,
+     "bytes": 93907
+    },
+    {
+     "url": "/pkg/ua571_web.js?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0.09,
+     "ttfbMs": 1.94,
+     "endMs": 1.24,
+     "bytes": 33408
+    }
+   ]
+  },
+  {
+   "run": 4,
+   "errors": [],
+   "status": "OPTIONS · S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · LINK OK · MANUAL · MUTE",
+   "ver": "v0.2.0",
+   "rows": [
+    {
+     "url": "/pkg/ua571_web_bg.wasm?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0,
+     "ttfbMs": 1.73,
+     "endMs": 1.72,
+     "bytes": 93907
+    },
+    {
+     "url": "/pkg/ua571_web.js?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0.09,
+     "ttfbMs": 3.06,
+     "endMs": 1.8,
+     "bytes": 33408
+    }
+   ]
+  },
+  {
+   "run": 5,
+   "errors": [],
+   "status": "OPTIONS · S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · LINK OK · MANUAL · MUTE",
+   "ver": "v0.2.0",
+   "rows": [
+    {
+     "url": "/pkg/ua571_web_bg.wasm?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0,
+     "ttfbMs": 1.82,
+     "endMs": 2.25,
+     "bytes": 93907
+    },
+    {
+     "url": "/pkg/ua571_web.js?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0.11,
+     "ttfbMs": 2.46,
+     "endMs": 1.81,
+     "bytes": 33408
+    }
+   ]
+  },
+  {
+   "run": 6,
+   "errors": [],
+   "status": "OPTIONS · S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · LINK OK · MANUAL · MUTE",
+   "ver": "v0.2.0",
+   "rows": [
+    {
+     "url": "/pkg/ua571_web_bg.wasm?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0,
+     "ttfbMs": 6.91,
+     "endMs": 3.06,
+     "bytes": 93907
+    },
+    {
+     "url": "/pkg/ua571_web.js?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0.1,
+     "ttfbMs": 17.92,
+     "endMs": 2.14,
+     "bytes": 33408
+    }
+   ]
+  },
+  {
+   "run": 7,
+   "errors": [],
+   "status": "OPTIONS · S1 · 500 rds · AUTO-REMOTE · SEARCH · SAFE · LINK OK · MANUAL · MUTE",
+   "ver": "v0.2.0",
+   "rows": [
+    {
+     "url": "/pkg/ua571_web_bg.wasm?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0,
+     "ttfbMs": 2.57,
+     "endMs": 2.73,
+     "bytes": 93907
+    },
+    {
+     "url": "/pkg/ua571_web.js?v=bf11c93e5524",
+     "status": 200,
+     "startMs": 0.1,
+     "ttfbMs": 3.4,
+     "endMs": 2.82,
+     "bytes": 33408
+    }
+   ]
+  }
+ ]
+}
