@@ -103,12 +103,15 @@ Repo/org variables also work if you prefer; the workflow reads `vars.*`.
 # Upload pkg/ first. Do not `aws s3 sync web/ … --delete` — excluding pkg/*
 # plus --delete wipes destination pkg/ (WASM 404 until re-upload).
 aws s3 sync web/pkg/ s3://$UA571_S3_BUCKET/pkg/ --delete \
+  --exclude "*" --include "*.js" --include "*.wasm" \
   --cache-control "public,max-age=60,must-revalidate"
 aws s3 cp web/pkg/ua571_web_bg.wasm s3://$UA571_S3_BUCKET/pkg/ua571_web_bg.wasm \
   --content-type "application/wasm" \
   --cache-control "public,max-age=60,must-revalidate"
 aws s3 sync web/ s3://$UA571_S3_BUCKET/ \
-  --exclude "pkg/*" --exclude ".gitignore" \
+  --exclude "*" \
+  --include "index.html" --include "main.js" --include "prefs.js" \
+  --include "build-id.js" --include "style.css" --include "*.png" \
   --cache-control "public,max-age=60,must-revalidate"
 aws s3 cp web/manifest.webmanifest s3://$UA571_S3_BUCKET/manifest.webmanifest \
   --content-type "application/manifest+json" \
