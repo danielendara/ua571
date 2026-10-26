@@ -9,14 +9,14 @@ Surfaces: **TUI** (primary, `ua571` binary), **web** (WASM canvas), **pixel** (m
 
 Full gate first: `./scripts/verify.sh` (see AGENTS.md). This skill is for driving the real app.
 
-Evidence dir (outside the repo): `/workspace/verify-2026-10-16/ua571-evidence/` (never commit evidence).
+Evidence dir (outside the repo): set `EVIDENCE` or default `/tmp/ua571-evidence` (never commit evidence).
 
 ## Launch
 
 TUI (build once, each drive in its own tmux session; isolated config/data via temp HOME):
 
 ```bash
-EVIDENCE=/workspace/verify-2026-10-16/ua571-evidence; mkdir -p "$EVIDENCE"
+EVIDENCE="${EVIDENCE:-/tmp/ua571-evidence}"; mkdir -p "$EVIDENCE"
 cargo build -p ua571-tui --release --locked        # binary: target/release/ua571
 CFG=$(mktemp -d); S=ua571-verify-$$
 tmux new-session -d -s $S -x 100 -y 30 \

@@ -180,6 +180,8 @@ See [NOTICE](NOTICE) for the full film disclaimer and upstream credit.
 
 ## Development
 
+Full local gate (matches CI): `./scripts/verify.sh` (secret guard, fmt, clippy, tests, coverage, wasm, web, infra).
+
 ```bash
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
