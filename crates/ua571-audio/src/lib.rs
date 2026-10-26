@@ -49,11 +49,15 @@ impl FireAudio {
         if self.muted || count == 0 {
             return;
         }
-        let n = count.min(ua571_core::MAX_FIRE_SFX_BURST as u32) as usize;
+        let max_burst =
+            u32::try_from(ua571_core::MAX_FIRE_SFX_BURST).expect("MAX_FIRE_SFX_BURST fits in u32");
+        let n = count.min(max_burst) as usize;
         if n == 1 {
             self.play_fire();
             return;
         }
+        // Rounded f32 sample spacing; burst length is bounded so this fits in usize.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let period = ((self.sample_rate as f32) / FIRE_CYCLIC_HZ).round() as usize;
         let total = period * (n - 1) + self.samples.len();
         let mut buf = vec![0.0f32; total];

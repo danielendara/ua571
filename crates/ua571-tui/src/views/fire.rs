@@ -213,7 +213,13 @@ fn draw_vertical_gauge(frame: &mut Frame, area: Rect, theme: &ConsoleTheme, spec
         height: bar_area.height,
     };
 
-    let filled_rows = ((f64::from(bar_rect.height) * ratio).round() as u16).min(bar_rect.height);
+    let scaled = (f64::from(bar_rect.height) * ratio)
+        .round()
+        .clamp(0.0, f64::from(bar_rect.height));
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let filled_rows = u16::try_from(scaled as u64)
+        .unwrap_or(0)
+        .min(bar_rect.height);
     let empty_style = theme.dim_style();
     let filled_style = spec.style;
     let buf = frame.buffer_mut();

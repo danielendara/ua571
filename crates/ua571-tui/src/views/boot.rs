@@ -19,7 +19,7 @@ pub fn draw(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rec
     let progress = if state.boot_ticks_remaining > 0 {
         let total = 40u32;
         let done = total.saturating_sub(state.boot_ticks_remaining);
-        let filled = ((done as f32 / total as f32) * 24.0) as usize;
+        let filled = usize::try_from(u64::from(done) * 24 / u64::from(total)).unwrap_or(24);
         let bar = format!(
             "[{}{}]",
             "█".repeat(filled.min(24)),

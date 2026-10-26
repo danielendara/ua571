@@ -202,6 +202,12 @@ pub fn default_config_path() -> Option<std::path::PathBuf> {
     dirs::config_dir().map(|d| d.join("ua571").join("config.toml"))
 }
 
+/// Load a TOML config file from `path`.
+///
+/// # Errors
+///
+/// Returns [`ConfigLoadError::Read`] when the file cannot be read and
+/// [`ConfigLoadError::Parse`] when the contents are not valid TOML for [`Config`].
 #[cfg(not(target_arch = "wasm32"))]
 pub fn load_toml_config(path: &std::path::Path) -> Result<Config, ConfigLoadError> {
     let text = std::fs::read_to_string(path).map_err(|source| ConfigLoadError::Read {
@@ -218,6 +224,10 @@ pub fn load_toml_config(path: &std::path::Path) -> Result<Config, ConfigLoadErro
 ///
 /// See `load_native_startup` for the full precedence chain including the saved
 /// session.
+///
+/// # Errors
+///
+/// Same as [`load_config_file`] and [`apply_cli_overrides`].
 #[cfg(not(target_arch = "wasm32"))]
 pub fn load_native_config(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
     let mut config = load_config_file(cli)?;
@@ -227,6 +237,11 @@ pub fn load_native_config(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
 
 /// The config-file rung of the precedence chain: an explicit `--config` path,
 /// else `~/.config/ua571/config.toml`, else built-in defaults.
+///
+/// # Errors
+///
+/// Returns [`ConfigLoadError`] when an explicit or default config path exists but
+/// cannot be read or parsed.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn load_config_file(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
     Ok(if let Some(path) = &cli.config {
@@ -243,6 +258,10 @@ pub fn load_config_file(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
 }
 
 /// The CLI rung: only flags that were actually passed override anything.
+///
+/// # Errors
+///
+/// Returns [`ConfigLoadError::UnknownTheme`] when `--theme` names an unsupported theme.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn apply_cli_overrides(config: &mut Config, cli: &NativeCli) -> Result<(), ConfigLoadError> {
     if let Some(theme) = &cli.theme {

@@ -11,6 +11,9 @@ readme = "../../README.md"
 keywords = ["aliens", "sentry", "simulation", "tui"]
 categories = ["games", "simulation"]
 
+[lints]
+workspace = true
+
 [dependencies]
 serde = { workspace = true, optional = true }
 

@@ -5,6 +5,8 @@
 //!
 //! Precedence: **CLI flag → saved session → config file → built-in defaults.**
 
+use std::fmt::Write;
+
 use crate::config::Theme;
 use crate::options::{IffStatus, SystemMode, WeaponStatus};
 
@@ -31,19 +33,19 @@ impl SessionPrefs {
         let mut out =
             String::from("# Written by ua571 on exit. Hand edits belong in config.toml.\n");
         if let Some(theme) = self.theme {
-            out.push_str(&format!("theme = \"{}\"\n", theme.as_str()));
+            let _ = writeln!(out, "theme = \"{}\"", theme.as_str());
         }
         if let Some(sound) = self.sound {
-            out.push_str(&format!("sound = {sound}\n"));
+            let _ = writeln!(out, "sound = {sound}");
         }
         if let Some(mode) = self.system_mode {
-            out.push_str(&format!("system_mode = \"{}\"\n", mode.wire_name()));
+            let _ = writeln!(out, "system_mode = \"{}\"", mode.wire_name());
         }
         if let Some(weapon) = self.weapon_status {
-            out.push_str(&format!("weapon_status = \"{}\"\n", weapon.wire_name()));
+            let _ = writeln!(out, "weapon_status = \"{}\"", weapon.wire_name());
         }
         if let Some(iff) = self.iff_status {
-            out.push_str(&format!("iff_status = \"{}\"\n", iff.wire_name()));
+            let _ = writeln!(out, "iff_status = \"{}\"", iff.wire_name());
         }
         out
     }
@@ -88,6 +90,11 @@ pub struct NativeStartup {
 ///
 /// A missing session file is silent; an unreadable or unparsable one is ignored
 /// with a notice, never a failed boot.
+///
+/// # Errors
+///
+/// Returns [`crate::config::ConfigLoadError`] when the config file cannot be read or
+/// parsed, or when a CLI override is invalid (e.g. unknown theme).
 pub fn load_native_startup(
     cli: &crate::config::NativeCli,
 ) -> Result<NativeStartup, crate::config::ConfigLoadError> {
@@ -128,6 +135,10 @@ pub fn load_native_startup(
 
 /// The precedence chain itself, free of the filesystem so each rung is testable:
 /// config file (already loaded) → saved session → CLI flags → clamp.
+///
+/// # Errors
+///
+/// Returns [`crate::config::ConfigLoadError`] when a CLI override is invalid.
 pub fn compose_config(
     mut config: crate::config::Config,
     session: Option<&SessionPrefs>,
@@ -200,6 +211,11 @@ pub fn load_session(path: &std::path::Path) -> Option<SessionPrefs> {
 
 /// Writes the session atomically (temp file + rename), so a kill mid-write
 /// cannot leave a truncated file that breaks the next launch.
+///
+/// # Errors
+///
+/// Returns [`std::io::Error`] if the config directory cannot be created, the temp
+/// file cannot be written, or the rename to the final path fails.
 pub fn save_session(path: &std::path::Path, prefs: &SessionPrefs) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;

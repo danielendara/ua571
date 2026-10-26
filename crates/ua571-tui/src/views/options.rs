@@ -39,9 +39,10 @@ fn draw_section_row(
     area: Rect,
     sections: &[MenuSection],
 ) {
+    let section_count = u32::try_from(sections.len()).unwrap_or(1);
     let constraints: Vec<Constraint> = sections
         .iter()
-        .map(|_| Constraint::Ratio(1, sections.len() as u32))
+        .map(|_| Constraint::Ratio(1, section_count))
         .collect();
 
     let cells = Layout::default()

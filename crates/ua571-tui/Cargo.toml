@@ -11,6 +11,9 @@ readme = "../../README.md"
 keywords = ["aliens", "sentry", "ratatui", "tui"]
 categories = ["command-line-utilities", "games"]
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "ua571"
 path = "src/main.rs"

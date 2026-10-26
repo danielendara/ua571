@@ -23,6 +23,28 @@ pub fn fire_burst_pcm() -> (u32, Vec<f32>) {
     decode_wav_pcm16(FIRE_BURST_WAV).expect("bundled fire_burst.wav is PCM16")
 }
 
+fn read_u32_le(bytes: &[u8], start: usize) -> Result<u32, &'static str> {
+    let end = start + 4;
+    if end > bytes.len() {
+        return Err("truncated chunk");
+    }
+    let chunk: [u8; 4] = bytes[start..end]
+        .try_into()
+        .map_err(|_| "truncated chunk")?;
+    Ok(u32::from_le_bytes(chunk))
+}
+
+fn read_u16_le(bytes: &[u8], start: usize) -> Result<u16, &'static str> {
+    let end = start + 2;
+    if end > bytes.len() {
+        return Err("truncated chunk");
+    }
+    let chunk: [u8; 2] = bytes[start..end]
+        .try_into()
+        .map_err(|_| "truncated chunk")?;
+    Ok(u16::from_le_bytes(chunk))
+}
+
 fn decode_wav_pcm16(bytes: &[u8]) -> Result<(u32, Vec<f32>), &'static str> {
     if bytes.len() < 44 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
         return Err("not a WAVE file");
@@ -34,16 +56,16 @@ fn decode_wav_pcm16(bytes: &[u8]) -> Result<(u32, Vec<f32>), &'static str> {
     let mut data: &[u8] = &[];
     while pos + 8 <= bytes.len() {
         let id = &bytes[pos..pos + 4];
-        let size = u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap()) as usize;
+        let size = usize::try_from(read_u32_le(bytes, pos + 4)?).map_err(|_| "chunk too large")?;
         let start = pos + 8;
         let end = start.saturating_add(size);
         if end > bytes.len() {
             return Err("truncated chunk");
         }
         if id == b"fmt " && size >= 16 {
-            ch = u16::from_le_bytes(bytes[start + 2..start + 4].try_into().unwrap());
-            sr = u32::from_le_bytes(bytes[start + 4..start + 8].try_into().unwrap());
-            bits = u16::from_le_bytes(bytes[start + 14..start + 16].try_into().unwrap());
+            ch = read_u16_le(bytes, start + 2)?;
+            sr = read_u32_le(bytes, start + 4)?;
+            bits = read_u16_le(bytes, start + 14)?;
         } else if id == b"data" {
             data = &bytes[start..end];
         }
@@ -188,6 +210,18 @@ mod tests {
         let expected = (u64::from(FIRE_SFX_SAMPLE_RATE) * u64::from(FIRE_SFX_MS) / 1000) as usize;
         assert_eq!(s.len(), expected);
         assert!(s.iter().all(|v| v.is_finite() && v.abs() <= 1.0));
+    }
+
+    #[test]
+    fn truncated_wav_chunk_returns_err() {
+        // `fmt ` claims 32-byte payload; file is 44 bytes (min WAVE length) so chunk is truncated.
+        let mut wav = Vec::from(b"RIFF\x00\x00\x00\x00WAVEfmt \x20\x00\x00\x00");
+        wav.resize(44, 0);
+        assert_eq!(decode_wav_pcm16(&wav), Err("truncated chunk"));
+
+        // 14-byte buffer: a u16 read at offset 13 needs bytes 13..15 (past the end).
+        let fourteen = [0u8; 14];
+        assert_eq!(read_u16_le(&fourteen, 13), Err("truncated chunk"));
     }
 
     #[test]

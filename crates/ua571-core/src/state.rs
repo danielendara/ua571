@@ -254,7 +254,9 @@ impl AppState {
         }
 
         let fired = {
-            let s = self.active_sentry_mut().unwrap();
+            let Some(s) = self.active_sentry_mut() else {
+                return false;
+            };
             s.fire.fire()
         };
 
@@ -272,8 +274,9 @@ impl AppState {
                 self.log.push(LogKind::Critical { sentry: id, rounds });
             }
             if self.config.sound {
-                self.pending_fire_sfx =
-                    (self.pending_fire_sfx + 1).min(crate::sfx::MAX_FIRE_SFX_BURST as u32);
+                let max_burst = u32::try_from(crate::sfx::MAX_FIRE_SFX_BURST)
+                    .expect("MAX_FIRE_SFX_BURST fits in u32");
+                self.pending_fire_sfx = (self.pending_fire_sfx + 1).min(max_burst);
             }
         } else {
             self.log.push(LogKind::Empty { sentry: id });

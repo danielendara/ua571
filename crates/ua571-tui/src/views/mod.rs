@@ -76,9 +76,8 @@ fn too_small_text(width: u16, height: u16) -> String {
 
 fn draw_too_small(frame: &mut Frame, theme: &ConsoleTheme, area: Rect) {
     let text = too_small_text(area.width, area.height);
-    let rows = (text.chars().count() as u16)
-        .div_ceil(area.width.max(1))
-        .min(area.height);
+    let char_count = u16::try_from(text.chars().count()).unwrap_or(u16::MAX);
+    let rows = char_count.div_ceil(area.width.max(1)).min(area.height);
     let centred = Rect {
         y: area.y + (area.height - rows) / 2,
         height: rows,
