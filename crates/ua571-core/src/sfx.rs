@@ -214,9 +214,14 @@ mod tests {
 
     #[test]
     fn truncated_wav_chunk_returns_err() {
-        let wav = FIRE_BURST_WAV;
-        let cut = wav.len().min(48);
-        assert!(decode_wav_pcm16(&wav[..cut]).is_err());
+        // `fmt ` claims 32-byte payload; file is 44 bytes (min WAVE length) so chunk is truncated.
+        let mut wav = Vec::from(b"RIFF\x00\x00\x00\x00WAVEfmt \x20\x00\x00\x00");
+        wav.resize(44, 0);
+        assert_eq!(decode_wav_pcm16(&wav), Err("truncated chunk"));
+
+        // 14-byte buffer: a u16 read at offset 13 needs bytes 13..15 (past the end).
+        let fourteen = [0u8; 14];
+        assert_eq!(read_u16_le(&fourteen, 13), Err("truncated chunk"));
     }
 
     #[test]

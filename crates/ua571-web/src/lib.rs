@@ -16,6 +16,10 @@ use web_sys::{
 };
 use web_time::{Duration, Instant};
 
+fn usize_to_u32(value: usize) -> Result<u32, JsValue> {
+    u32::try_from(value).map_err(|_| JsValue::from_str("value out of range for u32"))
+}
+
 /// Browser console app bound to a canvas element id.
 #[wasm_bindgen]
 pub struct Ua571Web {
@@ -95,8 +99,12 @@ impl Ua571Web {
             .ok_or_else(|| JsValue::from_str("canvas not found"))?
             .dyn_into::<HtmlCanvasElement>()?;
 
-        let display_w = (WIDTH as u32) * scale;
-        let display_h = (HEIGHT as u32) * scale;
+        let display_w = usize_to_u32(WIDTH)?
+            .checked_mul(scale)
+            .ok_or_else(|| JsValue::from_str("display width overflow"))?;
+        let display_h = usize_to_u32(HEIGHT)?
+            .checked_mul(scale)
+            .ok_or_else(|| JsValue::from_str("display height overflow"))?;
         canvas.set_width(display_w);
         canvas.set_height(display_h);
 
@@ -423,7 +431,8 @@ impl Ua571Web {
         if ac.state() == AudioContextState::Suspended {
             let _ = ac.resume();
         }
-        let n = count.min(MAX_FIRE_SFX_BURST as u32);
+        let max_burst = usize_to_u32(MAX_FIRE_SFX_BURST).expect("MAX_FIRE_SFX_BURST fits in u32");
+        let n = count.min(max_burst);
         let period = 1.0 / f64::from(FIRE_CYCLIC_HZ);
         let now = ac.current_time();
         for k in 0..n {
@@ -443,7 +452,7 @@ fn play_buffer(
     sample_rate: f32,
     when: f64,
 ) -> Result<(), JsValue> {
-    let n = samples.len() as u32;
+    let n = usize_to_u32(samples.len())?;
     let buffer = ac.create_buffer(1, n, sample_rate)?;
     let channel = samples.to_vec();
     buffer.copy_to_channel(&channel, 0)?;
