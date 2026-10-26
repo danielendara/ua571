@@ -1,9 +1,8 @@
 //! Shared fire-deny classification for pixel, web, and TUI.
 //!
-//! `AppState::fire()` logs OFFLINE / LINK DOWN / SAFE / DRUM EMPTY / CRITICAL
-//! into the event log. Frontends that show a one-shot status line (web `#status`,
-//! pixel window title) should use [`fire_deny_reason`] so every console shares the
-//! same reason classes and copy.
+//! Fire input goes through [`crate::keys::apply_command`] → [`fire_with_status`].
+//! One-shot status lines (web `#status`, pixel title) use the returned
+//! `Option<FireDenyReason>`; [`fire_deny_reason`] is for read-only checks.
 
 use crate::state::AppState;
 

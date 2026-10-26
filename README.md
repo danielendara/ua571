@@ -180,6 +180,14 @@ See [NOTICE](NOTICE) for the full film disclaimer and upstream credit.
 
 ## Development
 
+Canonical local gate (mirrors CI): **`./scripts/verify.sh`**
+
+```bash
+./scripts/verify.sh
+```
+
+Individual checks if you are iterating:
+
 ```bash
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
