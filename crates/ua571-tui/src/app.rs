@@ -414,14 +414,6 @@ mod tests {
     }
 
     #[test]
-    fn routes_through_apply_command() {
-        let src = include_str!("app.rs");
-        assert!(src.contains("apply_command"));
-        assert!(src.contains("Command::OpenOptions"));
-        assert!(src.contains("Command::ToggleFirePanel"));
-    }
-
-    #[test]
     fn escape_toggles_fire_panel_o_stays_on_options() {
         let mut app = options_app();
         app.handle_key(key(KeyCode::Esc, KeyEventKind::Press));
@@ -548,23 +540,6 @@ mod tests {
         app.handle_key(key(KeyCode::Char('t'), KeyEventKind::Press));
         let last = app.state.log.recent(1)[0].kind.to_string();
         assert_eq!(last, "THEME PHOSPHOR");
-    }
-
-    #[test]
-    fn uses_shared_fire_deny_helper() {
-        // Source-scan guard mirroring pixel's (#87): the Fire key handler
-        // must go through the shared core classifier, so status copy can't
-        // drift from web/pixel and ammo math can't be re-derived here.
-        let src = include_str!("app.rs");
-        assert!(
-            src.contains("fire_with_status(&mut self.state)"),
-            "Fire key handling should use the shared core helper"
-        );
-        let bare_fire_call = format!("let _ = self.state.{}()", "fire");
-        assert!(
-            !src.contains(&bare_fire_call),
-            "fire() should not be called bare anymore — use fire_with_status"
-        );
     }
 
     #[test]

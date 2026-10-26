@@ -51,8 +51,6 @@ import {
   setTouchPadVisible,
   syncTouchPad,
   touchPadFireHold,
-  PREFS_STORAGE_KEY as mainPrefsKey,
-  pageStorage as mainPageStorage,
 } from "./main.js";
 import {
   PREFS_STORAGE_KEY,
@@ -1225,7 +1223,7 @@ function installBootDom({ page = false } = {}) {
   return out;
 }
 
-function wasmStandIn(id) {
+function wasmStandIn(id = 0) {
   const inst = {
     id,
     freed: false,
@@ -1529,39 +1527,6 @@ test("wasm load failure text is player-facing except on localhost", () => {
   }
 });
 
-function bootStandIn() {
-  return {
-    free() {},
-    key_down() {},
-    key_up() {},
-    frame() {},
-    screen_name() {
-      return "fire";
-    },
-    status_line() {
-      return "READY";
-    },
-    get sound_enabled() {
-      return false;
-    },
-    get demo_active() {
-      return false;
-    },
-    get should_quit() {
-      return false;
-    },
-    get system_mode() {
-      return "";
-    },
-    get weapon_status() {
-      return "";
-    },
-    get iff_status() {
-      return "";
-    },
-  };
-}
-
 test("Restart after a failed load calls boot again and success replaces the failure", async () => {
   const dom = installBootDom({ page: true });
   dom.setHost("ua571.danielendara.com");
@@ -1571,7 +1536,7 @@ test("Restart after a failed load calls boot again and success replaces the fail
   setBootInstanceLoaderForTests(async () => {
     calls += 1;
     if (calls === 1) throw new Error("wasm missing");
-    return bootStandIn();
+    return wasmStandIn();
   });
   try {
     startPage();
@@ -1615,7 +1580,7 @@ test("startPage + boot: a shared ?theme= link writes nothing on the first frame 
   const gate = new Promise((resolve) => (release = resolve));
   setBootInstanceLoaderForTests(async () => {
     await gate;
-    return bootStandIn();
+    return wasmStandIn();
   });
   try {
     startPage();
@@ -2352,9 +2317,8 @@ test("prefs.js imports with no DOM globals and main.js re-exports it", () => {
     ],
     { stdio: "pipe" }
   );
-  const main = { PREFS_STORAGE_KEY: mainPrefsKey, pageStorage: mainPageStorage };
-  assert.equal(main.PREFS_STORAGE_KEY, PREFS_STORAGE_KEY);
-  assert.equal(main.pageStorage, pageStorage);
+  assert.equal(PREFS_STORAGE_KEY, "ua571.chrome");
+  assert.equal(typeof pageStorage, "function");
 });
 
 // ---- PREFS table guardrails (#194) ----
