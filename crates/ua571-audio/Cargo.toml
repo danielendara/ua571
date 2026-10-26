@@ -9,6 +9,9 @@ rust-version.workspace = true
 description = "Native fire SFX for the UA 571-C console (rodio)"
 readme = "../../README.md"
 
+[lints]
+workspace = true
+
 [dependencies]
 ua571-core = { workspace = true }
 rodio = { version = "0.22.2", default-features = true }

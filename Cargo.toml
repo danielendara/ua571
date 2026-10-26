@@ -18,6 +18,14 @@ repository = "https://github.com/danielendara/ua571"
 authors = ["Daniel Endara"]
 rust-version = "1.80" # MSRV floor for `cargo` metadata; pinned toolchain is in rust-toolchain.toml
 
+[workspace.lints.clippy]
+unwrap_used = "warn"
+cast_possible_truncation = "warn"
+cast_sign_loss = "warn"
+cast_possible_wrap = "warn"
+undocumented_unsafe_blocks = "warn"
+missing_errors_doc = "warn"
+
 [workspace.dependencies]
 ua571-core = { path = "crates/ua571-core", version = "0.2.0" }
 ua571-render = { path = "crates/ua571-render", version = "0.2.0" }

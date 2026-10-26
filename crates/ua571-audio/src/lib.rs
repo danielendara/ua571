@@ -3,6 +3,11 @@
 //! Web uses the same PCM through Web Audio in `ua571-web`.
 
 #![forbid(unsafe_code)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
 
 use std::num::{NonZeroU16, NonZeroU32};
 

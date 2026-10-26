@@ -11,6 +11,9 @@ readme = "../../README.md"
 keywords = ["aliens", "sentry", "grid", "pixel"]
 categories = ["games", "graphics"]
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "ua571-pixel"
 path = "src/main.rs"

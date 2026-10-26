@@ -54,6 +54,11 @@ impl Ua571Web {
     ///   anything else (including empty/missing) falls back to that type's
     ///   default rather than failing boot. Applied to the active sentry
     ///   (index 0, same as a fresh `AppState`) before the first frame.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JsValue`] with a short message when the document, canvas, or 2D
+    /// context is missing, or when Web APIs used during setup fail.
     #[wasm_bindgen(constructor)]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -167,6 +172,10 @@ impl Ua571Web {
     ///
     /// While the document is hidden, skip ticks and SFX so a background tab
     /// does not drain battery or play surprise audio. Game state is left as-is.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JsValue`] when a Web API call made while ticking or drawing fails.
     pub fn frame(&mut self) -> Result<(), JsValue> {
         if !idle_runtime(self.hidden, self.state.config.sound).tick {
             return Ok(());
@@ -357,6 +366,10 @@ impl Ua571Web {
     /// * `Err` — `resume()` rejected.
     ///
     /// Does not change `config.sound` or hidden-tab mute (`set_hidden`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JsValue`] when [`AudioContext::resume`] rejects.
     pub async fn unlock_audio(&mut self) -> Result<bool, JsValue> {
         self.ensure_audio();
         let Some(ac) = self.audio.as_ref() else {

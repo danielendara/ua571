@@ -8,6 +8,8 @@ use crate::options::{OptionsState, WeaponStatus};
 
 pub const SENTRY_COUNT: usize = 4;
 
+const LAST_SENTRY_ID: u8 = 4;
+
 /// Circled unit mark for sentry `id` (1→A … 4→D).
 pub fn sentry_mark_char(id: u8) -> char {
     match id {
@@ -32,7 +34,7 @@ pub struct Sentry {
 
 impl Sentry {
     pub fn new(id: u8, starting_rounds: u16) -> Self {
-        assert!((1..=SENTRY_COUNT as u8).contains(&id));
+        assert!((1..=LAST_SENTRY_ID).contains(&id));
         Self {
             id,
             options: OptionsState::default(),
@@ -61,7 +63,10 @@ pub struct SentryBank {
 impl SentryBank {
     pub fn new(starting_rounds: u16) -> Self {
         Self {
-            units: std::array::from_fn(|i| Sentry::new((i + 1) as u8, starting_rounds)),
+            units: std::array::from_fn(|i| {
+                let id = u8::try_from(i + 1).expect("sentry index fits in u8");
+                Sentry::new(id, starting_rounds)
+            }),
         }
     }
 

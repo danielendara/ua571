@@ -9,5 +9,8 @@ rust-version.workspace = true
 description = "GRiD-faithful monochrome framebuffer renderer for UA 571-C"
 readme = "../../README.md"
 
+[lints]
+workspace = true
+
 [dependencies]
 ua571-core = { workspace = true }
