@@ -106,6 +106,9 @@ jobs:
           #    pkg/ from a parent sync that excludes it).
           aws s3 sync web/pkg/ "s3://${UA571_S3_BUCKET}/pkg/" \
             --delete \
+            --exclude "*" \
+            --include "*.js" \
+            --include "*.wasm" \
             --cache-control "${CACHE}"
           aws s3 cp web/pkg/ua571_web_bg.wasm "s3://${UA571_S3_BUCKET}/pkg/ua571_web_bg.wasm" \
             --content-type "application/wasm" \
@@ -113,8 +116,13 @@ jobs:
           # 2) Site chrome. No --delete: excluding pkg/* plus --delete would
           #    treat destination pkg/ as extra and wipe the just-uploaded WASM.
           aws s3 sync web/ "s3://${UA571_S3_BUCKET}/" \
-            --exclude "pkg/*" \
-            --exclude ".gitignore" \
+            --exclude "*" \
+            --include "index.html" \
+            --include "main.js" \
+            --include "prefs.js" \
+            --include "build-id.js" \
+            --include "style.css" \
+            --include "*.png" \
             --cache-control "${CACHE}"
           # s3 sync has no .webmanifest MIME mapping and would store it as
           # binary/octet-stream, which breaks installability.
