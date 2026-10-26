@@ -8,6 +8,20 @@ import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 
+/** The site is fully same-origin with no inline script/style; wasm needs 'wasm-unsafe-eval'. */
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
+  "style-src 'self'",
+  "img-src 'self'",
+  "connect-src 'self'",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'none'",
+].join('; ');
+
 export class Ua571WebStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -96,13 +110,11 @@ export class Ua571WebStack extends cdk.Stack {
             preload: false,
             override: true,
           },
-          xssProtection: {
-            protection: true,
-            modeBlock: true,
+          contentSecurityPolicy: {
+            contentSecurityPolicy: CONTENT_SECURITY_POLICY,
             override: true,
           },
         },
-        // Allow wasm + modules; tighten further if you add a full CSP later.
         customHeadersBehavior: {
           customHeaders: [
             {
