@@ -155,6 +155,8 @@ SPA-style paths without a file extension (`/foo`) are rewritten to `/index.html`
 | `domainName` | `ua571.danielendara.com` |
 | `hostedZoneName` | `danielendara.com` |
 | `githubRepo` | `danielendara/ua571` |
+| `githubOwnerId` | `293949` (GitHub numeric owner id for OIDC `sub` immutable form) |
+| `githubRepoId` | `1315671999` (GitHub numeric repo id; same) |
 | `githubOidcProviderArn` | (optional) existing OIDC provider |
 
 ## Cost notes
