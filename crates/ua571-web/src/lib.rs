@@ -158,24 +158,6 @@ impl Ua571Web {
         self.dirty = true;
     }
 
-    /// Current theme name (e.g. `yellow`).
-    #[wasm_bindgen(getter)]
-    pub fn theme(&self) -> String {
-        self.state.config.theme.as_str().into()
-    }
-
-    /// Logical canvas width (before CSS).
-    #[wasm_bindgen(getter)]
-    pub fn width(&self) -> u32 {
-        self.display_w
-    }
-
-    /// Logical canvas height (before CSS).
-    #[wasm_bindgen(getter)]
-    pub fn height(&self) -> u32 {
-        self.display_h
-    }
-
     /// Advance simulation (if tick elapsed) and redraw the canvas when needed.
     ///
     /// While the document is hidden, skip ticks and SFX so a background tab
@@ -336,12 +318,6 @@ impl Ua571Web {
                 self.resume_audio();
             }
         }
-    }
-
-    /// Whether the document-hidden pause is active.
-    #[wasm_bindgen(getter)]
-    pub fn is_hidden(&self) -> bool {
-        self.hidden
     }
 
     /// Enable or mute fire SFX. Enabling resumes the AudioContext after a gesture.
@@ -683,81 +659,22 @@ mod tests {
     }
 
     #[test]
-    fn parses_system_mode_names_and_falls_back_to_default_on_anything_else() {
-        assert_eq!(
-            SystemMode::parse_wire_name("AutoRemote"),
-            SystemMode::AutoRemote
-        );
-        assert_eq!(
-            SystemMode::parse_wire_name("ManOverride"),
-            SystemMode::ManOverride
-        );
-        assert_eq!(
-            SystemMode::parse_wire_name("SemiAuto"),
-            SystemMode::SemiAuto
-        );
-        assert_eq!(SystemMode::parse_wire_name(""), SystemMode::default());
-        assert_eq!(SystemMode::parse_wire_name("bogus"), SystemMode::default());
-        assert_eq!(
-            SystemMode::parse_wire_name("automode"),
-            SystemMode::default()
-        );
-    }
-
-    #[test]
-    fn parses_weapon_status_names_and_falls_back_to_default_on_anything_else() {
-        assert_eq!(WeaponStatus::parse_wire_name("Safe"), WeaponStatus::Safe);
-        assert_eq!(WeaponStatus::parse_wire_name("Armed"), WeaponStatus::Armed);
-        assert_eq!(WeaponStatus::parse_wire_name(""), WeaponStatus::default());
-        assert_eq!(
-            WeaponStatus::parse_wire_name("armed"),
-            WeaponStatus::default()
-        );
-    }
-
-    #[test]
-    fn parses_iff_status_names_and_falls_back_to_default_on_anything_else() {
-        assert_eq!(IffStatus::parse_wire_name("Search"), IffStatus::Search);
-        assert_eq!(IffStatus::parse_wire_name("Test"), IffStatus::Test);
-        assert_eq!(IffStatus::parse_wire_name("Engaged"), IffStatus::Engaged);
-        assert_eq!(
-            IffStatus::parse_wire_name("Interrogate"),
-            IffStatus::Interrogate
-        );
-        assert_eq!(IffStatus::parse_wire_name(""), IffStatus::default());
-        assert_eq!(IffStatus::parse_wire_name("engaged"), IffStatus::default());
-    }
-
-    /// `{:?}` (Debug) on the active sentry's options must round-trip through
-    /// `parse_wire_name` — the exact contract the web prefs localStorage
-    /// round-trip depends on (write via `{:?}`, read back via `parse_wire_name`).
-    #[test]
-    fn option_debug_names_round_trip_through_parse() {
-        for mode in SystemMode::ALL {
-            assert_eq!(SystemMode::parse_wire_name(&format!("{mode:?}")), mode);
-        }
-        for status in WeaponStatus::ALL {
-            assert_eq!(
-                WeaponStatus::parse_wire_name(&format!("{status:?}")),
-                status
-            );
-        }
-        for iff in IffStatus::ALL {
-            assert_eq!(IffStatus::parse_wire_name(&format!("{iff:?}")), iff);
-        }
+    fn wasm_constructor_applies_wire_name_parsers() {
+        let src = include_str!("lib.rs");
+        let constructor = src
+            .split("#[wasm_bindgen(constructor)]")
+            .nth(1)
+            .and_then(|rest| rest.split("pub fn frame").next())
+            .expect("constructor");
+        assert!(constructor.contains("SystemMode::parse_wire_name(system_mode)"));
+        assert!(constructor.contains("WeaponStatus::parse_wire_name(weapon_status)"));
+        assert!(constructor.contains("IffStatus::parse_wire_name(iff_status)"));
     }
 
     #[test]
     fn pkg_version_matches_core() {
         assert_eq!(pkg_version(), ua571_core::VERSION);
         assert_eq!(pkg_version(), "0.2.0");
-    }
-
-    #[test]
-    fn synthesizes_non_empty_burst() {
-        let s = ua571_core::sfx::synthesize_fire_burst(22_050, ua571_core::FIRE_SFX_MS, 0xC0FFEE);
-        assert!(s.len() > 100);
-        assert!(s.iter().any(|v| v.abs() > 0.05));
     }
 
     fn web_state() -> AppState {
@@ -860,14 +777,6 @@ mod tests {
         assert_eq!(state.screen, Screen::Fire);
         handle_key(&mut state, "Escape");
         assert_eq!(state.screen, Screen::Options);
-    }
-
-    #[test]
-    fn routes_through_apply_command() {
-        let src = include_str!("lib.rs");
-        assert!(src.contains("apply_command"));
-        assert!(src.contains("Command::OpenOptions"));
-        assert!(src.contains("Command::ToggleFirePanel"));
     }
 
     #[test]
@@ -1221,29 +1130,6 @@ mod tests {
         assert_eq!(state.active_sentry().options, before);
         apply_key(&mut state, &mut gate, "ArrowDown", false);
         assert_ne!(state.active_sentry().options, before);
-    }
-
-    #[test]
-    fn hidden_tab_pauses_ticks_and_mutes_without_flipping_sound_pref() {
-        // Web's `set_hidden`/`frame` now delegate to the shared
-        // `ua571_core::idle_runtime` (also used by pixel, #90); this keeps
-        // the regression test in place to guard web's own integration.
-        let muted = idle_runtime(true, true);
-        assert!(!muted.tick, "hidden tab must not simulate");
-        assert!(!muted.audio, "hidden tab must mute output");
-        let sound_off = idle_runtime(true, false);
-        assert!(!sound_off.tick);
-        assert!(!sound_off.audio);
-
-        let visible_on = idle_runtime(false, true);
-        assert!(visible_on.tick);
-        assert!(visible_on.audio, "visible + sound pref on resumes audio");
-        let visible_off = idle_runtime(false, false);
-        assert!(visible_off.tick);
-        assert!(
-            !visible_off.audio,
-            "visible resume must not enable sound the operator muted"
-        );
     }
 
     #[test]

@@ -36,8 +36,6 @@ features = [
     "HtmlCanvasElement",
     "CanvasRenderingContext2d",
     "ImageData",
-    "CssStyleDeclaration",
-    "KeyboardEvent",
     # Fire SFX (Web Audio API)
     "AudioContext",
     "AudioContextState",

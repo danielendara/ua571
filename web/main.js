@@ -125,21 +125,6 @@ import {
   syncPrefs,
 } from "./prefs.js";
 
-// Re-exported so existing importers of main.js keep working.
-export {
-  PREFS_STORAGE_KEY,
-  pageStorage,
-  readStoredPrefs,
-  writeStoredPrefs,
-  prefsFromSearch,
-  searchFromPrefs,
-  syncShareUrl,
-  selectHasValue,
-  applyPrefsToElements,
-  hydrateChromePrefs,
-  snapshotPrefs,
-  syncPrefs,
-};
 export function isChromeTarget(el) {
   return Boolean(
     el &&
