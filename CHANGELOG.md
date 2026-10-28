@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Web: the WASM binary URL is versioned with the build id and fetched alongside the JS glue, so a deploy can't pair new glue with a cached old binary (#200, #203)
+- Core: the SFX WAV parser returns an error on truncated chunks instead of indexing past the end of the buffer (#207)
 - Web: the console keeps running when `localStorage` is blocked, full, or throws; prefs just stop persisting (#169)
 - Web: an unknown `?theme=` / `?scale=` value or stale saved pref no longer blanks the Theme/Scale select (#167)
 - TUI Options: `H`/`J`/`K`/`L` navigate like `h`/`j`/`k`/`l`, so Caps Lock or Shift no longer disables section and selection keys
@@ -52,6 +54,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deploy: upload `pkg/` first (no parent `--delete` of WASM); do not cancel in-flight production syncs
 - Dependabot ignores rodio 0.x minors and wasm-bindgen (must match CLI 0.2.100)
 - Web: changing the theme (select or `T`) now switches live via `set_theme` instead of rebooting, so rounds, demo state and sound are kept and POST no longer replays (#156)
+- Infra: CloudFront sends a `Content-Security-Policy` header (`default-src 'self'`, `script-src 'self' 'wasm-unsafe-eval'`, no framing or form posts) and no longer sends the deprecated `X-XSS-Protection` header (#204)
+- Deploy: the S3 sync uploads only shipped web assets (`pkg/*.js` / `*.wasm`, `index.html`, app JS, CSS, icons, manifest), so test and package files are no longer published (#205, #206)
+- `scripts/verify.sh` and CI also run the docs self-check (`scripts/check-docs.sh`) and the infra CDK tests (#199, #208)
+
+### Removed
+
+- Unused WASM getters (`theme`, `width`, `height`, `is_hidden`) from `ua571-web` (#210)
 
 ## [0.2.0] — 2026-08-21
 
