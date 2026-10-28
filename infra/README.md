@@ -5,6 +5,7 @@ AWS CDK (TypeScript) stack for **https://ua571.danielendara.com**.
 Creates:
 
 - Private S3 bucket + CloudFront (OAC)
+- CloudFront response headers policy: Content-Security-Policy, HSTS, `X-Frame-Options`, Referrer-Policy (see `CONTENT_SECURITY_POLICY` in `lib/web-stack.ts`)
 - ACM certificate + Route53 alias in `danielendara.com`
 - IAM role for GitHub Actions OIDC deploys
 
