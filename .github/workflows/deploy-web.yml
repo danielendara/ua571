@@ -102,7 +102,7 @@ jobs:
         run: |
           set -euo pipefail
           CACHE="public,max-age=60,must-revalidate"
-          # Versioned pkg/ filenames (build id in path) — safe to cache for a year.
+          # pkg/ URLs use ?v=BUILD_ID on glue/wasm — safe to cache for a year.
           PKG_CACHE="public,max-age=31536000,immutable"
           # 1) pkg/ first with --delete scoped to that prefix (never delete dest
           #    pkg/ from a parent sync that excludes it).
