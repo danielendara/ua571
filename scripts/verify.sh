@@ -13,6 +13,7 @@ step 1/8 "secret guard + docs self-check"
 ./scripts/check-secrets.sh tracked
 ./scripts/check-docs.sh
 ./scripts/check-docs.test.sh
+./scripts/check-deploy-web-cache.sh
 
 step 2/8 "lint: cargo fmt --check"
 cargo fmt --all -- --check
