@@ -102,6 +102,8 @@ jobs:
         run: |
           set -euo pipefail
           CACHE="public,max-age=60,must-revalidate"
+          # pkg/ URLs use ?v=BUILD_ID on glue/wasm — safe to cache for a year.
+          PKG_CACHE="public,max-age=31536000,immutable"
           # 1) pkg/ first with --delete scoped to that prefix (never delete dest
           #    pkg/ from a parent sync that excludes it).
           aws s3 sync web/pkg/ "s3://${UA571_S3_BUCKET}/pkg/" \
@@ -109,10 +111,10 @@ jobs:
             --exclude "*" \
             --include "*.js" \
             --include "*.wasm" \
-            --cache-control "${CACHE}"
+            --cache-control "${PKG_CACHE}"
           aws s3 cp web/pkg/ua571_web_bg.wasm "s3://${UA571_S3_BUCKET}/pkg/ua571_web_bg.wasm" \
             --content-type "application/wasm" \
-            --cache-control "${CACHE}"
+            --cache-control "${PKG_CACHE}"
           # 2) Site chrome. No --delete: excluding pkg/* plus --delete would
           #    treat destination pkg/ as extra and wipe the just-uploaded WASM.
           aws s3 sync web/ "s3://${UA571_S3_BUCKET}/" \
