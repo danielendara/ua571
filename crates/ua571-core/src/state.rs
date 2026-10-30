@@ -332,6 +332,10 @@ impl AppState {
     pub fn stop_demo(&mut self) {
         if self.demo.is_active() {
             self.demo.stop();
+            for s in self.bank.iter_mut() {
+                s.link_ok = true;
+                s.online = true;
+            }
             self.log.push(LogKind::Demo {
                 message: "AUTO-PLAY ABORTED".into(),
             });
@@ -401,6 +405,46 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::keys::{apply_command, Command};
+
+    #[test]
+    fn stop_demo_mid_link_fault_restores_link() {
+        let mut app = AppState::new(Config {
+            show_boot: false,
+            demo_on_start: true,
+            ..Config::default()
+        });
+        let mut ticks = 0;
+        while app.bank.get(2).unwrap().link_ok {
+            app.tick();
+            ticks += 1;
+            assert!(ticks < 1000, "link fault never injected");
+        }
+        apply_command(&mut app, Command::ToggleArm);
+        assert!(!app.demo.is_active());
+        assert!(app.bank.iter().all(|s| s.link_ok && s.online));
+        if !app.active_sentry().is_armed() {
+            apply_command(&mut app, Command::ToggleArm);
+        }
+        assert!(app.active_sentry().is_armed());
+        app.set_screen(Screen::Fire);
+        let before = app.bank.get(2).unwrap().fire.rounds;
+        assert_eq!(apply_command(&mut app, Command::Confirm), None);
+        assert_eq!(app.bank.get(2).unwrap().fire.rounds, before - 1);
+    }
+
+    #[test]
+    fn stop_demo_without_active_demo_leaves_flags() {
+        let mut app = AppState::new(Config {
+            show_boot: false,
+            ..Config::default()
+        });
+        app.bank.get_mut(2).unwrap().link_ok = false;
+        let log_len = app.log.iter().count();
+        app.stop_demo();
+        assert!(!app.bank.get(2).unwrap().link_ok);
+        assert_eq!(app.log.iter().count(), log_len);
+    }
 
     #[test]
     fn fire_requires_armed() {
