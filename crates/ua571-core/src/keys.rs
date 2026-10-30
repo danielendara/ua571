@@ -245,6 +245,28 @@ mod tests {
     }
 
     #[test]
+    fn demo_stop_restores_sentry_flags() {
+        for cmd in [
+            Command::OpenFirePanel,
+            Command::OpenOptions,
+            Command::ToggleFirePanel,
+            Command::ToggleArm,
+            Command::Reload,
+            Command::SelectSentry(1),
+            Command::Confirm,
+            Command::ToggleDemo,
+        ] {
+            let mut state = app();
+            state.toggle_demo();
+            state.bank.get_mut(2).unwrap().link_ok = false;
+            state.bank.get_mut(1).unwrap().online = false;
+            apply_command(&mut state, cmd);
+            assert!(!state.demo.is_active(), "{cmd:?}");
+            assert!(state.bank.iter().all(|s| s.link_ok && s.online), "{cmd:?}");
+        }
+    }
+
+    #[test]
     fn nav_commands_stop_demo_only_on_options() {
         for cmd in [
             Command::SectionPrev,
