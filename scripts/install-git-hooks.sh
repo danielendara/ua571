@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-chmod +x scripts/check-secrets.sh scripts/install-git-hooks.sh .githooks/pre-commit 2>/dev/null || true
+chmod +x scripts/check-secrets.sh scripts/install-git-hooks.sh .githooks/pre-commit .githooks/pre-push 2>/dev/null || true
 
 git config core.hooksPath .githooks
 
@@ -17,4 +17,5 @@ fi
 
 echo "Installed git hooks (core.hooksPath=.githooks)"
 echo "Pre-commit will run: scripts/check-secrets.sh staged"
+echo "Pre-push will run:   cargo fmt --check, cargo clippy, cargo test"
 echo "Manual full scan:    ./scripts/check-secrets.sh all"
