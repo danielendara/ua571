@@ -9,8 +9,9 @@ On Linux, native fire SFX needs ALSA headers (Debian/Ubuntu: `sudo apt-get insta
 **Canonical gate before a PR:** `./scripts/verify.sh` (secret guard + docs self-check, fmt, clippy, tests, coverage floor, wasm build, web chrome tests, infra typecheck + CDK tests — same as CI). See [AGENTS.md](AGENTS.md).
 
 ```bash
-# Once per clone — enables pre-commit secret guard
-./scripts/install-git-hooks.sh
+# Once per clone — repo hooks (secret pre-commit + Rust pre-push)
+git config core.hooksPath .githooks
+# or: ./scripts/install-git-hooks.sh  (same hooksPath + chmod helper scripts)
 
 ./scripts/verify.sh
 
