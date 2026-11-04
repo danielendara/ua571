@@ -28,7 +28,7 @@ pub struct App {
     confirm_hold: ConfirmHold,
     /// One-shot fire-status suffix for the sentry bar (CRITICAL / EMPTY /
     /// LINK DOWN / OFFLINE) — TUI's parity with web's `#status` hint and
-    /// pixel's window-title hint (#82/#86/#88). `None` covers both "no
+    /// pixel's window-title hint. `None` covers both "no
     /// recent fire attempt" and an ordinary successful, non-critical fire.
     fire_status_hint: Option<&'static str>,
 }
@@ -49,7 +49,7 @@ impl App {
         }
     }
 
-    /// Boot with a restored session applied (#109): Options-panel positions plus
+    /// Boot with a restored session applied: Options-panel positions plus
     /// the one-line notice that says a session was restored or ignored.
     pub fn new_with_session(startup: &ua571_core::NativeStartup) -> Self {
         let mut app = Self::new(startup.config.clone());
@@ -443,7 +443,7 @@ mod tests {
         assert_eq!(app.state.fire_telemetry().rounds, 497);
     }
 
-    // --- Fire-deny status announcement (#88) ---
+    // --- Fire-deny status announcement ---
 
     #[test]
     fn denied_fire_announces_offline() {
@@ -543,7 +543,7 @@ mod tests {
     }
 
     #[test]
-    fn key_code_mapping_matches_the_previous_hand_written_table() {
+    fn operator_keys_match_core_command_table() {
         let c = KeyCode::Char;
         let table: Vec<(KeyCode, Option<Command>)> = vec![
             (c('q'), Some(Command::Quit)),

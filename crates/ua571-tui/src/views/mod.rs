@@ -193,14 +193,7 @@ fn draw_log(frame: &mut Frame, state: &AppState, theme: &ConsoleTheme, area: Rec
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
-/// Help-row text per screen. Fire and Options both mention `esc toggle`
-/// (Esc already toggles Fire ↔ Options via the shared `Command::ToggleFirePanel` —
-/// see `ua571-core::keys::apply_command` — this only adds discoverability, no binding
-/// change), matching web's footer legend and pixel's HUD line
-/// (`ua571-render::draw`) in spirit, not verbatim wording/casing — TUI's
-/// existing labels are already lowercase and terser than either. Boot skips
-/// POST via any key rather than routing through `Command::ToggleFirePanel`,
-/// so its line is unchanged: mentioning "toggle" there would be inaccurate.
+/// One-line key legend per screen (Esc toggle wording matches web footer and pixel HUD).
 fn help_text(screen: Screen) -> &'static str {
     match screen {
         Screen::Fire => {

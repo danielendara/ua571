@@ -293,7 +293,7 @@ test("skip-link in index.html targets the focusable canvas", () => {
   assert.ok(skipAt >= 0 && skipAt < canvasAt, "skip-link must precede the canvas");
 });
 
-test("footer key legend mentions Esc toggle, matching pixel's help text (#94)", () => {
+test("footer key legend mentions Esc toggle, matching pixel's help text", () => {
   const keysMatch = html.match(/<p class="keys">([\s\S]*?)<\/p>/);
   assert.ok(keysMatch, "expected a .keys legend in index.html");
   const legend = keysMatch[1];
@@ -301,7 +301,7 @@ test("footer key legend mentions Esc toggle, matching pixel's help text (#94)", 
   assert.match(legend.toLowerCase(), /esc<\/kbd>\s*toggle/);
 });
 
-test("footer key legend mentions T theme (#107)", () => {
+test("footer key legend mentions T theme", () => {
   const keysMatch = html.match(/<p class="keys">([\s\S]*?)<\/p>/);
   assert.ok(keysMatch, "expected a .keys legend in index.html");
   const legend = keysMatch[1];
@@ -327,7 +327,7 @@ test("theme helpers cycle select options in Theme::ALL order", () => {
   assert.equal(themeStatusHint("mono"), "THEME MONO");
 });
 
-test("KeyT cycles theme, persists, and shows THEME hint in #status (#107)", () => {
+test("KeyT cycles theme, persists, and shows THEME hint in #status", () => {
   const select = mockThemeSelect("yellow");
   const storage = memoryStorage();
   const status = liveRegion("OPTIONS · MANUAL");
@@ -383,7 +383,7 @@ test("KeyT cycles theme, persists, and shows THEME hint in #status (#107)", () =
   });
 });
 
-test("hasCommandModifier is true only for Ctrl, Cmd or Alt (#166)", () => {
+test("hasCommandModifier is true only for Ctrl, Cmd or Alt", () => {
   assert.equal(hasCommandModifier({ code: "KeyF", ctrlKey: true }), true);
   assert.equal(hasCommandModifier({ code: "KeyD", metaKey: true }), true);
   assert.equal(hasCommandModifier({ code: "KeyA", altKey: true }), true);
@@ -392,7 +392,7 @@ test("hasCommandModifier is true only for Ctrl, Cmd or Alt (#166)", () => {
   assert.equal(hasCommandModifier(null), false);
 });
 
-test("Ctrl/Cmd/Alt + game key is left to the browser (#166)", () => {
+test("Ctrl/Cmd/Alt + game key is left to the browser", () => {
   const calls = [];
   let prevented = 0;
   const app = { key_down: (code) => calls.push(code) };
@@ -420,7 +420,7 @@ test("Ctrl/Cmd/Alt + game key is left to the browser (#166)", () => {
   assert.deepEqual(calls, ["KeyF", "KeyF"]);
 });
 
-test("Ctrl/Cmd+D does not toggle demo or touch the share URL (#166)", () => {
+test("Ctrl/Cmd+D does not toggle demo or touch the share URL", () => {
   const app = mockApp();
   const storage = memoryStorage();
   const loc = mockLocation("", "/");
@@ -441,7 +441,7 @@ test("Ctrl/Cmd+D does not toggle demo or touch the share URL (#166)", () => {
   assert.equal(storage.getItem(PREFS_STORAGE_KEY), null);
 });
 
-test("Ctrl/Cmd/Alt + T leaves the theme, storage and history unchanged (#166)", () => {
+test("Ctrl/Cmd/Alt + T leaves the theme, storage and history unchanged", () => {
   const select = mockThemeSelect("yellow");
   const storage = memoryStorage();
   const status = liveRegion("OPTIONS · MANUAL");
@@ -467,14 +467,14 @@ test("Ctrl/Cmd/Alt + T leaves the theme, storage and history unchanged (#166)", 
   assert.equal(status.textContent, "OPTIONS · MANUAL");
 });
 
-test("applyThemeLive calls set_theme on the live app (#156)", () => {
+test("applyThemeLive calls set_theme on the live app", () => {
   const calls = [];
   const app = { set_theme: (t) => calls.push(t) };
   assert.equal(applyThemeLive(app, "amber"), true);
   assert.deepEqual(calls, ["amber"]);
 });
 
-test("applyThemeLive returns false without an app or set_theme (#156)", () => {
+test("applyThemeLive returns false without an app or set_theme", () => {
   assert.equal(applyThemeLive(null, "amber"), false);
   assert.equal(applyThemeLive({}, "amber"), false);
 });
@@ -931,7 +931,7 @@ test("prefsFromSearch only sets keys that are present", () => {
   assert.equal(els.scale.value, "3");
 });
 
-test("searchFromPrefs omits defaults and round-trips prefsFromSearch (#110)", () => {
+test("searchFromPrefs omits defaults and round-trips prefsFromSearch", () => {
   assert.equal(searchFromPrefs({}), "");
   assert.equal(
     searchFromPrefs({
@@ -974,7 +974,7 @@ test("searchFromPrefs omits defaults and round-trips prefsFromSearch (#110)", ()
   assert.equal(searchFromPrefs(prefsFromSearch("?sound=0")), "");
 });
 
-test("KeyT writeback puts theme in the URL and still persists LS (#110)", () => {
+test("KeyT writeback puts theme in the URL and still persists LS", () => {
   const select = mockThemeSelect("yellow");
   const storage = memoryStorage();
   const status = liveRegion("OPTIONS · MANUAL");
@@ -997,7 +997,7 @@ test("KeyT writeback puts theme in the URL and still persists LS (#110)", () => 
   });
 });
 
-test("syncShareUrl writes sound/demo/boot snapshot without rAF or LS demo (#110)", () => {
+test("syncShareUrl writes sound/demo/boot snapshot without rAF or LS demo", () => {
   const storage = memoryStorage();
   syncPrefs({ els: chromeEls({ sound: true, demo: true }), storage }, {});
   assert.equal(readStoredPrefs(storage).demo, undefined);
@@ -1033,7 +1033,7 @@ test("syncShareUrl writes sound/demo/boot snapshot without rAF or LS demo (#110)
   assert.equal(hist.urls.length, calls);
 });
 
-test("URL chrome still wins over LS; later writeback is the new snapshot (#110)", () => {
+test("URL chrome still wins over LS; later writeback is the new snapshot", () => {
   const storage = memoryStorage();
   writeStoredPrefs(storage, {
     theme: "phosphor",
@@ -1560,7 +1560,7 @@ test("Restart after a failed load calls boot again and success replaces the fail
   }
 });
 
-test("startPage + boot: a shared ?theme= link writes nothing on the first frame (#194)", async () => {
+test("startPage + boot: a shared ?theme= link writes nothing on the first frame", async () => {
   const dom = installBootDom({ page: true });
   dom.setHost("ua571.danielendara.com");
   globalThis.location.search = "?theme=green";
@@ -1606,7 +1606,7 @@ test("startPage + boot: a shared ?theme= link writes nothing on the first frame 
   }
 });
 
-/* ---------- On-screen touch pad (#132) ---------- */
+/* ---------- On-screen touch pad ---------- */
 
 function padApp({ screen = "fire", quit = false } = {}) {
   return {
@@ -1925,7 +1925,7 @@ test("pad CSS: 44px targets, touch-action manipulation, no selection, fits 480px
   assert.doesNotMatch(css, /overflow-x:\s*scroll/);
 });
 
-// --- Fullscreen (#136) -------------------------------------------------------
+// --- Fullscreen -------------------------------------------------------
 
 function fullscreenButtonStub() {
   const handlers = {};
@@ -2006,7 +2006,7 @@ function fullscreenHarness({ enabled = true, padHidden = true, padHeight = 0, re
   return { calls, doc, win, stage, canvas, pad, button, docHandlers, winHandlers, enter, leave };
 }
 
-test("fitCanvasSize keeps the canvas aspect ratio and the largest fit (#136)", () => {
+test("fitCanvasSize keeps the canvas aspect ratio and the largest fit", () => {
   const canvas = { canvasWidth: 1920, canvasHeight: 720 };
   // Width-bound (4:3 monitor): letterbox top/bottom.
   assert.deepEqual(fitCanvasSize({ ...canvas, viewportWidth: 1280, viewportHeight: 1024 }), {
@@ -2044,7 +2044,7 @@ test("fitCanvasSize keeps the canvas aspect ratio and the largest fit (#136)", (
   );
 });
 
-test("Fullscreen button is hidden when the Fullscreen API is unavailable (#136)", () => {
+test("Fullscreen button is hidden when the Fullscreen API is unavailable", () => {
   const off = fullscreenHarness({ enabled: false });
   off.button.hidden = false;
   bindFullscreen(off);
@@ -2067,7 +2067,7 @@ test("Fullscreen button is hidden when the Fullscreen API is unavailable (#136)"
   assert.doesNotThrow(() => bindFullscreen({ ...on, button: null }).refit());
 });
 
-test("Fullscreen button requests fullscreen on the stage, exits when active (#136)", async () => {
+test("Fullscreen button requests fullscreen on the stage, exits when active", async () => {
   const h = fullscreenHarness();
   bindFullscreen(h);
 
@@ -2087,7 +2087,7 @@ test("Fullscreen button requests fullscreen on the stage, exits when active (#13
   assert.equal(denied.calls.focus, 1, "a refused request still returns focus to the canvas");
 });
 
-test("fullscreenchange syncs aria-pressed/label, sizes the canvas, and refocuses it (#136)", () => {
+test("fullscreenchange syncs aria-pressed/label, sizes the canvas, and refocuses it", () => {
   const h = fullscreenHarness();
   bindFullscreen(h);
 
@@ -2110,7 +2110,7 @@ test("fullscreenchange syncs aria-pressed/label, sizes the canvas, and refocuses
   assert.equal(h.calls.focus, 2);
 });
 
-test("fullscreen refits on resize and leaves room for an open touch pad (#136)", () => {
+test("fullscreen refits on resize and leaves room for an open touch pad", () => {
   const h = fullscreenHarness({ padHidden: false, padHeight: 138 });
   const fullscreen = bindFullscreen(h);
 
@@ -2141,12 +2141,12 @@ test("fullscreen refits on resize and leaves room for an open touch pad (#136)",
   assert.equal(h.winHandlers.resize, undefined);
 });
 
-test("syncFullscreenButton and applyFullscreenCanvasSize tolerate missing nodes (#136)", () => {
+test("syncFullscreenButton and applyFullscreenCanvasSize tolerate missing nodes", () => {
   assert.doesNotThrow(() => syncFullscreenButton(null, true));
   assert.doesNotThrow(() => applyFullscreenCanvasSize(null, { active: true }));
 });
 
-test("standalone display hides the Fullscreen button and does not request fullscreen (#138)", () => {
+test("standalone display hides the Fullscreen button and does not request fullscreen", () => {
   const media = fullscreenHarness();
   media.win.matchMedia = (query) => ({ matches: query === "(display-mode: standalone)", media: query });
   media.button.hidden = false;
@@ -2174,7 +2174,7 @@ test("standalone display hides the Fullscreen button and does not request fullsc
   assert.equal(browser.calls.request, 1);
 });
 
-test("manifest parses, theme matches yellow --fg, and listed icons exist (#138)", () => {
+test("manifest parses, theme matches yellow --fg, and listed icons exist", () => {
   const dir = dirname(fileURLToPath(import.meta.url));
   const manifest = JSON.parse(readFileSync(join(dir, "manifest.webmanifest"), "utf8"));
   const css = readFileSync(join(dir, "style.css"), "utf8");
@@ -2219,7 +2219,7 @@ test("manifest parses, theme matches yellow --fg, and listed icons exist (#138)"
   assert.equal(touch.readUInt32BE(20), 180);
 });
 
-test("index.html: Fullscreen button in .controls, stage wraps canvas + pad, Esc documented (#136)", () => {
+test("index.html: Fullscreen button in .controls, stage wraps canvas + pad, Esc documented", () => {
   const controls = html.slice(html.indexOf('<div class="controls">'), html.indexOf("</header>"));
   assert.match(controls, /<button id="fullscreenToggle" type="button"[^>]*aria-pressed="false"[^>]*hidden>/);
   const stage = html.slice(html.indexOf('id="console-stage"'), html.indexOf('id="status"'));
@@ -2321,7 +2321,7 @@ test("prefs.js imports with no DOM globals and main.js re-exports it", () => {
   assert.equal(typeof pageStorage, "function");
 });
 
-// ---- PREFS table guardrails (#194) ----
+// ---- PREFS table guardrails ----
 
 /**
  * Per PREFS key: a non-default form/app state to drive through `read`, and where
@@ -2427,8 +2427,7 @@ test("syncPrefs reads sound/demo from the checkboxes when there is no app", () =
   assert.equal(loc.search, "?sound=1&demo=1");
 });
 
-// Golden strings captured from main (d2a88fa) with persistChromeFromForm +
-// persistOptionsIfChanged + the M/D toggle path, before those were deleted.
+// Regression golden for syncPrefs.
 const GOLDEN = [
   {
     name: "defaults",
