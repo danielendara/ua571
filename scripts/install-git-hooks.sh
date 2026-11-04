@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Point this clone at repo-managed hooks (pre-commit secret guard).
+# Point this clone at repo-managed hooks (pre-commit secret guard + pre-push fmt/clippy/tests).
 # Run once after clone: ./scripts/install-git-hooks.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
