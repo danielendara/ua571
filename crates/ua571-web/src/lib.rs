@@ -285,7 +285,7 @@ impl Ua571Web {
         demo_checkbox_on(&self.state)
     }
 
-    /// Whether the active sentry is armed (touch pad Arm `aria-pressed`, #132).
+    /// Whether the active sentry is armed (touch pad Arm `aria-pressed`).
     #[wasm_bindgen(getter)]
     pub fn armed(&self) -> bool {
         self.state.active_sentry().is_armed()
@@ -1137,7 +1137,7 @@ mod tests {
         let src = include_str!("lib.rs");
         assert!(
             src.contains("idle_runtime(self.hidden"),
-            "frame() should gate ticks/SFX through the shared core helper (#90)"
+            "frame() should gate ticks/SFX through the shared core helper"
         );
         // Built at runtime so this assertion's own source doesn't match itself.
         let local_copy = format!("struct {}", "HiddenTabRuntime");
@@ -1278,7 +1278,7 @@ mod tests {
     }
 
     #[test]
-    fn key_code_mapping_matches_the_previous_hand_written_table() {
+    fn operator_keys_match_core_command_table() {
         let table: &[(&str, Option<Command>)] = &[
             ("KeyQ", Some(Command::Quit)),
             ("KeyD", Some(Command::ToggleDemo)),

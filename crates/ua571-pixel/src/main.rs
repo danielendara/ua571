@@ -23,7 +23,7 @@ const BASE_TITLE_PREFIX: &str = "UA 571-C Remote Sentry Weapon System";
 /// the pixel analog of web's `#status` live region (`chrome_status_line`'s
 /// ` · HINT`). Pixel has no on-canvas log/status text of its own, so the
 /// title bar — the one text surface every windowed frontend already has —
-/// is what carries CRITICAL / EMPTY / LINK DOWN / OFFLINE here (#86).
+/// is what carries CRITICAL / EMPTY / LINK DOWN / OFFLINE here.
 fn window_title(hint: Option<&str>) -> String {
     let base = format!("{BASE_TITLE_PREFIX}  v{}", ua571_core::VERSION);
     match hint {
@@ -80,7 +80,7 @@ struct Cli {
 fn main() -> Result<()> {
     color_eyre::install()?;
     let cli = Cli::parse();
-    // CLI → saved session → config file → defaults (#109).
+    // CLI → saved session → config file → defaults.
     let startup = load_native_startup(&NativeCli {
         theme: cli.theme.clone(),
         rounds: cli.rounds,
@@ -123,11 +123,11 @@ fn main() -> Result<()> {
     let mut dirty = true;
     let mut confirm_hold = ConfirmHold::default();
     // One-shot fire-status suffix for the window title (CRITICAL / EMPTY /
-    // LINK DOWN / OFFLINE) — pixel's parity with web's `#status` hint (#86).
+    // LINK DOWN / OFFLINE) — pixel's parity with web's `#status` hint.
     let mut status_hint: Option<&'static str> = None;
     let mut shown_hint: Option<&'static str> = None;
     // Pause ticks/SFX while the OS window has lost focus — pixel's parity
-    // with web's hidden-tab pause (#73, #90).
+    // with web's hidden-tab pause.
     let mut focus = FocusTracker::new(window.is_active());
 
     while window.is_open() && !state.should_quit {
@@ -140,7 +140,7 @@ fn main() -> Result<()> {
         let focused = window.is_active();
         if focus.regained(focused) {
             // Resync the clock so the unfocused gap isn't dumped as one
-            // huge catch-up dt on the next tick (#90).
+            // huge catch-up dt on the next tick.
             last_tick = Instant::now();
         }
 
@@ -194,7 +194,7 @@ fn main() -> Result<()> {
             .map_err(|e| eyre!("present: {e}"))?;
     }
 
-    // The console remembers how you left it — same set the web frontend keeps (#109).
+    // The console remembers how you left it — same set the web frontend keeps.
     startup.save_on_exit(&state);
 
     Ok(())
@@ -202,7 +202,7 @@ fn main() -> Result<()> {
 
 /// Tracks window focus transitions so the main loop can resync `last_tick`
 /// exactly once on the frame focus returns, instead of letting a stale
-/// timestamp turn the whole unfocused gap into one huge dt (#90).
+/// timestamp turn the whole unfocused gap into one huge dt.
 #[derive(Debug)]
 struct FocusTracker {
     was_focused: bool,
@@ -387,7 +387,7 @@ fn handle_input(
     // OS key-repeat pulse. Only treat it as hold-to-fire when the physical
     // hold began on the Fire screen — otherwise a Space/Enter held through
     // the Options → Fire confirm above would keep dumping rounds from the
-    // very same press (#61).
+    // very same press.
     if confirm_hold.allows_repeat_fire(state.screen)
         && CONFIRM_KEYS
             .iter()
@@ -472,7 +472,7 @@ mod tests {
         // Pixel must not re-derive its own OFFLINE/LINK DOWN/EMPTY/CRITICAL
         // classification — both fire call sites (fresh confirm + OS
         // key-repeat hold) go through the same `ua571-core` helper web uses,
-        // so no frontend carries a third copy of the deny-copy strings (#86).
+        // so no frontend carries a third copy of the deny-copy strings.
         let src = include_str!("main.rs");
         // >= 2, not ==, because this assertion's own source line also
         // contains the literal string it is searching for.
@@ -533,7 +533,7 @@ mod tests {
     fn uses_shared_idle_runtime_helper() {
         // Pixel must not re-derive its own tick/mute-while-backgrounded
         // policy — it shares `ua571_core::idle_runtime` with web's
-        // hidden-tab pause instead of carrying a third copy (#90).
+        // hidden-tab pause instead of carrying a third copy.
         let src = include_str!("main.rs");
         assert!(
             src.contains("idle_runtime(!focused, state.config.sound)"),
@@ -617,10 +617,8 @@ mod tests {
         );
     }
 
-    /// Parity with the hand-written table pixel carried before it moved to
-    /// `ua571_core::command_for`.
     #[test]
-    fn key_mapping_matches_the_previous_hand_written_table() {
+    fn operator_keys_match_core_command_table() {
         let bound = |k: Key| operator_key(k).and_then(command_for);
         let table = [
             (Key::Q, Command::Quit),
