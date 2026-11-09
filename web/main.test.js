@@ -1560,6 +1560,28 @@ test("Restart after a failed load calls boot again and success replaces the fail
   }
 });
 
+test("booted frames do not look up DOM elements again", async () => {
+  const dom = installBootDom({ page: true });
+  dom.setHost("ua571.danielendara.com");
+  setBootInstanceLoaderForTests(async () => wasmStandIn());
+  try {
+    startPage();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    let lookups = 0;
+    const getElementById = document.getElementById;
+    document.getElementById = (id) => {
+      lookups += 1;
+      return getElementById(id);
+    };
+    dom.rafs[dom.rafs.length - 1].cb();
+    dom.rafs[dom.rafs.length - 1].cb();
+    assert.equal(lookups, 0);
+  } finally {
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
 test("startPage + boot: a shared ?theme= link writes nothing on the first frame", async () => {
   const dom = installBootDom({ page: true });
   dom.setHost("ua571.danielendara.com");
