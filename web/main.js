@@ -19,6 +19,7 @@ let bootGeneration = 0;
 let bootInstanceLoader = null;
 /** Last PREFS snapshot syncPrefs saw; reseeded (no write) on every (re)boot. */
 let lastPrefs = {};
+let pagePrefsContext = null;
 /** The user's Touch pad show/hide choice; undefined until they toggle it. */
 let touchPadChoice;
 /** One-shot status after T cycles theme (cleared on the next game key). */
@@ -786,7 +787,10 @@ export async function boot() {
     }
 
     app = created;
+    pagePrefsContext = createPrefsContext();
     lastPrefs = snapshotPrefs(prefsContext());
+    const { demo, sound } = pagePrefsContext.els;
+    const touchPad = document.getElementById("touch-pad");
 
     onKey = (e) => {
       if (
@@ -823,10 +827,10 @@ export async function boot() {
       syncChromeFromApp(app, {
         status,
         announce,
-        demo: document.getElementById("demo"),
-        sound: document.getElementById("sound"),
+        demo,
+        sound,
       });
-      syncTouchPad(app, document.getElementById("touch-pad"));
+      syncTouchPad(app, touchPad);
       syncPagePrefs();
       raf = requestAnimationFrame(loop);
     };
@@ -861,7 +865,7 @@ export async function boot() {
 }
 
 /** Everything `syncPrefs` reads from: live app, page form, storage (URL defaults to the window's). */
-function prefsContext() {
+function createPrefsContext() {
   const el = (id) => document.getElementById(id);
   return {
     app,
@@ -877,12 +881,20 @@ function prefsContext() {
   };
 }
 
+function prefsContext() {
+  if (!pagePrefsContext) pagePrefsContext = createPrefsContext();
+  pagePrefsContext.app = app;
+  pagePrefsContext.touchPad = touchPadChoice;
+  return pagePrefsContext;
+}
+
 /** The only prefs write: every chrome listener, hotkey and frame calls this. */
 function syncPagePrefs() {
   lastPrefs = syncPrefs(prefsContext(), lastPrefs);
 }
 
 export function startPage() {
+  pagePrefsContext = null;
   const canvas = document.getElementById("ua571");
   const skip = document.querySelector("a.skip-link");
   if (skip) {
