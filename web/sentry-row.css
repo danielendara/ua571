@@ -1,0 +1,210 @@
+/* Four simulated sentries: the approved deployment-bay layout. */
+.sentry-overview {
+  width: min(100%, 960px);
+  margin-top: 18px;
+}
+.sentry-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.sentry-eyebrow {
+  color: var(--dim);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  margin: 0 0 8px;
+}
+.sentry-heading h2 {
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  margin: 0;
+}
+.sentry-heading h2 span {
+  font-size: 12px;
+  color: var(--dim);
+  margin-left: 12px;
+}
+.simulation-tag {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+.sentry-row {
+  display: grid;
+  scroll-padding-inline: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  background: linear-gradient(var(--panel), var(--bg));
+}
+.sentry-unit {
+  position: relative;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  padding: 16px 12px 12px;
+  background: transparent;
+  text-align: left;
+}
+.sentry-unit:last-child {
+  border-right: 0;
+}
+.sentry-unit[aria-pressed="true"] {
+  background: var(--glow);
+  box-shadow: inset 0 2px var(--fg);
+}
+.sentry-unit:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: -3px;
+}
+.unit-heading {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+.unit-heading > strong {
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 500;
+}
+.unit-number {
+  display: block;
+  color: var(--dim);
+  font-size: 8px;
+  margin-top: 5px;
+}
+.unit-light {
+  margin-left: auto;
+  width: 4px;
+  height: 4px;
+  background: var(--fg);
+  box-shadow: 0 0 8px var(--glow);
+}
+.sentry-illustration {
+  display: block;
+  margin: 14px -7px 0;
+}
+.sentry-illustration img {
+  width: 100%;
+  height: 165px;
+  object-fit: contain;
+  display: block;
+}
+.unit-caption {
+  display: block;
+  color: var(--dim);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-align: center;
+  padding: 0 0 17px;
+}
+.unit-telemetry {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  padding-top: 11px;
+  border-top: 1px solid var(--border);
+  font-size: 8px;
+  color: var(--dim);
+}
+.unit-telemetry strong {
+  display: block;
+  color: var(--fg);
+  font-size: 20px;
+  font-weight: 500;
+  margin-top: 5px;
+}
+.unit-telemetry strong span {
+  color: var(--dim);
+  font-size: 10px;
+}
+.unit-telemetry strong .rounds-value {
+  color: var(--fg);
+  font-size: 20px;
+}
+.unit-safe {
+  color: var(--fg);
+  border: 1px solid var(--border);
+  padding: 4px;
+  letter-spacing: 0.08em;
+}
+.ammo-track {
+  position: relative;
+  display: block;
+  height: 3px;
+  margin-top: 10px;
+  background: var(--glow);
+}
+.selection-label {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-align: center;
+  margin-top: 14px;
+  color: var(--dim);
+}
+[aria-pressed="true"] .selection-label {
+  color: var(--fg);
+}
+.sentry-note {
+  color: var(--dim);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.sentry-overview[hidden] {
+  display: none;
+}
+.sentry-unit:disabled {
+  cursor: default;
+}
+.sentry-unit:disabled .selection-label {
+  opacity: 0.6;
+}
+.sentry-unit[data-alert="true"] .unit-caption {
+  color: var(--fg);
+  font-weight: 700;
+}
+.sentry-unit[data-alert="true"] .unit-light {
+  background: transparent;
+  outline: 1px solid var(--fg);
+  box-shadow: none;
+}
+.unit-weapon[data-armed="true"] {
+  border-color: var(--fg);
+}
+.ammo-fill {
+  display: block;
+  height: 100%;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--fg) 0 6px,
+    transparent 6px 8px
+  );
+}
+.sentry-note kbd {
+  color: var(--fg);
+  font: inherit;
+}
+@media (max-width: 600px) {
+  .sentry-row {
+    overflow-x: auto;
+    grid-template-columns: repeat(4, minmax(170px, 1fr));
+  }
+  .sentry-heading h2 {
+    font-size: 12px;
+  }
+  .sentry-eyebrow {
+    font-size: 7px;
+  }
+  .simulation-tag {
+    font-size: 7px;
+  }
+}

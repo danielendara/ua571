@@ -122,6 +122,8 @@ jobs:
             --include "index.html" \
             --include "main.js" \
             --include "prefs.js" \
+            --include "sentry-row.js" \
+            --include "sentry-row.css" \
             --include "build-id.js" \
             --include "style.css" \
             --include "*.png" \

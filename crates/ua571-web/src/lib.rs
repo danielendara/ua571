@@ -20,6 +20,31 @@ fn usize_to_u32(value: usize) -> Result<u32, JsValue> {
     u32::try_from(value).map_err(|_| JsValue::from_str("value out of range for u32"))
 }
 
+/// Scalar copy of one simulated sentry, owned by the JS caller.
+#[wasm_bindgen]
+pub struct SentryOverview {
+    pub rounds: u16,
+    pub capacity: u16,
+    pub armed: bool,
+    pub online: bool,
+    pub link_ok: bool,
+    pub critical: bool,
+    pub selected: bool,
+}
+
+fn sentry_overview(state: &AppState, index: usize) -> Option<SentryOverview> {
+    let unit = state.bank.get(index)?;
+    Some(SentryOverview {
+        rounds: unit.fire.rounds,
+        capacity: state.config.starting_rounds,
+        armed: unit.is_armed(),
+        online: unit.online,
+        link_ok: unit.link_ok,
+        critical: unit.fire.critical,
+        selected: state.active_index == index,
+    })
+}
+
 /// Browser console app bound to a canvas element id.
 #[wasm_bindgen]
 pub struct Ua571Web {
@@ -46,6 +71,11 @@ pub struct Ua571Web {
 
 #[wasm_bindgen]
 impl Ua571Web {
+    /// Read any unit without changing selection. Caller releases the snapshot.
+    pub fn sentry_overview(&self, index: usize) -> Option<SentryOverview> {
+        sentry_overview(&self.state, index)
+    }
+
     /// Create and mount onto `#canvas_id`.
     ///
     /// * `theme` — `yellow` | `phosphor` | `amber` | `mono`
@@ -1324,5 +1354,31 @@ mod tests {
         for (code, expected) in table {
             assert_eq!(command_for_code(code), *expected, "{code}");
         }
+    }
+}
+
+#[cfg(test)]
+mod overview_tests {
+    use super::*;
+
+    #[test]
+    fn overview_preserves_independent_units_and_selection() {
+        let mut state = AppState::new(Config::default());
+        state.select_sentry(2);
+        let unit = state.bank.get_mut(2).unwrap();
+        unit.fire.reset(28);
+        unit.options.weapon_status = WeaponStatus::Armed;
+        unit.link_ok = false;
+        unit.online = false;
+        let selected = sentry_overview(&state, 2).unwrap();
+        assert_eq!(selected.rounds, 28);
+        assert!(selected.critical && selected.armed && selected.selected);
+        assert!(!selected.link_ok && !selected.online);
+        let other = sentry_overview(&state, 0).unwrap();
+        assert_eq!(other.rounds, state.config.starting_rounds);
+        assert_eq!(other.capacity, state.config.starting_rounds);
+        assert!(!other.selected && !other.armed && !other.critical);
+        assert!(other.link_ok && other.online);
+        assert!(sentry_overview(&state, 4).is_none());
     }
 }
