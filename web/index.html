@@ -39,6 +39,7 @@
     />
     <meta name="twitter:image" content="https://ua571.danielendara.com/og.png" />
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="sentry-row.css" />
   </head>
   <body data-theme="yellow">
     <a class="skip-link" href="#ua571">Skip to display</a>
@@ -122,6 +123,14 @@
           aria-live="polite"
           aria-label="Game status"
         ></p>
+        <section id="sentry-overview" class="sentry-overview" aria-labelledby="sentry-title" hidden>
+          <div class="sentry-heading">
+            <div><p class="sentry-eyebrow">REMOTE ASSET OVERVIEW</p><h2 id="sentry-title">SENTRY BATTERY <span>04 UNITS</span></h2></div>
+            <span class="simulation-tag">SIMULATION</span>
+          </div>
+          <div class="sentry-row" role="group" aria-label="Select sentry"></div>
+          <p class="sentry-note">Select a sentry or press <kbd>1–4</kbd> to switch units.</p>
+        </section>
       </main>
 
       <footer>

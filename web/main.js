@@ -4,6 +4,9 @@
  * Chrome helpers are exported for Node tests (no WASM).
  */
 
+import { createSentryRow } from "./sentry-row.js";
+
+let sentryRow = null;
 let raf = 0;
 let app = null;
 let onKey = null;
@@ -49,6 +52,7 @@ function readOptions() {
 }
 
 function teardown() {
+  sentryRow?.reset();
   fireHold.stop();
   if (raf) cancelAnimationFrame(raf);
   raf = 0;
@@ -830,6 +834,7 @@ export async function boot() {
         demo,
         sound,
       });
+      sentryRow?.sync(app);
       syncTouchPad(app, touchPad);
       syncPagePrefs();
       raf = requestAnimationFrame(loop);
@@ -895,6 +900,16 @@ function syncPagePrefs() {
 
 export function startPage() {
   pagePrefsContext = null;
+  const overview = document.getElementById("sentry-overview");
+  if (overview) {
+    sentryRow = createSentryRow(overview, (index) => {
+      if (!app || app.should_quit || app.screen_name() === "boot") return;
+      fireHold.stop();
+      handleGameKeyDown(app, { code: `Digit${index + 1}`, repeat: false });
+      sentryRow.sync(app);
+      refocusPlaySurface(document.getElementById("ua571"));
+    });
+  }
   const canvas = document.getElementById("ua571");
   const skip = document.querySelector("a.skip-link");
   if (skip) {
