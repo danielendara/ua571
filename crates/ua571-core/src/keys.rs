@@ -1,7 +1,10 @@
-//! Shared Esc vs O panel semantics for pixel, web, and TUI.
+//! Shared operator key table for pixel, web, and TUI.
 //!
-//! Frontends must call [`apply_command`] instead of inlining `stop_demo` +
-//! action pairs so the three UIs cannot drift.
+//! Each frontend maps its raw keys to an [`OperatorKey`], looks up the
+//! frontend-neutral [`Command`] with [`command_for`], and calls
+//! [`apply_command`] instead of inlining `stop_demo` + action pairs, so the
+//! three UIs cannot drift. Theme cycling (T) is not in this table; it stays
+//! frontend-owned.
 
 use crate::fire_deny::{fire_with_status, FireDenyReason};
 use crate::state::{AppState, Screen};
