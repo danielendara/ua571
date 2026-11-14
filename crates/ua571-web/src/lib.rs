@@ -12,7 +12,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    AudioContext, AudioContextState, CanvasRenderingContext2d, HtmlCanvasElement, ImageData,
+    AudioBuffer, AudioContext, AudioContextState, CanvasRenderingContext2d, HtmlCanvasElement,
+    ImageData,
 };
 use web_time::{Duration, Instant};
 
@@ -58,6 +59,8 @@ pub struct Ua571Web {
     display_w: u32,
     display_h: u32,
     audio: Option<AudioContext>,
+    /// Fire burst PCM copied once into the current `AudioContext`; shared by all shots.
+    fire_buffer: Option<AudioBuffer>,
     fire_samples: Vec<f32>,
     fire_sample_rate: f32,
     confirm_gate: ConfirmRepeatGate,
@@ -170,6 +173,7 @@ impl Ua571Web {
             display_w,
             display_h,
             audio: None,
+            fire_buffer: None,
             fire_samples,
             fire_sample_rate: burst_sr as f32,
             confirm_gate: ConfirmRepeatGate::default(),
@@ -402,6 +406,7 @@ impl Ua571Web {
 
 impl Drop for Ua571Web {
     fn drop(&mut self) {
+        self.fire_buffer = None;
         if let Some(ac) = self.audio.take() {
             let _ = ac.close();
         }
@@ -437,34 +442,37 @@ impl Ua571Web {
         if ac.state() == AudioContextState::Suspended {
             let _ = ac.resume();
         }
+        if self.fire_buffer.is_none() {
+            self.fire_buffer = make_fire_buffer(ac, &self.fire_samples, self.fire_sample_rate).ok();
+        }
+        let Some(buffer) = self.fire_buffer.as_ref() else {
+            return;
+        };
         let max_burst = usize_to_u32(MAX_FIRE_SFX_BURST).expect("MAX_FIRE_SFX_BURST fits in u32");
         let n = count.min(max_burst);
         let period = 1.0 / f64::from(FIRE_CYCLIC_HZ);
         let now = ac.current_time();
         for k in 0..n {
-            let _ = play_buffer(
-                ac,
-                &self.fire_samples,
-                self.fire_sample_rate,
-                now + period * f64::from(k),
-            );
+            let _ = play_buffer(ac, buffer, now + period * f64::from(k));
         }
     }
 }
 
-fn play_buffer(
+/// Copy the PCM burst into a fresh `AudioBuffer` (once per `AudioContext`).
+fn make_fire_buffer(
     ac: &AudioContext,
     samples: &[f32],
     sample_rate: f32,
-    when: f64,
-) -> Result<(), JsValue> {
+) -> Result<AudioBuffer, JsValue> {
     let n = usize_to_u32(samples.len())?;
     let buffer = ac.create_buffer(1, n, sample_rate)?;
-    let channel = samples.to_vec();
-    buffer.copy_to_channel(&channel, 0)?;
+    buffer.copy_to_channel(samples, 0)?;
+    Ok(buffer)
+}
 
+fn play_buffer(ac: &AudioContext, buffer: &AudioBuffer, when: f64) -> Result<(), JsValue> {
     let src = ac.create_buffer_source()?;
-    src.set_buffer(Some(&buffer));
+    src.set_buffer(Some(buffer));
     src.connect_with_audio_node(&ac.destination())?;
     src.start_with_when(when)?;
     Ok(())
@@ -686,6 +694,28 @@ mod tests {
 
     fn chrome_status_line(state: &AppState) -> String {
         super::chrome_status_line(state, None)
+    }
+
+    #[test]
+    fn fire_shot_path_reuses_cached_audio_buffer() {
+        let src = include_str!("lib.rs");
+        let play = src
+            .split("fn play_buffer(")
+            .nth(1)
+            .and_then(|r| r.split("\n}\n").next())
+            .expect("play_buffer");
+        assert!(!play.contains("create_buffer("), "per-shot path allocates");
+        assert!(!play.contains("to_vec"), "per-shot path clones PCM");
+        assert!(
+            !play.contains("copy_to_channel"),
+            "per-shot path copies PCM"
+        );
+        let fires = src
+            .split("fn play_fires(")
+            .nth(1)
+            .and_then(|r| r.split("\n    }\n").next())
+            .expect("play_fires");
+        assert!(fires.contains("self.fire_buffer.is_none()"));
     }
 
     #[test]
