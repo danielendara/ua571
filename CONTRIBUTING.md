@@ -37,8 +37,7 @@ Web frontend:
 ./scripts/build-web.sh
 python3 -m http.server 8080 --directory web
 
-# Web chrome tests (Node; CI job `web`). On Linux, `cargo test --workspace` also
-# runs `web/main.test.js` via the `ua571-web` crate.
+# Web chrome tests (Node; CI job `web`, verify step 7). Not run by `cargo test`.
 npm --prefix web test
 ```
 
