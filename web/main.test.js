@@ -1343,6 +1343,26 @@ test("an older boot that finishes last frees its instance and does not stack lis
   }
 });
 
+test("a reboot frees the previous live instance", async () => {
+  const dom = installBootDom();
+  const instances = [];
+  setBootInstanceLoaderForTests(async () => {
+    const inst = wasmStandIn(instances.length + 1);
+    instances.push(inst);
+    return inst;
+  });
+  try {
+    await boot();
+    assert.equal(instances[0].freed, false);
+    await boot();
+    assert.equal(instances[0].freed, true);
+    assert.equal(instances[1].freed, false);
+  } finally {
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
 test("a single boot focuses the canvas and runs the frame loop", async () => {
   const dom = installBootDom();
   const inst = wasmStandIn(1);
