@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CI: Ubuntu `cargo llvm-cov --workspace` with a 65% line floor and coverage artifact upload
 - Fire is blocked when the active sentry's microwave datalink is down (`link_ok`); log shows `CANNOT FIRE — LINK DOWN` (demo datalink fault on SENTRY-3 is now enforced, not display-only)
-- Node tests for web chrome (`npm --prefix web test`); Linux `cargo test --workspace` also runs `web/main.test.js` via `ua571-web`
+- Node tests for web chrome (`npm --prefix web test`) (CI job `web`, `./scripts/verify.sh`); `cargo test --workspace` no longer spawns Node
 
 ### Fixed
 
