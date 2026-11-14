@@ -69,13 +69,7 @@ function teardown() {
     onVisibility = null;
   }
   // Drop WASM app so a new theme/scale re-instantiates cleanly.
-  if (app && typeof app.free === "function") {
-    try {
-      app.free();
-    } catch (_) {
-      /* ignore */
-    }
-  }
+  freeWasmInstance(app);
   app = null;
 }
 
@@ -870,17 +864,21 @@ export async function boot() {
 }
 
 /** Everything `syncPrefs` reads from: live app, page form, storage (URL defaults to the window's). */
-function createPrefsContext() {
+function chromeEls() {
   const el = (id) => document.getElementById(id);
   return {
+    theme: el("theme"),
+    scale: el("scale"),
+    sound: el("sound"),
+    skipBoot: el("skipBoot"),
+    demo: el("demo"),
+  };
+}
+
+function createPrefsContext() {
+  return {
     app,
-    els: {
-      theme: el("theme"),
-      scale: el("scale"),
-      sound: el("sound"),
-      skipBoot: el("skipBoot"),
-      demo: el("demo"),
-    },
+    els: chromeEls(),
     storage: pageStorage(),
     touchPad: touchPadChoice,
   };
@@ -992,13 +990,7 @@ export function startPage() {
     boot();
   });
 
-  const els = {
-    theme: document.getElementById("theme"),
-    scale: document.getElementById("scale"),
-    sound: document.getElementById("sound"),
-    skipBoot: document.getElementById("skipBoot"),
-    demo: document.getElementById("demo"),
-  };
+  const els = chromeEls();
   hydrateChromePrefs({
     storage: pageStorage(),
     search: location.search,
