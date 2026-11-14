@@ -39,6 +39,7 @@ Three frontends share one simulation core:
 - **Demo mode** — scripted perimeter defense auto-play
 - **Themes** — **yellow** (default, film/GRiD prop), phosphor green, amber, mono
 - **Web touch pad** — on-screen controls below the canvas (← → section, ↑ ↓ select, hold Fire, Arm, Reload, Options); shown by default on coarse pointers (`pointer: coarse`) and toggled from the header on desktop. Buttons use the same key codes as the keyboard, so POST / quit / fire-denial rules are unchanged.
+- **Web sentry overview** — an illustrated A–D row of four sentry cards below the canvas on the live page; see [docs/SENTRY_ROW.md](docs/SENTRY_ROW.md).
 - **Installable web app** — `manifest.webmanifest` plus icons; add to the home screen for a standalone console (hides the Fullscreen button; edge-to-edge on iPhone).
 - **Web Fullscreen** — the web console's **Fullscreen** button fills the screen with the canvas (and the touch pad, if open), letterboxed in black; game state, demo, and sound carry over. In fullscreen the browser takes the first `Esc` to exit, so the in-app `Esc` fire/options toggle works when not in fullscreen. The button is hidden where the Fullscreen API isn't available (e.g. iPhone Safari) and when the console is already installed to the home screen (`display: standalone`), which is the edge-to-edge path on iPhone.
 - **Fire SFX** — MG42-inspired pulse when a round fires (**muted by default**; `m` or the web Sound checkbox enables it. `--mute` starts muted, same as the default; `sound = true` in config to start with SFX on)
@@ -144,7 +145,7 @@ Uppercase `H` `J` `K` `L` work the same as lowercase in all three versions (term
 | `r` | Reload active sentry drum |
 | `d` | Toggle demo auto-play |
 | `m` | Toggle fire SFX (starts muted) |
-| `t` | Cycle theme (TUI) |
+| `t` | Cycle theme |
 | `q` | Quit (TUI/pixel exit). On web, `q` sets quit and the status line shows **QUIT (Restart)**; use the header **Restart** button to reboot WASM |
 | any (on boot) | Skip POST |
 
@@ -162,8 +163,8 @@ web/              static HTML/CSS/JS host page
 infra/            AWS CDK (S3, CloudFront, ACM, Route53, OIDC role)
 security/         commit path/content denylists for check-secrets.sh
 .github/          CI workflows (ci.yml, deploy-web.yml)
-scripts/          build-web.sh, check-secrets.sh, install-git-hooks.sh
-docs/             DEPLOYMENT.md, GITHUB.md, RECOVERY.md, SECURITY_GUARDS.md
+scripts/          verify.sh (canonical gate), build-web.sh, secret/docs/deploy-cache guards, install-git-hooks.sh
+docs/             DEPLOYMENT.md, GITHUB.md, RECOVERY.md, SECURITY_GUARDS.md, SENTRY_ROW.md
 ```
 
 Pixel and Web share `ua571-render`. The TUI is a separate character-cell view of the same `ua571-core` state.
