@@ -28,6 +28,10 @@ You are working in a repository that may be **public open source** while product
 
    If it fails, fix the staging set — do not force-add denied files.
 
+## Purpose and Proof
+
+Every agent-filed issue and every PR starts with the Purpose block from `.github` templates (plain language, before technical detail). Dependabot and one-line chores are exempt. Gabriel HOLDs a missing or vague block.
+
 ## Preferred deploy / infra edits
 
 - Edit `infra/lib/web-stack.ts`, `infra/cdk.json` (public templates only)
