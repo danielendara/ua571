@@ -2,6 +2,10 @@
 
 You are working in a repository that may be **public open source** while production hosting stays in the maintainer’s **private AWS account**.
 
+## Purpose and proof (required)
+
+Every agent-filed issue and every PR must start with the Purpose block from the `.github` templates. Apply labels `priority:P1` | `priority:P2` | `priority:P3` and `value:high` | `value:medium` | `value:low`. A missing or vague Purpose block is a Gabriel HOLD. Dependabot and one-line chores are exempt.
+
 ## Hard prohibitions
 
 1. **Never commit or `git add -f`:**
