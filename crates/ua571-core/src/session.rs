@@ -254,8 +254,7 @@ mod tests {
 
     #[test]
     fn wire_names_match_what_the_web_frontend_stores() {
-        // ua571-web writes `format!("{:?}", value)` into localStorage; native
-        // must read and write the very same strings.
+        // Same wire_name encoding in session prefs and WASM getters.
         for mode in SystemMode::ALL {
             assert_eq!(mode.wire_name(), format!("{mode:?}"));
             assert_eq!(SystemMode::parse_wire_name(mode.wire_name()), mode);

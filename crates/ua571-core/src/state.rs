@@ -317,11 +317,15 @@ impl AppState {
 
     // --- Demo ---
 
-    pub fn start_demo(&mut self) {
+    fn restore_all_sentry_comms(&mut self) {
         for s in self.bank.iter_mut() {
             s.link_ok = true;
             s.online = true;
         }
+    }
+
+    pub fn start_demo(&mut self) {
+        self.restore_all_sentry_comms();
         self.demo = DemoPlayer::default_demo();
         self.demo.start();
         self.log.push(LogKind::Demo {
@@ -332,10 +336,7 @@ impl AppState {
     pub fn stop_demo(&mut self) {
         if self.demo.is_active() {
             self.demo.stop();
-            for s in self.bank.iter_mut() {
-                s.link_ok = true;
-                s.online = true;
-            }
+            self.restore_all_sentry_comms();
             self.log.push(LogKind::Demo {
                 message: "AUTO-PLAY ABORTED".into(),
             });
