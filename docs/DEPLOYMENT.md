@@ -114,6 +114,7 @@ aws s3 cp web/pkg/ua571_web_bg.wasm s3://$UA571_S3_BUCKET/pkg/ua571_web_bg.wasm 
 aws s3 sync web/ s3://$UA571_S3_BUCKET/ \
   --exclude "*" \
   --include "index.html" --include "main.js" --include "prefs.js" \
+  --include "sentry-row.js" --include "sentry-row.css" \
   --include "build-id.js" --include "style.css" --include "*.png" \
   --cache-control "${CACHE}"
 aws s3 cp web/manifest.webmanifest s3://$UA571_S3_BUCKET/manifest.webmanifest \

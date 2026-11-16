@@ -6,7 +6,7 @@ sentries below the WASM console and above the keyboard instructions.
 - A–D map to existing sentries S1–S4.
 - Rust exports independent ammo, capacity, armed, datalink, availability,
   critical, and selection snapshots. JavaScript releases each snapshot.
-- Clicking a unit uses the existing number-key command, stopping demo.
+- Clicking a unit sends the same digit selection as the number keys; it does not stop demo mode.
 - Keyboard and demo selections update the row; firing and reload update ammo.
 - Selection is disabled during POST and after Quit; restart resets the row.
 - All four themes share the same neutral artwork. Phones scroll horizontally;
