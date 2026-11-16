@@ -297,7 +297,7 @@ export function announcementFromStatus(text) {
   return String(text).replace(/ · \d+ rds/, "");
 }
 
-export function formatChromeStatus(app) {
+function formatChromeStatus(app) {
   const screen = app.screen_name().toUpperCase();
   const quit = app.should_quit ? " · QUIT (Restart)" : "";
   return `${screen} · ${app.status_line()}${quit}`;

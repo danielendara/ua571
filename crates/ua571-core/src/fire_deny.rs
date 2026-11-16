@@ -39,7 +39,7 @@ impl FireDenyReason {
 ///
 /// Call once *before* [`AppState::fire`] for the deny reason when it returns
 /// `false`, and again *after* a successful fire to detect a fresh CRITICAL crossing.
-pub fn fire_deny_reason(state: &AppState) -> Option<FireDenyReason> {
+pub(crate) fn fire_deny_reason(state: &AppState) -> Option<FireDenyReason> {
     let s = state.active_sentry();
     if !s.online {
         Some(FireDenyReason::Offline)

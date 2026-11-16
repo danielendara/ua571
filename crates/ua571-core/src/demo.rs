@@ -8,7 +8,7 @@ use crate::state::{AppState, Screen};
 
 /// One step in the demo timeline.
 #[derive(Debug, Clone)]
-pub enum DemoStep {
+pub(crate) enum DemoStep {
     Wait {
         ticks: u32,
     },
@@ -40,6 +40,7 @@ pub enum DemoStep {
         ok: bool,
     },
     /// Unit powered; `false` refuses fire (`SENTRY-n OFFLINE`).
+    #[allow(dead_code)] // constructed only in unit tests
     SetOnline {
         online: bool,
     },
@@ -161,7 +162,7 @@ impl Default for DemoPlayer {
 }
 
 impl DemoPlayer {
-    pub fn new(steps: Vec<DemoStep>) -> Self {
+    pub(crate) fn new(steps: Vec<DemoStep>) -> Self {
         Self {
             steps,
             index: 0,
