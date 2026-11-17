@@ -97,9 +97,7 @@ macro_rules! option_enum {
                 Self::ALL.iter().position(|&v| v == self).unwrap_or(0)
             }
 
-            /// Stable wire name — the variant name, matching what `ua571-web`
-            /// writes to localStorage (`format!("{:?}", value)`). Used for saved
-            /// session prefs so one value means one thing in every frontend.
+            /// Stable wire name for saved prefs and WASM getter round-trip.
             pub fn wire_name(self) -> &'static str {
                 match self {
                     $($name::$variant => stringify!($variant)),+

@@ -33,6 +33,15 @@ pub struct SentryOverview {
     pub selected: bool,
 }
 
+fn active_option_wire_names(state: &AppState) -> (String, String, String) {
+    let o = &state.active_sentry().options;
+    (
+        o.system_mode.wire_name().to_string(),
+        o.weapon_status.wire_name().to_string(),
+        o.iff_status.wire_name().to_string(),
+    )
+}
+
 fn sentry_overview(state: &AppState, index: usize) -> Option<SentryOverview> {
     let unit = state.bank.get(index)?;
     Some(SentryOverview {
@@ -293,21 +302,21 @@ impl Ua571Web {
     /// display label (`.label()` gives `"AUTO-REMOTE"`).
     #[wasm_bindgen(getter)]
     pub fn system_mode(&self) -> String {
-        format!("{:?}", self.state.active_sentry().options.system_mode)
+        active_option_wire_names(&self.state).0
     }
 
     /// Active sentry's current Weapon Status, as the exact variant name
     /// (`"Safe"` / `"Armed"`).
     #[wasm_bindgen(getter)]
     pub fn weapon_status(&self) -> String {
-        format!("{:?}", self.state.active_sentry().options.weapon_status)
+        active_option_wire_names(&self.state).1
     }
 
     /// Active sentry's current IFF Status, as the exact variant name
     /// (`"Search"` / `"Test"` / `"Engaged"` / `"Interrogate"`).
     #[wasm_bindgen(getter)]
     pub fn iff_status(&self) -> String {
-        format!("{:?}", self.state.active_sentry().options.iff_status)
+        active_option_wire_names(&self.state).2
     }
 
     /// Whether the Demo checkbox should be checked (stays in sync with `d`).
@@ -716,6 +725,26 @@ mod tests {
             .and_then(|r| r.split("\n    }\n").next())
             .expect("play_fires");
         assert!(fires.contains("self.fire_buffer.is_none()"));
+    }
+
+    #[test]
+    fn wasm_option_getter_wire_names_round_trip_parse() {
+        let mut state = web_state();
+        for mode in SystemMode::ALL {
+            state.active_sentry_mut().unwrap().options.system_mode = mode;
+            let (got, _, _) = super::active_option_wire_names(&state);
+            assert_eq!(SystemMode::parse_wire_name(&got), mode);
+        }
+        for weapon in WeaponStatus::ALL {
+            state.active_sentry_mut().unwrap().options.weapon_status = weapon;
+            let (_, got, _) = super::active_option_wire_names(&state);
+            assert_eq!(WeaponStatus::parse_wire_name(&got), weapon);
+        }
+        for iff in IffStatus::ALL {
+            state.active_sentry_mut().unwrap().options.iff_status = iff;
+            let (_, _, got) = super::active_option_wire_names(&state);
+            assert_eq!(IffStatus::parse_wire_name(&got), iff);
+        }
     }
 
     #[test]
