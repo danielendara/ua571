@@ -198,7 +198,7 @@ impl std::error::Error for ConfigLoadError {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn default_config_path() -> Option<std::path::PathBuf> {
+pub(crate) fn default_config_path() -> Option<std::path::PathBuf> {
     dirs::config_dir().map(|d| d.join("ua571").join("config.toml"))
 }
 
@@ -209,7 +209,7 @@ pub fn default_config_path() -> Option<std::path::PathBuf> {
 /// Returns [`ConfigLoadError::Read`] when the file cannot be read and
 /// [`ConfigLoadError::Parse`] when the contents are not valid TOML for [`Config`].
 #[cfg(not(target_arch = "wasm32"))]
-pub fn load_toml_config(path: &std::path::Path) -> Result<Config, ConfigLoadError> {
+pub(crate) fn load_toml_config(path: &std::path::Path) -> Result<Config, ConfigLoadError> {
     let text = std::fs::read_to_string(path).map_err(|source| ConfigLoadError::Read {
         path: path.to_path_buf(),
         source,
@@ -218,21 +218,6 @@ pub fn load_toml_config(path: &std::path::Path) -> Result<Config, ConfigLoadErro
         path: path.to_path_buf(),
         source,
     })
-}
-
-/// Load TOML (explicit path, else `~/.config/ua571/config.toml`), then apply CLI overrides.
-///
-/// See `load_native_startup` for the full precedence chain including the saved
-/// session.
-///
-/// # Errors
-///
-/// Same as [`load_config_file`] and [`apply_cli_overrides`].
-#[cfg(not(target_arch = "wasm32"))]
-pub fn load_native_config(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
-    let mut config = load_config_file(cli)?;
-    apply_cli_overrides(&mut config, cli)?;
-    Ok(config.validate())
 }
 
 /// The config-file rung of the precedence chain: an explicit `--config` path,
@@ -374,6 +359,13 @@ mod tests {
             Theme::Yellow.on_rgb_u32(),
             (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
         );
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn load_native_config(cli: &NativeCli) -> Result<Config, ConfigLoadError> {
+        let mut config = load_config_file(cli)?;
+        apply_cli_overrides(&mut config, cli)?;
+        Ok(config.validate())
     }
 
     #[cfg(not(target_arch = "wasm32"))]

@@ -21,14 +21,13 @@ pub mod session;
 pub mod sfx;
 pub mod state;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub use config::{default_config_path, load_native_config, ConfigLoadError, NativeCli};
 pub use config::{Config, Theme};
-pub use demo::DemoPlayer;
+#[cfg(not(target_arch = "wasm32"))]
+pub use config::{ConfigLoadError, NativeCli};
 pub use fire::{
     FireTelemetry, CRITICAL_THRESHOLD, DEFAULT_ROUNDS, DEFAULT_TIME_CENTISECS, RM_MAX, TEMP_MAX,
 };
-pub use fire_deny::{fire_deny_reason, fire_with_status, FireDenyReason};
+pub use fire_deny::{fire_with_status, FireDenyReason};
 pub use idle::{idle_runtime, IdleRuntime};
 pub use keys::{apply_command, command_for, Command, OperatorKey};
 pub use log::{EventLog, LogEvent, LogKind};
@@ -42,9 +41,7 @@ pub use session::{
     default_session_path, load_native_startup, load_session, save_session, NativeStartup,
     SessionPrefs,
 };
-pub use sfx::{
-    synthesize_fire_burst, FIRE_CYCLIC_HZ, FIRE_SFX_MS, FIRE_SFX_SAMPLE_RATE, MAX_FIRE_SFX_BURST,
-};
+pub use sfx::{FIRE_CYCLIC_HZ, MAX_FIRE_SFX_BURST};
 pub use state::{AppState, Screen};
 
 /// Workspace crate version (Keep a Changelog / SemVer).
