@@ -35,3 +35,26 @@ test('security headers policy sets the strict CSP and no X-XSS-Protection', () =
   });
   assert.equal(sec.XSSProtection, undefined);
 });
+
+test('deploy role trusts only the production environment of this repository', () => {
+  const template = synth();
+  const roles = Object.values(template.findResources('AWS::IAM::Role')).filter(
+    (r) => (r.Properties as any).RoleName === 'ua571-github-deploy',
+  );
+  assert.equal(roles.length, 1);
+  const statements = (roles[0].Properties as any).AssumeRolePolicyDocument.Statement;
+  assert.equal(statements.length, 1);
+  const condition = statements[0].Condition;
+
+  // No wildcard matching anywhere in the trust policy.
+  assert.equal(condition.StringLike, undefined);
+  assert.equal(condition['ForAnyValue:StringLike'], undefined);
+
+  assert.deepEqual(condition.StringEquals, {
+    'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+    'token.actions.githubusercontent.com:sub': [
+      'repo:danielendara/ua571:environment:production',
+      'repo:danielendara@293949/ua571@1315671999:environment:production',
+    ],
+  });
+});
