@@ -30,10 +30,10 @@ GitHub Actions (main only, canonical repo)
 | Random clone / self-host | Build locally; host anywhere static |
 
 - **No long-lived AWS access keys** in the repository.
-- Deploy uses **GitHub OIDC** + IAM role trust limited to this repository:
-  - classic: `repo:danielendara/ua571:*`
-  - immutable id form (GitHub default on some accounts): `repo:danielendara@293949/ua571@1315671999:*`
-- Workflow still restricts to `main` + Environment `production` (forks cannot deploy).
+- Deploy uses **GitHub OIDC** + IAM role trust limited to this repository's `production` Environment (exact match, no wildcards):
+  - classic: `repo:danielendara/ua571:environment:production`
+  - immutable id form (GitHub default on some accounts): `repo:danielendara@293949/ua571@1315671999:environment:production`
+- The workflow also restricts to `main` + Environment `production`, so Environment protection rules (for example required reviewers or a `main`-only deployment branch rule) apply to every deploy.
 - GitHub **Environment** `production` holds variables (and optional required reviewers).
 
 ## One-time AWS setup (maintainer)
@@ -173,5 +173,5 @@ SPA-style paths without a file extension (`/foo`) are rewritten to `/index.html`
 No infrastructure change required. When you flip GitHub visibility to public:
 
 1. Confirm Environment `production` variables still set.
-2. Confirm OIDC trust still lists `danielendara/ua571` (forks still cannot deploy).
+2. Confirm OIDC trust still lists `danielendara/ua571` with `:environment:production` (forks still cannot deploy).
 3. Update README demo link if needed (already points at the custom domain).
