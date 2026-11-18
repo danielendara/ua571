@@ -227,8 +227,10 @@ function handler(event) {
           clientIds: ['sts.amazonaws.com'],
         });
 
-    // Trust jobs from this repository only (branch, environment, PR, etc.).
-    // Forks cannot assume (different repo in `sub`).
+    // Trust only jobs that run in this repository's `production` GitHub Environment
+    // (the deploy job in .github/workflows/deploy-web.yml). Forks cannot assume
+    // (different repo in `sub`), and a job outside that environment, on any branch,
+    // cannot either, so the environment's protection rules gate every deploy.
     // GitHub may emit either classic `repo:owner/name:...` or the ID-based
     // immutable form `repo:owner@ID/name@ID:...` depending on OIDC subject settings.
     const githubOwnerId =
@@ -238,8 +240,9 @@ function handler(event) {
       (this.node.tryGetContext('githubRepoId') as string | undefined) ??
       '1315671999';
     const [owner, name] = githubRepo.split('/');
-    const classicSub = `repo:${githubRepo}:*`;
-    const immutableSub = `repo:${owner}@${githubOwnerId}/${name}@${githubRepoId}:*`;
+    const deployEnvironment = 'production';
+    const classicSub = `repo:${githubRepo}:environment:${deployEnvironment}`;
+    const immutableSub = `repo:${owner}@${githubOwnerId}/${name}@${githubRepoId}:environment:${deployEnvironment}`;
 
     const deployRole = new iam.Role(this, 'GitHubDeployRole', {
       roleName: 'ua571-github-deploy',
@@ -248,10 +251,10 @@ function handler(event) {
       assumedBy: new iam.FederatedPrincipal(
         oidcProvider.openIdConnectProviderArn,
         {
+          // Exact subjects (StringEquals, not StringLike): no wildcards. A list
+          // under one key matches either subject format.
           StringEquals: {
             'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          },
-          StringLike: {
             'token.actions.githubusercontent.com:sub': [
               classicSub,
               immutableSub,
