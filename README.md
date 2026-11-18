@@ -66,7 +66,7 @@ python3 -m http.server 8080 --directory web
 # open http://localhost:8080
 ```
 
-Requires `wasm32-unknown-unknown` (script installs the target) and `wasm-bindgen-cli`.
+Requires `wasm32-unknown-unknown` and `wasm-bindgen-cli` 0.2.100; the script installs both when they are missing (and replaces a different `wasm-bindgen-cli` version).
 
 ### Production web host
 
@@ -181,7 +181,7 @@ See [NOTICE](NOTICE) for the full film disclaimer and upstream credit.
 
 ## Development
 
-Canonical local gate (mirrors CI): **`./scripts/verify.sh`**
+Canonical local gate (runs every CI check except the release build and the macOS/Windows test matrix): **`./scripts/verify.sh`**
 
 ```bash
 ./scripts/verify.sh
