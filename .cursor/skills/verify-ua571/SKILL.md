@@ -39,7 +39,7 @@ Skip the boot animation in the web console with `?boot=0` (e.g. `http://127.0.0.
 
 ## Drive
 
-TUI keys: `a` arm/safe, `f` toggle Fire/Options panel, `Enter`/`Space` fire (needs ARMED, firing panel), `r` reload, `1`-`4` sentry, `←→` section, `↑↓` select, `d` demo, `t` theme, `q` quit.
+TUI keys: `a` arm/safe, `f` open the Fire panel, `o` open Options, `Esc` toggle between them, `Enter`/`Space` fire (needs ARMED, firing panel), `r` reload, `1`-`4` sentry, `←→` section, `↑↓` select, `d` demo, `t` theme, `q` quit.
 
 ```bash
 tmux send-keys -t $S a f; sleep 0.5; tmux send-keys -t $S Enter; sleep 1.5

@@ -1,6 +1,6 @@
 # Agent / AI coding rules (ua571)
 
-You are working in a repository that may be **public open source** while production hosting stays in the maintainer’s **private AWS account**.
+This repository is **public**; production hosting stays in the maintainer’s **private AWS account**. Report anything security-sensitive privately (see `SECURITY.md`), never in an issue, PR, commit or comment.
 
 ## Purpose and proof (required)
 
@@ -53,8 +53,17 @@ git ls-files infra/cdk.context.json   # must print nothing
 
 ## Verification (local script mirrors CI; GitHub Actions CI is live)
 
-- CI (`.github/workflows/ci.yml`) runs on every PR and must be green on the exact head SHA before merge; check with `gh pr checks`.
-- Entrypoint (mirrors CI, run locally first): `./scripts/verify.sh` — secret guard + docs self-check, fmt, clippy, `cargo test`, coverage gate, wasm build + artifact check, web chrome tests, infra typecheck + CDK tests. Fails fast. There is no e2e suite in this repo.
+- CI (`.github/workflows/ci.yml`) runs on PRs to `main` and pushes to `main`, and must be green on the exact head SHA before merge; check with `gh pr checks`.
+- Entrypoint (run locally first): `./scripts/verify.sh` — secret guard + docs self-check, fmt, clippy, `cargo test`, coverage gate, wasm build + artifact check, web chrome tests, infra typecheck + CDK tests. CI additionally runs a release build, the macOS/Windows test matrix, and a few inline guard checks, and must also be green. Fails fast. There is no e2e suite in this repo.
 - `.githooks/pre-push` runs `cargo fmt --check`, clippy, and workspace tests before push (install via `./scripts/install-git-hooks.sh`; see [CONTRIBUTING.md](CONTRIBUTING.md)).
 - Driving the real app: `.cursor/skills/verify-ua571/SKILL.md` (TUI via tmux, web via static server + headless Chrome).
 - **Proof rule:** every PR body includes the `./scripts/verify.sh` output (tail with pass/fail counts) and one mutation proof (break the behavior on purpose, show the check fails, revert, show it passes).
+
+## Gotchas
+
+- `verify.sh` needs `cargo-llvm-cov` (with `llvm-tools-preview`) and Node/npm for `web/` and `infra/`; `build-web.sh` installs the wasm target and the pinned `wasm-bindgen-cli` itself.
+- `scripts/build-web.sh` reads the wasm from a relative `target/`, so do not set `CARGO_TARGET_DIR` when running it or verify.
+- The git hooks are opt-in: a fresh clone has no pre-commit secret check until `./scripts/install-git-hooks.sh` runs. Run `./scripts/check-secrets.sh staged` yourself before committing.
+- `scripts/check-docs.sh` fails verify if `AGENTS.md`, `CLAUDE.md`, `docs/`, `scripts/verify.sh` or the verify skill describe CI as unavailable.
+- Changes to `infra/lib/web-stack.ts` (CloudFront, IAM, the deploy role) only take effect after the maintainer runs `npx cdk deploy`; the deploy workflow only syncs files.
+

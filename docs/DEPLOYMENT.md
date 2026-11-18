@@ -147,12 +147,14 @@ Upload the **contents** of `web/` including `web/pkg/`.
 `pkg/*` is **not** rewritten to `index.html`. A missing `ua571_web_bg.wasm` is a real **404**.
 
 1. Confirm `web/pkg/ua571_web_bg.wasm` exists after `./scripts/build-web.sh`.
-2. Confirm the S3 sync uploaded `pkg/` (workflow “Verify package artifacts” step).
+2. Confirm the workflow's “Sync to S3” step uploaded `pkg/` (the earlier “Verify package artifacts” step only checks the local build, before anything is uploaded).
 3. Invalidate CloudFront and hard-refresh.
 
 SPA-style paths without a file extension (`/foo`) are rewritten to `/index.html` by a CloudFront Function on the default behavior. That change lives in `infra/lib/web-stack.ts` and takes effect only after **`npx cdk deploy`** (the static `deploy-web` workflow does not update CloudFront config).
 
-## Stack context knobs (`infra/cdk.json`)
+## Stack context knobs
+
+Set with `-c key=value` on `cdk deploy`, or in `infra/cdk.json` (which sets the first three). The others fall back to the defaults in `infra/lib/web-stack.ts`.
 
 | Context key | Default |
 |-------------|---------|

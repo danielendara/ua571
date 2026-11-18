@@ -19,7 +19,7 @@ GitHub Environment variables (`AWS_ROLE_ARN`, bucket, distribution ID) stay in *
 
 ```
 1. .gitignore              — default ignore of context + credentials patterns
-2. security/*-denylist*    — explicit path + content deny lists
+2. security/commit-denylist.txt, security/content-deny-patterns.txt — path and content deny lists
 3. scripts/check-secrets.sh— local / CI scanner
 4. .githooks/pre-commit    — blocks bad commits in this clone
 5. CI job "secret-guard"   — `check-secrets.sh tracked` (path denylist + content)
@@ -77,5 +77,5 @@ Agents **may**:
 - `commit-denylist.txt` does not support `!` negation lines; exceptions belong in `path_allowlisted` inside `scripts/check-secrets.sh`.
 
 CI and pre-commit pick them up automatically (`path_denied` is applied to
-tracked/staged/untracked lists; `.env.example` and the guard script itself
-are allowlisted in `check-secrets.sh`).
+tracked/staged/untracked lists; `.env.example`, the guard script itself and
+this document are allowlisted in `check-secrets.sh`).
