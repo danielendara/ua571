@@ -54,7 +54,7 @@ git ls-files infra/cdk.context.json   # must print nothing
 ## Verification (local script mirrors CI; GitHub Actions CI is live)
 
 - CI (`.github/workflows/ci.yml`) runs on PRs to `main` and pushes to `main`, and must be green on the exact head SHA before merge; check with `gh pr checks`.
-- Entrypoint (run locally first; CI adds a release build and runs `cargo test` on macOS and Windows too): `./scripts/verify.sh` — secret guard + docs self-check, fmt, clippy, `cargo test`, coverage gate, wasm build + artifact check, web chrome tests, infra typecheck + CDK tests. Fails fast. There is no e2e suite in this repo.
+- Entrypoint (run locally first): `./scripts/verify.sh` — secret guard + docs self-check, fmt, clippy, `cargo test`, coverage gate, wasm build + artifact check, web chrome tests, infra typecheck + CDK tests. CI additionally runs a release build, the macOS/Windows test matrix, and a few inline guard checks, and must also be green. Fails fast. There is no e2e suite in this repo.
 - `.githooks/pre-push` runs `cargo fmt --check`, clippy, and workspace tests before push (install via `./scripts/install-git-hooks.sh`; see [CONTRIBUTING.md](CONTRIBUTING.md)).
 - Driving the real app: `.cursor/skills/verify-ua571/SKILL.md` (TUI via tmux, web via static server + headless Chrome).
 - **Proof rule:** every PR body includes the `./scripts/verify.sh` output (tail with pass/fail counts) and one mutation proof (break the behavior on purpose, show the check fails, revert, show it passes).

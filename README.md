@@ -181,7 +181,7 @@ See [NOTICE](NOTICE) for the full film disclaimer and upstream credit.
 
 ## Development
 
-Canonical local gate (runs every CI check except the release build and the macOS/Windows test matrix): **`./scripts/verify.sh`**
+Canonical local gate: **`./scripts/verify.sh`**. CI additionally runs a release build, the macOS/Windows test matrix and a few inline guard checks, and must also be green.
 
 ```bash
 ./scripts/verify.sh

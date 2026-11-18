@@ -6,7 +6,7 @@ Thanks for your interest. This is an unofficial fan recreation of a movie prop U
 
 On Linux, native fire SFX needs ALSA headers (Debian/Ubuntu: `sudo apt-get install libasound2-dev pkg-config`). macOS and Windows do not.
 
-**Canonical gate before a PR:** `./scripts/verify.sh` (secret guard + docs self-check, fmt, clippy, tests, coverage floor, wasm build, web chrome tests, infra typecheck + CDK tests). CI runs the same checks plus a release build and `cargo test` on macOS and Windows. See [AGENTS.md](AGENTS.md).
+**Canonical gate before a PR:** `./scripts/verify.sh` (secret guard + docs self-check, fmt, clippy, tests, coverage floor, wasm build, web chrome tests, infra typecheck + CDK tests). CI additionally runs a release build, the macOS/Windows test matrix, and a few inline guard checks, and must also be green. See [AGENTS.md](AGENTS.md).
 
 ```bash
 # Once per clone — repo hooks (secret pre-commit + Rust pre-push)
