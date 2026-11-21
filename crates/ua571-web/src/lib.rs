@@ -219,7 +219,7 @@ impl Ua571Web {
 
         let tick = Duration::from_millis(self.state.config.tick_ms);
         if self.last_tick.elapsed() >= tick {
-            dirty |= self.state.tick();
+            dirty |= tick_simulation(&mut self.state);
             self.last_tick = Instant::now();
         }
 
@@ -276,7 +276,7 @@ impl Ua571Web {
         self.confirm_gate.key_up(code);
     }
 
-    /// Whether the operator requested quit (`q`). Web page may ignore or show a message.
+    /// Whether the operator requested quit (`q`). The page can restart the console.
     #[wasm_bindgen(getter)]
     pub fn should_quit(&self) -> bool {
         self.state.should_quit
@@ -599,11 +599,15 @@ fn apply_key(
     repeat: bool,
     status_hint: &mut Option<&'static str>,
 ) -> bool {
-    if !gate.allow(state.screen, code, repeat) {
+    if state.should_quit || !gate.allow(state.screen, code, repeat) {
         return false;
     }
     handle_key(state, code, status_hint);
     true
+}
+
+fn tick_simulation(state: &mut AppState) -> bool {
+    !state.should_quit && state.tick()
 }
 
 /// Translate a DOM `KeyboardEvent.code` into the shared [`OperatorKey`].
@@ -784,6 +788,60 @@ mod tests {
         assert_eq!(state.fire_telemetry().rounds, 499);
         handle_key(&mut state, "KeyQ");
         assert!(state.should_quit);
+    }
+
+    #[test]
+    fn quit_ignores_game_keys() {
+        let mut state = web_state();
+        let mut gate = ConfirmRepeatGate::default();
+        for code in ["KeyA", "KeyF", "Space", "KeyQ"] {
+            assert!(super::apply_key(
+                &mut state, &mut gate, code, false, &mut None
+            ));
+        }
+        assert!(state.should_quit);
+
+        for code in [
+            "Space",
+            "Enter",
+            "Digit3",
+            "KeyA",
+            "KeyR",
+            "KeyD",
+            "KeyM",
+            "KeyO",
+            "Escape",
+            "ArrowLeft",
+            "ArrowRight",
+            "ArrowUp",
+            "ArrowDown",
+        ] {
+            let applied = super::apply_key(&mut state, &mut gate, code, false, &mut None);
+            assert_eq!(state.fire_telemetry().rounds, 499, "{code}");
+            assert_eq!(state.active_sentry().id, 1, "{code}");
+            assert!(state.active_sentry().is_armed(), "{code}");
+            assert!(!state.demo.is_active(), "{code}");
+            assert!(!state.config.sound, "{code}");
+            assert_eq!(state.screen, Screen::Fire, "{code}");
+            assert!(!applied, "{code}");
+        }
+    }
+
+    #[test]
+    fn quit_freezes_demo_ticks() {
+        let mut state = web_state();
+        handle_key(&mut state, "KeyD");
+        assert!(state.demo.is_active());
+        handle_key(&mut state, "KeyQ");
+        assert!(state.should_quit);
+
+        for _ in 0..120 {
+            tick_simulation(&mut state);
+        }
+        for sentry in state.bank.iter() {
+            assert_eq!(sentry.fire.rounds, state.config.starting_rounds);
+        }
+        assert!(state.demo.is_active());
     }
 
     #[test]

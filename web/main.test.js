@@ -1670,6 +1670,69 @@ function padApp({ screen = "fire", quit = false } = {}) {
   };
 }
 
+test("quit ignores game keys without forwarding them to WASM", async () => {
+  const dom = installBootDom();
+  const inst = padApp({ quit: true });
+  setBootInstanceLoaderForTests(async () => inst);
+  try {
+    await boot();
+    for (const code of [
+      "Space", "Enter", "Digit3", "KeyA", "KeyR", "KeyD", "KeyM", "KeyF", "KeyO",
+      "Escape", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
+    ]) {
+      dom.listeners.keydown[0]({ code, repeat: false, target: canvasTarget() });
+    }
+    assert.deepEqual(inst.calls, []);
+  } finally {
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
+test("quit only restarts on a fresh unmodified Q and keeps chrome preferences", async () => {
+  const dom = installBootDom();
+  const inst = padApp({ quit: true });
+  const restarted = wasmStandIn();
+  const loads = [];
+  dom.els.theme.options = mockThemeSelect().options;
+  dom.els.scale.value = "2";
+  dom.els.skipBoot.checked = true;
+  const themes = [];
+  inst.set_theme = (theme) => themes.push(theme);
+  setBootInstanceLoaderForTests(async (opts) => {
+    loads.push(opts);
+    return loads.length === 1 ? inst : restarted;
+  });
+  try {
+    await boot();
+    const keydown = dom.listeners.keydown[0];
+    const event = { code: "KeyQ", repeat: false, target: canvasTarget() };
+    for (const flags of [{ repeat: true }, { ctrlKey: true }, { metaKey: true }, { altKey: true }]) {
+      await keydown({ ...event, ...flags });
+      assert.equal(loads.length, 1);
+    }
+
+    keydown({ ...event, code: "KeyT" });
+    assert.deepEqual(themes, ["phosphor"]);
+    dom.els.demo.checked = true;
+    dom.els.sound.checked = true;
+    await keydown(event);
+    assert.equal(loads.length, 2);
+    assert.deepEqual(loads[1], {
+      ...loads[0],
+      theme: "phosphor",
+      demo: true,
+      sound: true,
+    });
+    dom.rafs[0].cb();
+    assert.equal(dom.els.status.textContent, "FIRE · READY");
+    assert.deepEqual(inst.calls, []);
+  } finally {
+    setBootInstanceLoaderForTests(null);
+    dom.restore();
+  }
+});
+
 function fakeTimers() {
   let next = 1;
   const timeouts = new Map();
