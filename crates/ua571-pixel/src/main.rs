@@ -180,24 +180,47 @@ fn main() -> Result<()> {
             }
         }
 
+        update_frame(&mut window, dirty, Window::update, |window| {
+            render(&state, &mut fb);
+            fb.present_scaled(&mut buffer, ww, wh, colors.0, colors.1);
+            window
+                .update_with_buffer(&buffer, ww, wh)
+                .map_err(|e| eyre!("present: {e}"))
+        })?;
+
         if !dirty {
-            let until_tick = tick_rate.saturating_sub(last_tick.elapsed());
-            std::thread::sleep(until_tick.min(Duration::from_millis(16)));
-            continue;
+            let poll_interval = Duration::from_millis(16);
+            let delay = if idle.tick {
+                tick_rate
+                    .saturating_sub(last_tick.elapsed())
+                    .min(poll_interval)
+            } else {
+                poll_interval
+            };
+            std::thread::sleep(delay);
         }
         dirty = false;
-
-        render(&state, &mut fb);
-        fb.present_scaled(&mut buffer, ww, wh, colors.0, colors.1);
-        window
-            .update_with_buffer(&buffer, ww, wh)
-            .map_err(|e| eyre!("present: {e}"))?;
     }
 
     // The console remembers how you left it — same set the web frontend keeps.
     startup.save_on_exit(&state);
 
     Ok(())
+}
+
+/// Both minifb update methods pump events. A clean frame only needs the pump.
+fn update_frame<W>(
+    window: &mut W,
+    dirty: bool,
+    pump: impl FnOnce(&mut W),
+    present: impl FnOnce(&mut W) -> Result<()>,
+) -> Result<()> {
+    if dirty {
+        present(window)
+    } else {
+        pump(window);
+        Ok(())
+    }
 }
 
 /// Tracks window focus transitions so the main loop can resync `last_tick`
@@ -423,6 +446,24 @@ impl ConfirmHold {
 mod tests {
     use super::*;
     use ua571_core::{Config, Theme};
+
+    #[test]
+    fn frame_update_pumps_clean_frames_and_presents_dirty_frames() {
+        for (dirty, expected) in [(false, "pump"), (true, "present")] {
+            let mut calls = Vec::new();
+            update_frame(
+                &mut calls,
+                dirty,
+                |calls| calls.push("pump"),
+                |calls| {
+                    calls.push("present");
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(calls, [expected], "dirty = {dirty}");
+        }
+    }
 
     #[test]
     fn theme_flag_is_optional() {
