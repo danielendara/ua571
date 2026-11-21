@@ -146,7 +146,7 @@ Uppercase `H` `J` `K` `L` work the same as lowercase in all three versions (term
 | `d` | Toggle demo auto-play |
 | `m` | Toggle fire SFX (starts muted) |
 | `t` | Cycle theme |
-| `q` | Quit (TUI/pixel exit). On web, `q` sets quit and the status line shows **QUIT (Restart)**; use the header **Restart** button to reboot WASM |
+| `q` | Quit (TUI/pixel exit). On web, press `q` again or select **Restart** to reboot the console |
 | any (on boot) | Skip POST |
 
 ## Architecture

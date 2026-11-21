@@ -54,6 +54,7 @@ function readOptions() {
 function teardown() {
   sentryRow?.reset();
   fireHold.stop();
+  pendingThemeHint = null;
   if (raf) cancelAnimationFrame(raf);
   raf = 0;
   if (onKey) {
@@ -299,7 +300,7 @@ export function announcementFromStatus(text) {
 
 function formatChromeStatus(app) {
   const screen = app.screen_name().toUpperCase();
-  const quit = app.should_quit ? " · QUIT (Restart)" : "";
+  const quit = app.should_quit ? " · QUIT (press Q or select Restart to reboot)" : "";
   return `${screen} · ${app.status_line()}${quit}`;
 }
 
@@ -799,6 +800,17 @@ export async function boot() {
         })
       ) {
         if (!applyThemeLive(app, document.getElementById("theme").value)) boot();
+        return;
+      }
+      if (app.should_quit) {
+        if (
+          e.code === "KeyQ" &&
+          !e.repeat &&
+          !hasCommandModifier(e) &&
+          !isChromeTarget(e.target)
+        ) {
+          return boot();
+        }
         return;
       }
       handleGameKeyDown(app, e);

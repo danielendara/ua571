@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Web: Quit stops game keys and demo playback, and pressing Q again reboots the console (#248)
 - Web: the WASM binary URL is versioned with the build id and fetched alongside the JS glue, so a deploy can't pair new glue with a cached old binary (#200, #203)
 - Core: the SFX WAV parser returns an error on truncated chunks instead of indexing past the end of the buffer (#207)
 - Web: the console keeps running when `localStorage` is blocked, full, or throws; prefs just stop persisting (#169)
