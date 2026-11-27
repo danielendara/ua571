@@ -18,8 +18,19 @@ GitHub Actions (main only, canonical repo)
 | Piece | Purpose |
 |-------|---------|
 | `infra/` | AWS CDK stack: bucket, cert, distribution, DNS, deploy role |
-| `.github/workflows/deploy-web.yml` | Build WASM + sync + invalidate |
+| `.github/workflows/deploy-web.yml` | Build WASM (artifact) + production sync + invalidate |
 | `web/` | Static host + `pkg/` (build artifact, not committed) |
+
+## Deploy workflow concurrency
+
+`deploy-web.yml` splits **build** and **production sync** into two jobs so concurrency can differ before and after S3/CloudFront writes ([GitHub: control workflow concurrency](https://docs.github.com/en/actions/using-jobs/using-concurrency), [deployments + concurrency](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)):
+
+| Job | `environment` | Concurrency group | `cancel-in-progress` | Effect |
+|-----|---------------|-------------------|----------------------|--------|
+| `build` | (none) | `deploy-web-build-${{ github.ref }}` | `true` | A newer push to `main` cancels in-flight or queued builds from older pushes so stale commits do not reach the sync/approval gate. |
+| `sync` | `production` | `deploy-web-sync-${{ github.ref }}` | `false` | At most one upload run per branch; default `queue: single` replaces a *concurrency-pending* sync with a newer one, but an active S3/CloudFront sync is never cancelled mid-way. |
+
+With required reviewers on `production`, the **sync** job shows status **Waiting** until someone approves ([required reviews](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments#using-required-reviews-in-workflows)). Concurrency **pending** (waiting on the group) and environment **Waiting** (waiting on approval) are separate gates; splits + `cancel-in-progress: true` on **build** ensure only the latest built commit queues sync, but if several sync jobs are already **Waiting** for approval, approve the run whose commit matches the newest `main` push (there is no GitHub knob that auto-dismisses older approval prompts when a newer push lands).
 
 ## Open-source safety model
 
